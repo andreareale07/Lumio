@@ -31,16 +31,20 @@ import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from app.core.config import get_settings
 from app.db.rls import rls_session
 from app.models.bank_parser import BankParser as BankParserRow
+from app.models.classification import Classification
 from app.models.import_ import Import
 from app.models.transaction import Transaction
 from app.parsers import get_parser
 from app.services import job_events
 from app.services.csv_import import MappingConfig, ParsedRow, parse_rows
 from app.services.import_paths import original_file_path
+from app.services.rule_loader import load_active_rule_specs
+from app.services.rules_engine import Probe, evaluate
 from app.storage import get_storage
 
 logger = logging.getLogger("lumio.worker.import_job")
@@ -184,25 +188,59 @@ async def _insert_transactions_and_complete(
         if import_row is None or import_row.status != "parsing":
             return
 
-        for row in rows:
-            db.add(
-                Transaction(
-                    workspace_id=workspace_id,
-                    financial_account_id=financial_account_id,
-                    import_id=import_row.id,
-                    transaction_date=row.transaction_date,
-                    value_date=row.value_date,
+        # Rules Engine (milestone 06, SPEC §23): valutato prima di
+        # qualsiasi AI (che in M06 non esiste ancora) — nessun parser
+        # popola ancora `merchant`, quindi le regole matchano solo su
+        # description qui, ma il motore resta invariato quando arrivera'.
+        active_rules = await load_active_rule_specs(db, workspace_id)
+
+        transactions: list[Transaction] = []
+        matched_categories: dict[int, uuid.UUID] = {}
+        for index, row in enumerate(rows):
+            matched_category_id = evaluate(
+                active_rules,
+                Probe(
                     description_raw=row.description_raw,
                     description_normalized=row.description_normalized,
-                    reference=row.reference,
-                    amount=row.amount,
-                    currency=row.currency,
-                    direction=row.direction,
-                    transaction_type=row.transaction_type,
-                    balance_after=row.balance_after,
-                    category_id=None,
-                )
+                    merchant=None,
+                ),
             )
+            transaction = Transaction(
+                workspace_id=workspace_id,
+                financial_account_id=financial_account_id,
+                import_id=import_row.id,
+                transaction_date=row.transaction_date,
+                value_date=row.value_date,
+                description_raw=row.description_raw,
+                description_normalized=row.description_normalized,
+                reference=row.reference,
+                amount=row.amount,
+                currency=row.currency,
+                direction=row.direction,
+                transaction_type=row.transaction_type,
+                balance_after=row.balance_after,
+                category_id=matched_category_id,
+            )
+            db.add(transaction)
+            transactions.append(transaction)
+            if matched_category_id is not None:
+                matched_categories[index] = matched_category_id
+
+        if matched_categories:
+            # Serve un flush per ottenere gli id (server-generated) delle
+            # transazioni appena aggiunte, prima di poterli referenziare da
+            # `classifications.transaction_id` — un solo commit resta alla
+            # fine della funzione (invariante gia' esistente in M04/M05).
+            await db.flush()
+            for index, category_id in matched_categories.items():
+                db.add(
+                    Classification(
+                        transaction_id=transactions[index].id,
+                        method="rule",
+                        category_id=category_id,
+                        score=Decimal("1.00"),
+                    )
+                )
 
         import_row.status = "completed"
         import_row.transactions_found = len(rows)

@@ -26,7 +26,7 @@ async def _clean_tables():
             text(
                 "TRUNCATE users, workspaces, workspace_members, "
                 "financial_accounts, transactions, categories, "
-                "imports, import_mappings CASCADE"
+                "imports, import_mappings, rules, classifications CASCADE"
             )
         )
         # La policy INSERT su categories richiede workspace_id NOT NULL (per

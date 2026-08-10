@@ -1,16 +1,26 @@
 import uuid
 from datetime import date
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_workspace_id
+from app.api.deps import get_current_user, get_current_workspace_id
 from app.db.session import get_db
+from app.models.classification import Classification
 from app.models.financial_account import FinancialAccount
 from app.models.transaction import Transaction
-from app.schemas.transactions import TransactionCreate, TransactionOut, TransactionUpdate
+from app.models.user import User
+from app.schemas.transactions import (
+    ClassificationOut,
+    TransactionCreate,
+    TransactionOut,
+    TransactionUpdate,
+)
+from app.services.rule_loader import load_active_rule_specs
+from app.services.rules_engine import Probe, evaluate
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -39,13 +49,44 @@ async def create_transaction(
     db: AsyncSession = Depends(get_db),
 ) -> Transaction:
     await _assert_account_in_workspace(db, workspace_id, payload.financial_account_id)
-    transaction = Transaction(workspace_id=workspace_id, **payload.model_dump())
+    data = payload.model_dump()
+
+    # Se il chiamante non fornisce esplicitamente una categoria, prova il
+    # motore regole (SPEC §23: prima di qualsiasi AI, che in M06 non esiste
+    # ancora). Se il chiamante la fornisce, e' una classificazione 'manual'
+    # (SPEC §24) — nessuna riga di storico se resta non classificata.
+    classification_method: str | None = "manual" if data["category_id"] is not None else None
+    if classification_method is None:
+        active_rules = await load_active_rule_specs(db, workspace_id)
+        probe = Probe(
+            description_raw=data["description_raw"],
+            description_normalized=None,
+            merchant=data["merchant"],
+        )
+        matched_category_id = evaluate(active_rules, probe)
+        if matched_category_id is not None:
+            data["category_id"] = matched_category_id
+            classification_method = "rule"
+
+    transaction = Transaction(workspace_id=workspace_id, **data)
     db.add(transaction)
     try:
-        await db.commit()
+        await db.flush()
     except IntegrityError as exc:
         await db.rollback()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid category_id") from exc
+
+    if classification_method is not None:
+        db.add(
+            Classification(
+                transaction_id=transaction.id,
+                method=classification_method,
+                category_id=transaction.category_id,
+                score=Decimal("1.00") if classification_method == "rule" else None,
+            )
+        )
+
+    await db.commit()
     return transaction
 
 
@@ -92,11 +133,28 @@ async def update_transaction(
     transaction_id: uuid.UUID,
     payload: TransactionUpdate,
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Transaction:
     transaction = await _get_transaction_or_404(db, workspace_id, transaction_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    # Una modifica esplicita di category_id e' una correzione (SPEC §24,
+    # method='user'): e' lo storico da cui parte la proposta di regola
+    # automatica dopo correzioni ripetute (SPEC §29, vedi /rules/suggestions).
+    category_corrected = "category_id" in updates and updates["category_id"] != transaction.category_id
+    for field, value in updates.items():
         setattr(transaction, field, value)
+
+    if category_corrected:
+        db.add(
+            Classification(
+                transaction_id=transaction.id,
+                method="user",
+                category_id=transaction.category_id,
+                created_by_user_id=user.id,
+            )
+        )
+
     try:
         await db.commit()
     except IntegrityError as exc:
@@ -114,3 +172,18 @@ async def delete_transaction(
     transaction = await _get_transaction_or_404(db, workspace_id, transaction_id)
     await db.delete(transaction)
     await db.commit()
+
+
+@router.get("/{transaction_id}/classifications", response_model=list[ClassificationOut])
+async def list_transaction_classifications(
+    transaction_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> list[Classification]:
+    await _get_transaction_or_404(db, workspace_id, transaction_id)
+    result = await db.execute(
+        select(Classification)
+        .where(Classification.transaction_id == transaction_id)
+        .order_by(Classification.created_at.desc())
+    )
+    return list(result.scalars().all())

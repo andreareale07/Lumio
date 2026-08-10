@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from app.models.classification import CLASSIFICATION_METHODS
 from app.models.transaction import DIRECTIONS, STATUSES, TRANSACTION_TYPES
 
 
@@ -56,5 +57,20 @@ class TransactionOut(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ClassificationOut(BaseModel):
+    id: uuid.UUID
+    transaction_id: uuid.UUID
+    method: str = Field(pattern="^(" + "|".join(CLASSIFICATION_METHODS) + ")$")
+    provider: str | None
+    model: str | None
+    category_id: uuid.UUID | None
+    score: Decimal | None
+    explanation: str | None
+    created_by_user_id: uuid.UUID | None
+    created_at: datetime
 
     model_config = {"from_attributes": True}
