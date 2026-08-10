@@ -17,6 +17,21 @@ BANKS = [
     {"id": "44538924-fcd9-4695-88a1-0724d4f01742", "code": "other", "name": "Altro", "country": None},
 ]
 
+# SPEC §17: bank_parsers separa la banca dal parser/versione concreta.
+# bank_id qui sotto e' preso direttamente dai BANKS sopra (stesso pattern:
+# id fissi, non generati a runtime). Il codice del parser vive nel registro
+# in app/parsers/__init__.py — questa riga traccia solo che esiste (ed e'
+# attiva) una versione 1 del parser PDF per trade_republic.
+BANK_PARSERS = [
+    {
+        "id": "1f6a5b19-3b40-4b3e-9a7b-2e0d6f1c9a44",
+        "bank_id": "6bb6eb78-276d-4b2f-ac63-8eef2c57d307",  # trade_republic
+        "parser_type": "trade_republic_pdf",
+        "version": "1",
+        "is_active": True,
+    },
+]
+
 _CAT_CASA = "cdfe5c4e-13bd-42a6-8314-04df906e1669"
 _CAT_ALIMENTARI = "124e2b3d-02d0-4a8b-9c5e-8b6e83bb2550"
 _CAT_TEMPO_LIBERO = "fee4bffb-85f7-4ad1-bbfc-37c911978e30"

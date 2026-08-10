@@ -1,4 +1,5 @@
 from app.models.bank import Bank
+from app.models.bank_parser import BankParser
 from app.models.category import Category
 from app.models.financial_account import FinancialAccount
 from app.models.import_ import Import
@@ -10,6 +11,7 @@ from app.models.workspace_member import WorkspaceMember
 
 __all__ = [
     "Bank",
+    "BankParser",
     "Category",
     "FinancialAccount",
     "Import",

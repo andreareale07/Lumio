@@ -37,6 +37,9 @@ IMPORT_STATUSES = (
     "failed",
     "cancelled",
 )
+# Milestone 05: secondo canale oltre al CSV di M04. Default 'csv' per le
+# righe gia' esistenti (nessun backfill esplicito necessario).
+FILE_TYPES = ("csv", "pdf")
 
 
 class Import(Base):
@@ -46,6 +49,10 @@ class Import(Base):
         CheckConstraint(
             "status IN (" + ", ".join(f"'{s}'" for s in IMPORT_STATUSES) + ")",
             name="ck_imports_status",
+        ),
+        CheckConstraint(
+            "file_type IN (" + ", ".join(f"'{t}'" for t in FILE_TYPES) + ")",
+            name="ck_imports_file_type",
         ),
         # Stesso pattern di `transactions` -> `financial_accounts` (M03):
         # garanzia DB reale, non solo applicativa/RLS, che il conto
@@ -86,8 +93,20 @@ class Import(Base):
     import_mapping_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     # Snapshot immutabile della mappatura usata per il parsing (vedi
     # migration 0004): indipendente da import_mapping_id, che punta invece a
-    # una mappatura riusabile salvata (opzionale).
+    # una mappatura riusabile salvata (opzionale). Ha senso solo per
+    # file_type='csv' — per 'pdf' il parser e' deterministico, nessuna
+    # mappatura da scegliere.
     mapping_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Milestone 05: 'csv' (default, M04) o 'pdf'. bank_id/bank_parser_id sono
+    # valorizzati insieme, solo quando file_type='pdf' (rilevati all'upload
+    # da app.parsers.detect_parser) — vedi migration 0005.
+    file_type: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'csv'"))
+    bank_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("banks.id"), nullable=True
+    )
+    bank_parser_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("bank_parsers.id"), nullable=True
+    )
     # id del job arq: diagnostica e cancellazione (POST /imports/{id}/cancel).
     job_id: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'uploaded'"))

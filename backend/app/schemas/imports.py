@@ -1,8 +1,7 @@
 import uuid
 from datetime import date, datetime
-from typing import Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from app.services.csv_import import MappingConfig
 
@@ -37,6 +36,11 @@ class ImportOut(BaseModel):
     financial_account_id: uuid.UUID
     import_mapping_id: uuid.UUID | None
     mapping_config: MappingConfig | None
+    # Milestone 05: 'csv' (default) o 'pdf'. bank_id/bank_parser_id sono
+    # valorizzati solo per 'pdf' (rilevati all'upload).
+    file_type: str
+    bank_id: uuid.UUID | None
+    bank_parser_id: uuid.UUID | None
     job_id: str | None
     status: str
     filename: str
@@ -55,10 +59,16 @@ class ImportOut(BaseModel):
 
 
 class ImportPreview(BaseModel):
-    columns: list[str]
-    sample_rows: list[list[str]]
-    suggested_mapping: MappingConfig
-    available_mappings: list[ImportMappingOut]
+    # Popolati solo per file_type='csv' (scelta/conferma della mappatura
+    # colonne). Per 'pdf' restano vuoti/None: il parser e' deterministico,
+    # non c'e' nulla da mappare — vedi detected_bank_* sotto.
+    columns: list[str] = Field(default_factory=list)
+    sample_rows: list[list[str]] = Field(default_factory=list)
+    suggested_mapping: MappingConfig | None = None
+    available_mappings: list[ImportMappingOut] = Field(default_factory=list)
+    # Popolati solo per file_type='pdf' (SPEC §42: stage "banca riconosciuta").
+    detected_bank_code: str | None = None
+    detected_bank_name: str | None = None
 
 
 class ImportUploadResponse(BaseModel):
@@ -69,20 +79,18 @@ class ImportUploadResponse(BaseModel):
 
 
 class ImportConfirmRequest(BaseModel):
+    # Tutti i campi sotto hanno senso solo per file_type='csv': per 'pdf' il
+    # body di conferma e' vuoto (`{}`), il parser e' deterministico e non
+    # richiede alcuna scelta di mappatura. La validazione "esattamente uno
+    # tra import_mapping_id e mapping" per il canale csv vive nell'endpoint
+    # (app/api/v1/imports.py), non qui, perche' dipende da import_row.file_type
+    # che lo schema del payload non conosce.
     import_mapping_id: uuid.UUID | None = None
     mapping: MappingConfig | None = None
     # Se valorizzato e la mappatura usata e' quella inline (`mapping`), la
     # persiste come nuova ImportMapping riusabile — decisione presa con
     # l'utente: mappature salvabili, non un formato fisso.
     save_as: str | None = Field(default=None, min_length=1)
-
-    @model_validator(mode="after")
-    def _exactly_one_mapping_source(self) -> Self:
-        if (self.import_mapping_id is None) == (self.mapping is None):
-            raise ValueError("specificare esattamente uno tra import_mapping_id e mapping")
-        if self.save_as and self.import_mapping_id is not None:
-            raise ValueError("save_as e' valido solo con una mappatura inline (mapping)")
-        return self
 
 
 class ImportDuplicateError(BaseModel):

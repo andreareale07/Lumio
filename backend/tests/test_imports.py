@@ -2,7 +2,7 @@ import uuid
 
 from httpx import AsyncClient
 
-from app.worker.jobs.import_csv import import_csv_job
+from app.worker.jobs.import_job import import_job
 
 CSV_SAMPLE = (
     "data,descrizione,importo\n"
@@ -82,7 +82,7 @@ async def test_confirm_queues_job_and_worker_creates_transactions(client):
     # cio' che arq farebbe dequeuando il job appena accodato.
     me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
     user_id = me.json()["id"]
-    await import_csv_job(None, import_id, user_id)
+    await import_job(None, import_id, user_id)
 
     detail = await client.get(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
     assert detail.json()["status"] == "completed"
@@ -195,7 +195,7 @@ async def test_cancel_completed_import_is_rejected(client):
         headers=_auth_headers(token),
     )
     me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
-    await import_csv_job(None, import_id, me.json()["id"])
+    await import_job(None, import_id, me.json()["id"])
 
     response = await client.post(f"/api/v1/imports/{import_id}/cancel", headers=_auth_headers(token))
     assert response.status_code == 409
@@ -205,7 +205,11 @@ async def test_reject_binary_file_disguised_as_csv(client):
     token = await _register(client, "imp-binary@example.com")
     account_id = await _create_account(client, token)
 
-    response = await _upload(client, token, account_id, b"%PDF-1.4 not a real csv", filename="finto.csv")
+    # PK\x03\x04 (ZIP) resta un binario "ovvio" da respingere per il canale
+    # CSV. %PDF- non e' piu' un buon esempio qui dal M05 in poi: quel magic
+    # byte instrada al canale PDF (vedi test_imports_pdf.py per il caso
+    # "dichiara di essere un PDF ma non lo e' davvero").
+    response = await _upload(client, token, account_id, b"PK\x03\x04 not a real csv", filename="finto.csv")
 
     assert response.status_code == 415
 

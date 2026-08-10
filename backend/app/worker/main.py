@@ -2,7 +2,7 @@ from arq.connections import RedisSettings
 
 from app.core.config import get_settings
 from app.core.logging import setup_logging
-from app.worker.jobs.import_csv import import_csv_job
+from app.worker.jobs.import_job import import_job
 
 setup_logging()
 
@@ -18,7 +18,7 @@ async def shutdown(ctx) -> None:
 
 
 class WorkerSettings:
-    functions = [import_csv_job]
+    functions = [import_job]
     redis_settings = RedisSettings.from_dsn(_settings.redis_url)
     job_timeout = _settings.import_job_timeout_seconds
     max_tries = 2

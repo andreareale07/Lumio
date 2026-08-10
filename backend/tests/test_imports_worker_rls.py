@@ -19,7 +19,7 @@ import uuid
 from sqlalchemy import text
 
 from app.db.base import async_session_factory
-from app.worker.jobs.import_csv import import_csv_job
+from app.worker.jobs.import_job import import_job
 
 
 async def _set_current_user(session, user_id: uuid.UUID) -> None:
@@ -80,7 +80,7 @@ async def test_job_fails_cleanly_if_identity_is_not_a_workspace_member(client):
     # Non deve sollevare un'eccezione non gestita: si ferma silenziosamente
     # (vedi docstring del modulo) perche' l'outsider non puo' nemmeno
     # leggere la riga import sotto RLS.
-    await import_csv_job(None, import_id, outsider_id)
+    await import_job(None, import_id, outsider_id)
 
     # Verifica con l'identita' del proprietario originale, che e' un membro
     # legittimo del workspace e vede quindi la riga tramite la normale RLS

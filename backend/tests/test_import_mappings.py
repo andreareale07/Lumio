@@ -1,4 +1,4 @@
-from app.worker.jobs.import_csv import import_csv_job
+from app.worker.jobs.import_job import import_job
 
 CSV_SAMPLE = "data,descrizione,importo\n2026-01-15,Spesa,-10.00\n"
 
@@ -122,7 +122,7 @@ async def test_successful_import_suggests_its_mapping_for_next_upload_on_same_ac
         headers=_auth_headers(token),
     )
     me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
-    await import_csv_job(None, import1_id, me.json()["id"])
+    await import_job(None, import1_id, me.json()["id"])
 
     # Un secondo file, con un contenuto diverso (altrimenti il dedup lo
     # respingerebbe), sullo stesso conto: la mappatura suggerita deve essere

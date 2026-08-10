@@ -3,7 +3,7 @@ rilevato, nessuna doppia transazione. Copre sia il check applicativo
 "preventivo" sia — indirettamente, via test_rls_imports.py — la garanzia
 reale a livello DB (indice unico parziale).
 """
-from app.worker.jobs.import_csv import import_csv_job
+from app.worker.jobs.import_job import import_job
 
 CSV_SAMPLE = "data,descrizione,importo\n2026-01-15,Spesa,-10.00\n"
 
@@ -85,10 +85,10 @@ async def test_reupload_allowed_after_worker_failure(client, monkeypatch):
     def _boom(*args, **kwargs):
         raise RuntimeError("parsing esploso")
 
-    monkeypatch.setattr("app.worker.jobs.import_csv.parse_rows", _boom)
+    monkeypatch.setattr("app.worker.jobs.import_job.parse_rows", _boom)
 
     me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
-    await import_csv_job(None, import_id, me.json()["id"])
+    await import_job(None, import_id, me.json()["id"])
 
     detail = await client.get(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
     assert detail.json()["status"] == "failed"

@@ -15,7 +15,7 @@ from app.core.config import get_settings
 
 _pool: ArqRedis | None = None
 
-IMPORT_JOB_FUNCTION = "import_csv_job"
+IMPORT_JOB_FUNCTION = "import_job"
 
 
 async def get_arq_pool() -> ArqRedis:

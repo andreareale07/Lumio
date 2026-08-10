@@ -5,7 +5,7 @@ autorizzato per workspace.
 """
 import json
 
-from app.worker.jobs.import_csv import import_csv_job
+from app.worker.jobs.import_job import import_job
 
 CSV_SAMPLE = "data,descrizione,importo\n2026-01-15,Spesa,-10.00\n"
 
@@ -59,7 +59,7 @@ async def test_events_endpoint_replays_events_emitted_before_job_ran(client):
         headers=_auth_headers(token),
     )
     me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
-    await import_csv_job(None, import_id, me.json()["id"])
+    await import_job(None, import_id, me.json()["id"])
 
     async with client.stream(
         "GET", f"/api/v1/imports/{import_id}/events", headers=_auth_headers(token)

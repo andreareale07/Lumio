@@ -12,10 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_current_workspace_id
 from app.core.config import get_settings
 from app.db.session import get_db
+from app.models.bank import Bank
+from app.models.bank_parser import BankParser as BankParserRow
 from app.models.financial_account import FinancialAccount
 from app.models.import_ import Import
 from app.models.import_mapping import ImportMapping
 from app.models.user import User
+from app.parsers import detect_parser
 from app.schemas.imports import (
     ImportConfirmRequest,
     ImportMappingOut,
@@ -118,6 +121,39 @@ async def _build_preview(
     )
 
 
+async def _detect_bank_parser(db: AsyncSession, raw_bytes: bytes) -> tuple[Bank, BankParserRow]:
+    """Rilevazione banca per il canale PDF (SPEC §42: stage "banca
+    riconosciuta"). `banks`/`bank_parsers` non hanno RLS (entita' globali,
+    vedi migration 0003/0005): nessun vincolo di ordine rispetto al commit
+    della riga import qui, a differenza delle query su tabelle tenant-scoped.
+    """
+    parser = detect_parser(raw_bytes)
+    if parser is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Banca non riconosciuta per questo PDF")
+
+    bank_result = await db.execute(select(Bank).where(Bank.code == parser.bank_code))
+    bank = bank_result.scalars().first()
+    parser_row_result = await db.execute(
+        select(BankParserRow).where(
+            BankParserRow.bank_id == bank.id,
+            BankParserRow.parser_type == parser.parser_type,
+            BankParserRow.version == parser.version,
+            BankParserRow.is_active.is_(True),
+        )
+    )
+    bank_parser_row = parser_row_result.scalars().first()
+    if bank is None or bank_parser_row is None:
+        # Il parser e' registrato in app/parsers/__init__.py ma manca la riga
+        # bank_parsers corrispondente (seed/migration disallineati) — non un
+        # input utente invalido, ma comunque non un 500 silenzioso: l'import
+        # PDF non puo' procedere in modo tracciabile senza questa riga.
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Parser riconosciuto ma non configurato (bank_parsers mancante)",
+        )
+    return bank, bank_parser_row
+
+
 @router.post("", response_model=ImportUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_import(
     financial_account_id: uuid.UUID = Form(...),
@@ -129,14 +165,18 @@ async def upload_import(
     await _assert_account_in_workspace(db, workspace_id, financial_account_id)
 
     settings = get_settings()
-    raw_bytes = await upload_validation.read_and_validate_csv_upload(file, settings.max_import_file_size_bytes)
+    raw_bytes, file_type = await upload_validation.read_and_validate_import_upload(
+        file, settings.max_import_file_size_bytes, settings.import_pdf_open_timeout_seconds
+    )
     filename = upload_validation.sanitize_filename(file.filename)
     file_hash = hashlib.sha256(raw_bytes).hexdigest()
 
     # Dedup applicativo "preventivo" (SPEC §58): risposta chiara e immediata
     # nel caso comune. La garanzia reale contro le race concorrenti e'
     # l'indice unico parziale sul DB (uq_imports_workspace_file_hash_active),
-    # verificato nel blocco IntegrityError sotto.
+    # verificato nel blocco IntegrityError sotto. Stesso indice per entrambi
+    # i canali: file_hash e' sull'intero contenuto, quindi un CSV e un PDF
+    # non collidono mai per caso.
     existing = await db.execute(
         select(Import).where(
             Import.workspace_id == workspace_id,
@@ -155,17 +195,26 @@ async def upload_import(
             },
         )
 
-    # Verifica di interpretabilita' come CSV PRIMA di creare la riga import e
-    # scrivere su storage: un file non parsabile non deve lasciare stato
-    # orfano da ripulire (SPEC §53 — non fidarsi che sia davvero un CSV
-    # valido solo perche' ha passato il controllo binario).
-    text_sample = raw_bytes.decode("utf-8-sig", errors="replace")
-    try:
-        detect_mapping(text_sample)
-    except (ValueError, csv.Error, IndexError) as exc:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "Impossibile interpretare il file come CSV"
-        ) from exc
+    bank_id: uuid.UUID | None = None
+    bank_parser_id: uuid.UUID | None = None
+    if file_type == "csv":
+        # Verifica di interpretabilita' come CSV PRIMA di creare la riga
+        # import e scrivere su storage: un file non parsabile non deve
+        # lasciare stato orfano da ripulire (SPEC §53 — non fidarsi che sia
+        # davvero un CSV valido solo perche' ha passato il controllo binario).
+        text_sample = raw_bytes.decode("utf-8-sig", errors="replace")
+        try:
+            detect_mapping(text_sample)
+        except (ValueError, csv.Error, IndexError) as exc:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "Impossibile interpretare il file come CSV"
+            ) from exc
+        preview = await _build_preview(db, workspace_id, financial_account_id, raw_bytes)
+    else:
+        bank, bank_parser_row = await _detect_bank_parser(db, raw_bytes)
+        bank_id = bank.id
+        bank_parser_id = bank_parser_row.id
+        preview = ImportPreview(detected_bank_code=bank.code, detected_bank_name=bank.name)
 
     import_row = Import(
         workspace_id=workspace_id,
@@ -175,17 +224,18 @@ async def upload_import(
         filename=filename,
         file_hash=file_hash,
         file_size=len(raw_bytes),
+        file_type=file_type,
+        bank_id=bank_id,
+        bank_parser_id=bank_parser_id,
     )
-    # La preview si costruisce PRIMA del commit che crea la riga import:
-    # interroga solo altri import/mappature gia' esistenti, quindi non ha
-    # bisogno che questa riga esista ancora. Ordine importante — non un
-    # dettaglio stilistico: `SET LOCAL app.current_user_id` (impostato da
-    # get_current_user) vale solo per la transazione corrente e scade al
-    # commit; una query RLS-dipendente sulla STESSA sessione dopo il commit
-    # gira senza identita' impostata e le policy negano tutto (visto
+    # La preview (branch csv sopra) si costruisce PRIMA del commit che crea
+    # la riga import: interroga solo altri import/mappature gia' esistenti,
+    # quindi non ha bisogno che questa riga esista ancora. Ordine importante
+    # — non un dettaglio stilistico: `SET LOCAL app.current_user_id`
+    # (impostato da get_current_user) vale solo per la transazione corrente e
+    # scade al commit; una query RLS-dipendente sulla STESSA sessione dopo il
+    # commit gira senza identita' impostata e le policy negano tutto (visto
     # empiricamente: `invalid input syntax for type uuid: ""`).
-    preview = await _build_preview(db, workspace_id, financial_account_id, raw_bytes)
-
     db.add(import_row)
     try:
         await db.commit()
@@ -195,7 +245,7 @@ async def upload_import(
             status.HTTP_409_CONFLICT, "File gia' in fase di import (rilevato in concorrenza)"
         ) from exc
 
-    get_storage().save(original_file_path(workspace_id, import_row.id), raw_bytes)
+    get_storage().save(original_file_path(workspace_id, import_row.id, file_type), raw_bytes)
 
     return ImportUploadResponse(**{"import": import_row, "preview": preview})
 
@@ -235,7 +285,13 @@ async def get_import_preview(
     db: AsyncSession = Depends(get_db),
 ) -> ImportPreview:
     import_row = await _get_import_or_404(db, workspace_id, import_id)
-    raw_bytes = get_storage().read(original_file_path(workspace_id, import_row.id))
+    if import_row.file_type == "pdf":
+        bank = await db.get(Bank, import_row.bank_id) if import_row.bank_id else None
+        return ImportPreview(
+            detected_bank_code=bank.code if bank else None,
+            detected_bank_name=bank.name if bank else None,
+        )
+    raw_bytes = get_storage().read(original_file_path(workspace_id, import_row.id, "csv"))
     return await _build_preview(db, workspace_id, import_row.financial_account_id, raw_bytes)
 
 
@@ -252,46 +308,66 @@ async def confirm_import(
             status.HTTP_409_CONFLICT, f"Import in stato '{import_row.status}', non confermabile"
         )
 
-    if payload.import_mapping_id is not None:
-        mapping_row = await db.get(ImportMapping, payload.import_mapping_id)
-        if mapping_row is None or mapping_row.workspace_id != workspace_id:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Import mapping not found")
-        mapping_config = MappingConfig(**mapping_row.config)
-        import_row.import_mapping_id = mapping_row.id
-    else:
-        mapping_config = payload.mapping
-        if payload.save_as:
-            mapping_row = ImportMapping(
-                workspace_id=workspace_id,
-                financial_account_id=import_row.financial_account_id,
-                name=payload.save_as,
-                config=mapping_config.model_dump(mode="json"),
+    if import_row.file_type == "csv":
+        # Invariante applicativa (era un model_validator sullo schema prima
+        # che esistesse il canale pdf, per cui un body di conferma vuoto e'
+        # legittimo — vedi ImportConfirmRequest): qui dipende da
+        # import_row.file_type, che lo schema del payload non conosce.
+        if (payload.import_mapping_id is None) == (payload.mapping is None):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "specificare esattamente uno tra import_mapping_id e mapping",
             )
-            db.add(mapping_row)
-            await db.flush()
+        if payload.save_as and payload.import_mapping_id is not None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "save_as e' valido solo con una mappatura inline (mapping)",
+            )
+
+        if payload.import_mapping_id is not None:
+            mapping_row = await db.get(ImportMapping, payload.import_mapping_id)
+            if mapping_row is None or mapping_row.workspace_id != workspace_id:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "Import mapping not found")
+            mapping_config = MappingConfig(**mapping_row.config)
             import_row.import_mapping_id = mapping_row.id
+        else:
+            mapping_config = payload.mapping
+            if payload.save_as:
+                mapping_row = ImportMapping(
+                    workspace_id=workspace_id,
+                    financial_account_id=import_row.financial_account_id,
+                    name=payload.save_as,
+                    config=mapping_config.model_dump(mode="json"),
+                )
+                db.add(mapping_row)
+                await db.flush()
+                import_row.import_mapping_id = mapping_row.id
 
-    raw_bytes = get_storage().read(original_file_path(workspace_id, import_row.id))
-    try:
-        text = raw_bytes.decode(mapping_config.encoding, errors="strict")
-    except (LookupError, UnicodeDecodeError) as exc:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, f"Encoding '{mapping_config.encoding}' non valido per il file"
-        ) from exc
+        raw_bytes = get_storage().read(original_file_path(workspace_id, import_row.id, "csv"))
+        try:
+            text = raw_bytes.decode(mapping_config.encoding, errors="strict")
+        except (LookupError, UnicodeDecodeError) as exc:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"Encoding '{mapping_config.encoding}' non valido per il file",
+            ) from exc
 
-    header, _sample = _extract_sample(text, mapping_config, max_rows=0)
-    missing = [name for name in _referenced_columns(mapping_config) if name not in header]
-    if missing:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            f"Colonne mancanti nel file per la mappatura scelta: {', '.join(missing)}",
-        )
+        header, _sample = _extract_sample(text, mapping_config, max_rows=0)
+        missing = [name for name in _referenced_columns(mapping_config) if name not in header]
+        if missing:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"Colonne mancanti nel file per la mappatura scelta: {', '.join(missing)}",
+            )
 
-    # Snapshot immutabile: indipendente da import_mapping_id, che punta a
-    # una mappatura riusabile salvata (opzionale) — questo e' l'unico posto
-    # da cui il worker recupera i parametri di parsing, anche quando la
-    # mappatura era inline e mai salvata.
-    import_row.mapping_config = mapping_config.model_dump(mode="json")
+        # Snapshot immutabile: indipendente da import_mapping_id, che punta a
+        # una mappatura riusabile salvata (opzionale) — questo e' l'unico
+        # posto da cui il worker recupera i parametri di parsing, anche
+        # quando la mappatura era inline e mai salvata.
+        import_row.mapping_config = mapping_config.model_dump(mode="json")
+    # file_type == 'pdf': nessuna scelta di mappatura, bank_id/bank_parser_id
+    # sono gia' stati risolti e salvati all'upload — si passa direttamente
+    # all'accodamento del job.
 
     job_id = await enqueue_import_job(import_row.id, import_row.created_by_user_id)
     import_row.job_id = job_id

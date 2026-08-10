@@ -1,4 +1,5 @@
-"""Job arq che processa un import CSV (milestone 04).
+"""Job arq che processa un import (milestone 04: canale CSV; milestone 05:
+canale PDF, dispatch su `Import.file_type`).
 
 Identita' RLS (regola non negoziabile: l'isolamento a doppio livello deve
 reggere anche nel worker, mai `SET ROLE lumio_rls_helper`/BYPASSRLS): il job
@@ -6,16 +7,16 @@ non ha una richiesta HTTP ne' un JWT, quindi usa `rls_session` (app/db/rls.py)
 con l'identita' dell'utente che ha creato l'import, ricevuta come argomento
 invece che riletta da una sessione senza identita' impostata.
 
-Limite noto e accettato in M04: se il processo worker muore a meta' (kill
--9) DOPO aver scritto status='processing' ma PRIMA di completare, l'import
-resta bloccato in 'processing' — non esiste ancora un meccanismo di
-lease/heartbeat per il recovery automatico. Non e' richiesto dal DoD di
-questa milestone (SSE trackability, dedup, niente polling); un futuro job di
-manutenzione potrebbe far scadere gli import "processing" da troppo tempo.
+Limite noto e accettato in M04 (vale anche per il canale PDF): se il processo
+worker muore a meta' (kill -9) DOPO aver scritto status='processing' ma PRIMA
+di completare, l'import resta bloccato in 'processing' — non esiste ancora un
+meccanismo di lease/heartbeat per il recovery automatico. Non e' richiesto dal
+DoD di M04 ne' di M05; un futuro job di manutenzione potrebbe far scadere gli
+import "processing" da troppo tempo.
 
-Limite correlato, scoperto scrivendo i test: se l'identita' con cui gira il
-job (created_by_user_id) non e' PIU' membro del workspace, la policy RLS di
-SELECT su `imports` (basata sulla stessa `is_workspace_member`) nega anche
+Limite correlato, scoperto scrivendo i test M04: se l'identita' con cui gira
+il job (created_by_user_id) non e' PIU' membro del workspace, la policy RLS
+di SELECT su `imports` (basata sulla stessa `is_workspace_member`) nega anche
 la LETTURA della riga, non solo l'eventuale INSERT — quindi il job si ferma
 silenziosamente al primo `db.get` (branch "import non trovato") e la riga
 resta bloccata a 'queued' invece di transitare a 'failed'. E' una proprieta'
@@ -23,26 +24,29 @@ di sicurezza piu' forte (un'identita' non autorizzata non puo' nemmeno
 osservare che l'import esiste) ma una proprieta' di liveness piu' debole
 (nessuna transizione automatica a uno stato terminale in questo caso). Dato
 che oggi l'app non offre alcuna funzionalita' per rimuovere un utente dal
-proprio workspace, e' un edge case accettato per M04, non una regressione
-rispetto al DoD (SSE, dedup, niente polling) — vedi
-test_imports_worker_rls.py per la verifica del comportamento reale.
+proprio workspace, e' un edge case accettato, non una regressione rispetto al
+DoD — vedi test_imports_worker_rls.py per la verifica del comportamento reale.
 """
+import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
 
+from app.core.config import get_settings
 from app.db.rls import rls_session
+from app.models.bank_parser import BankParser as BankParserRow
 from app.models.import_ import Import
 from app.models.transaction import Transaction
+from app.parsers import get_parser
 from app.services import job_events
-from app.services.csv_import import MappingConfig, parse_rows
+from app.services.csv_import import MappingConfig, ParsedRow, parse_rows
 from app.services.import_paths import original_file_path
 from app.storage import get_storage
 
-logger = logging.getLogger("lumio.worker.import_csv")
+logger = logging.getLogger("lumio.worker.import_job")
 
 
-async def import_csv_job(ctx, import_id: str, created_by_user_id: str) -> None:
+async def import_job(ctx, import_id: str, created_by_user_id: str) -> None:
     import_uuid = uuid.UUID(import_id)
     user_uuid = uuid.UUID(created_by_user_id)
 
@@ -58,12 +62,16 @@ async def import_csv_job(ctx, import_id: str, created_by_user_id: str) -> None:
             logger.info("import %s status=%s (non 'queued'), skip", import_id, import_row.status)
             return
         import_row.status = "processing"
+        file_type = import_row.file_type
         await db.commit()
 
     await job_events.emit(import_uuid, "job.started", stage="processing", progress=10)
 
     try:
-        await _process(import_uuid, user_uuid)
+        if file_type == "pdf":
+            await _process_pdf(import_uuid, user_uuid)
+        else:
+            await _process_csv(import_uuid, user_uuid)
     except Exception:
         logger.exception("import %s failed", import_id)
         async with rls_session(user_uuid) as db:
@@ -84,7 +92,7 @@ async def import_csv_job(ctx, import_id: str, created_by_user_id: str) -> None:
         # via della guardia sullo stato sopra.
 
 
-async def _process(import_uuid: uuid.UUID, user_uuid: uuid.UUID) -> None:
+async def _process_csv(import_uuid: uuid.UUID, user_uuid: uuid.UUID) -> None:
     async with rls_session(user_uuid) as db:
         import_row = await db.get(Import, import_uuid)
         if import_row is None or import_row.status != "processing":
@@ -94,7 +102,7 @@ async def _process(import_uuid: uuid.UUID, user_uuid: uuid.UUID) -> None:
         financial_account_id = import_row.financial_account_id
         mapping_config = MappingConfig(**import_row.mapping_config)
 
-        raw_bytes = get_storage().read(original_file_path(workspace_id, import_row.id))
+        raw_bytes = get_storage().read(original_file_path(workspace_id, import_row.id, "csv"))
         text = raw_bytes.decode(mapping_config.encoding, errors="replace")
 
         import_row.status = "parsing"
@@ -108,9 +116,69 @@ async def _process(import_uuid: uuid.UUID, user_uuid: uuid.UUID) -> None:
         import_uuid, "job.progress", stage="parsing", progress=60, transactions_found=len(rows)
     )
 
+    await _insert_transactions_and_complete(import_uuid, user_uuid, workspace_id, financial_account_id, rows)
+
+
+async def _process_pdf(import_uuid: uuid.UUID, user_uuid: uuid.UUID) -> None:
+    async with rls_session(user_uuid) as db:
+        import_row = await db.get(Import, import_uuid)
+        if import_row is None or import_row.status != "processing":
+            return
+
+        workspace_id = import_row.workspace_id
+        financial_account_id = import_row.financial_account_id
+        bank_parser_row = await db.get(BankParserRow, import_row.bank_parser_id)
+        # bank_parser_id e' stato risolto e salvato all'upload (vedi
+        # app/api/v1/imports.py:_detect_bank_parser) — qui si ripercorre solo
+        # il registro per ottenere l'implementazione concreta, senza ripetere
+        # la detection.
+        parser = get_parser(bank_parser_row.parser_type)
+
+        raw_bytes = get_storage().read(original_file_path(workspace_id, import_row.id, "pdf"))
+
+        import_row.status = "parsing"
+        await db.commit()
+
+    await job_events.emit(import_uuid, "job.progress", stage="parsing", progress=30)
+
+    # SPEC §53 (timeout): l'apertura superficiale gia' avvenuta all'upload
+    # (upload_validation._validate_pdf_structure) non garantisce che
+    # l'estrazione COMPLETA di tutte le pagine sia comunque veloce — un PDF
+    # con moltissime pagine/tabelle potrebbe restare oltre un limite
+    # ragionevole. Qui il costo e' asincrono (job, non richiesta HTTP) ma
+    # deve comunque avere un limite: senza, un worker slot resterebbe
+    # bloccato indefinitamente su un singolo import patologico.
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(parser.parse, raw_bytes),
+            timeout=get_settings().import_pdf_parse_timeout_seconds,
+        )
+    except TimeoutError as exc:
+        raise RuntimeError("timeout durante il parsing del PDF") from exc
+
+    for warning in result.warnings:
+        await job_events.emit(import_uuid, "job.warning", message=warning)
+    await job_events.emit(
+        import_uuid, "job.progress", stage="parsing", progress=60, transactions_found=len(result.rows)
+    )
+
+    await _insert_transactions_and_complete(
+        import_uuid, user_uuid, workspace_id, financial_account_id, result.rows
+    )
+
+
+async def _insert_transactions_and_complete(
+    import_uuid: uuid.UUID,
+    user_uuid: uuid.UUID,
+    workspace_id: uuid.UUID,
+    financial_account_id: uuid.UUID,
+    rows: list[ParsedRow],
+) -> None:
     # Insert delle transazioni + aggiornamento import in un'unica transazione
     # DB, un solo commit: e' cio' che rende un eventuale retry sicuro — non
     # esiste stato parzialmente committato da riconciliare (SPEC §58).
+    # Condivisa tra canale csv e pdf: entrambi convergono sulla stessa forma
+    # intermedia (ParsedRow) prima di toccare `transactions`.
     async with rls_session(user_uuid) as db:
         import_row = await db.get(Import, import_uuid)
         if import_row is None or import_row.status != "parsing":

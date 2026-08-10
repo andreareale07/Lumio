@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     import_job_timeout_seconds: int = 300
     job_events_ttl_seconds: int = 86400
 
+    # --- Trade Republic Parser / import PDF (milestone 05) ---
+    # Limite piu' stretto del job_timeout generale (SPEC §53): l'apertura di
+    # verifica gira in-request durante l'upload (stesso schema di
+    # detect_mapping per il CSV), quindi deve fallire rapidamente su un PDF
+    # patologico invece di tenere la richiesta HTTP appesa fino al timeout
+    # lungo pensato per il worker.
+    import_pdf_open_timeout_seconds: int = 10
+    import_pdf_parse_timeout_seconds: int = 60
+
 
 @lru_cache
 def get_settings() -> Settings:
