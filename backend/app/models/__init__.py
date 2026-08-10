@@ -1,6 +1,8 @@
 from app.models.bank import Bank
 from app.models.category import Category
 from app.models.financial_account import FinancialAccount
+from app.models.import_ import Import
+from app.models.import_mapping import ImportMapping
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -10,6 +12,8 @@ __all__ = [
     "Bank",
     "Category",
     "FinancialAccount",
+    "Import",
+    "ImportMapping",
     "Transaction",
     "User",
     "Workspace",

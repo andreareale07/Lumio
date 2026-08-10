@@ -2,30 +2,28 @@ import uuid
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_access_token
+from app.db.rls import set_rls_current_user
 from app.db.session import get_db
 from app.models.user import User
 from app.models.workspace_member import WorkspaceMember
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
-
-async def set_rls_current_user(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Imposta app.current_user_id per la transazione corrente (SET LOCAL).
-
-    Usata sia da `get_current_user` (dopo aver verificato il JWT) sia dal
-    flow di registrazione (subito dopo aver creato la riga `users`, prima di
-    inserire il workspace personale: senza questo, la WITH CHECK di RLS su
-    `workspaces` rifiuterebbe l'insert perche' nessuna identita' e' ancora
-    "attiva" sulla sessione). `set_config(..., true)` equivale a SET LOCAL ma,
-    a differenza della sintassi SET diretta, accetta un bind parameter.
-    """
-    await db.execute(
-        text("SELECT set_config('app.current_user_id', :uid, true)"), {"uid": str(user_id)}
-    )
+# set_rls_current_user vive in app/db/rls.py (condiviso col worker asincrono,
+# che deve impostare la stessa identita' senza passare da una richiesta
+# HTTP); re-esportato qui per non rompere gli import esistenti in questo
+# modulo e nei test.
+__all__ = [
+    "bearer_scheme",
+    "set_rls_current_user",
+    "get_current_user",
+    "get_primary_workspace_id",
+    "get_current_workspace_id",
+]
 
 
 async def get_current_user(

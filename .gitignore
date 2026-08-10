@@ -25,9 +25,12 @@ frontend/test-results/
 !.env.example
 
 # --- App data (self-hosted) ---
-storage/
-postgres_data/
-redis_data/
+# Ancorate alla radice del repo (leading slash): senza, "storage/" senza
+# slash iniziale ignorerebbe silenziosamente anche backend/app/storage/
+# (il modulo StorageProvider), non solo la cartella dati runtime.
+/storage/
+/postgres_data/
+/redis_data/
 
 # --- Editor / OS ---
 .vscode/

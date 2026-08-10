@@ -1,27 +1,29 @@
-import asyncio
-import logging
+from arq.connections import RedisSettings
 
+from app.core.config import get_settings
 from app.core.logging import setup_logging
-from app.core.redis import create_redis_client
+from app.worker.jobs.import_csv import import_csv_job
 
-logger = logging.getLogger("lumio.worker")
+setup_logging()
 
-# Placeholder per la milestone 01 — Foundation: dimostra solo che il servizio worker
-# si avvia e raggiunge Redis. La libreria di job queue (arq/Celery/RQ) e i job reali
-# (parsing PDF, OCR, classificazione, ecc.) arrivano dalla milestone 04 — Import Engine.
+_settings = get_settings()
 
 
-async def main() -> None:
-    setup_logging()
-    redis_client = create_redis_client()
-
-    await redis_client.ping()
-    logger.info("worker up, redis reachable")
-
-    while True:
-        await asyncio.sleep(30)
-        logger.info("worker alive")
+async def startup(ctx) -> None:
+    pass
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+async def shutdown(ctx) -> None:
+    pass
+
+
+class WorkerSettings:
+    functions = [import_csv_job]
+    redis_settings = RedisSettings.from_dsn(_settings.redis_url)
+    job_timeout = _settings.import_job_timeout_seconds
+    max_tries = 2
+    on_startup = startup
+    on_shutdown = shutdown
+    # I job supportano l'abort esplicito (POST /imports/{id}/cancel):
+    # richiede allow_abort_jobs=True lato worker per honourare il segnale.
+    allow_abort_jobs = True

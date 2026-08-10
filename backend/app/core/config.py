@@ -25,6 +25,11 @@ class Settings(BaseSettings):
 
     google_enabled: bool = False
 
+    # --- Import Engine (milestone 04) ---
+    max_import_file_size_bytes: int = 10 * 1024 * 1024
+    import_job_timeout_seconds: int = 300
+    job_events_ttl_seconds: int = 86400
+
 
 @lru_cache
 def get_settings() -> Settings:

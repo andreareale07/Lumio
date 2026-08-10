@@ -40,6 +40,7 @@ class TransactionOut(BaseModel):
     id: uuid.UUID
     workspace_id: uuid.UUID
     financial_account_id: uuid.UUID
+    import_id: uuid.UUID | None
     category_id: uuid.UUID | None
     transaction_date: date
     value_date: date | None

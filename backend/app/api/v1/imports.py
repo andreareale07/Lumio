@@ -1,0 +1,362 @@
+import csv
+import hashlib
+import io
+import uuid
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_user, get_current_workspace_id
+from app.core.config import get_settings
+from app.db.session import get_db
+from app.models.financial_account import FinancialAccount
+from app.models.import_ import Import
+from app.models.import_mapping import ImportMapping
+from app.models.user import User
+from app.schemas.imports import (
+    ImportConfirmRequest,
+    ImportMappingOut,
+    ImportOut,
+    ImportPreview,
+    ImportUploadResponse,
+)
+from app.services import job_events, upload_validation
+from app.services.csv_import import MappingConfig, detect_mapping
+from app.services.import_paths import original_file_path
+from app.storage import get_storage
+from app.worker.queue import enqueue_import_job
+
+router = APIRouter(prefix="/imports", tags=["imports"])
+
+
+async def _get_import_or_404(db: AsyncSession, workspace_id: uuid.UUID, import_id: uuid.UUID) -> Import:
+    import_row = await db.get(Import, import_id)
+    # Come per accounts/transactions: la RLS gia' impedisce di leggere righe
+    # di altri workspace, ma il controllo esplicito resta il primo livello
+    # di isolamento richiesto da SPEC §7.
+    if import_row is None or import_row.workspace_id != workspace_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Import not found")
+    return import_row
+
+
+async def _assert_account_in_workspace(
+    db: AsyncSession, workspace_id: uuid.UUID, account_id: uuid.UUID
+) -> None:
+    account = await db.get(FinancialAccount, account_id)
+    if account is None or account.workspace_id != workspace_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid financial_account_id")
+
+
+def _extract_sample(text: str, mapping: MappingConfig, max_rows: int = 5) -> tuple[list[str], list[list[str]]]:
+    lines = text.splitlines()[mapping.skip_rows :]
+    rows = list(csv.reader(io.StringIO("\n".join(lines)), delimiter=mapping.delimiter))
+    if not rows:
+        return [], []
+    return rows[0], rows[1 : 1 + max_rows]
+
+
+def _referenced_columns(mapping: MappingConfig) -> list[str]:
+    c = mapping.columns
+    names = [c.transaction_date, c.description_raw]
+    if mapping.amount_mode == "separate_debit_credit":
+        names += [c.amount_debit, c.amount_credit]
+    else:
+        names.append(c.amount)
+        if mapping.amount_mode == "single_absolute_with_direction":
+            names.append(c.direction)
+    names += [c.value_date, c.currency, c.reference, c.balance_after]
+    return [n for n in names if n]
+
+
+async def _resolve_suggested_mapping(
+    db: AsyncSession, workspace_id: uuid.UUID, account_id: uuid.UUID, text_sample: str
+) -> MappingConfig:
+    # Decisione presa con l'utente: all'upload si propone la mappatura
+    # dell'ultimo import RIUSCITO sullo stesso conto, se esiste; altrimenti
+    # si ricade sull'euristica.
+    result = await db.execute(
+        select(Import.import_mapping_id)
+        .where(
+            Import.workspace_id == workspace_id,
+            Import.financial_account_id == account_id,
+            Import.status == "completed",
+            Import.import_mapping_id.is_not(None),
+        )
+        .order_by(Import.completed_at.desc())
+        .limit(1)
+    )
+    mapping_id = result.scalars().first()
+    if mapping_id is not None:
+        mapping_row = await db.get(ImportMapping, mapping_id)
+        if mapping_row is not None:
+            return MappingConfig(**mapping_row.config)
+    return detect_mapping(text_sample)
+
+
+async def _build_preview(
+    db: AsyncSession, workspace_id: uuid.UUID, account_id: uuid.UUID, raw_bytes: bytes
+) -> ImportPreview:
+    text_sample = raw_bytes.decode("utf-8-sig", errors="replace")
+    suggested = await _resolve_suggested_mapping(db, workspace_id, account_id, text_sample)
+    columns, sample_rows = _extract_sample(text_sample, suggested)
+
+    mappings_result = await db.execute(
+        select(ImportMapping)
+        .where(ImportMapping.workspace_id == workspace_id)
+        .order_by(ImportMapping.updated_at.desc())
+    )
+    available = [ImportMappingOut.model_validate(m) for m in mappings_result.scalars().all()]
+
+    return ImportPreview(
+        columns=columns,
+        sample_rows=sample_rows,
+        suggested_mapping=suggested,
+        available_mappings=available,
+    )
+
+
+@router.post("", response_model=ImportUploadResponse, status_code=status.HTTP_201_CREATED)
+async def upload_import(
+    financial_account_id: uuid.UUID = Form(...),
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> ImportUploadResponse:
+    await _assert_account_in_workspace(db, workspace_id, financial_account_id)
+
+    settings = get_settings()
+    raw_bytes = await upload_validation.read_and_validate_csv_upload(file, settings.max_import_file_size_bytes)
+    filename = upload_validation.sanitize_filename(file.filename)
+    file_hash = hashlib.sha256(raw_bytes).hexdigest()
+
+    # Dedup applicativo "preventivo" (SPEC §58): risposta chiara e immediata
+    # nel caso comune. La garanzia reale contro le race concorrenti e'
+    # l'indice unico parziale sul DB (uq_imports_workspace_file_hash_active),
+    # verificato nel blocco IntegrityError sotto.
+    existing = await db.execute(
+        select(Import).where(
+            Import.workspace_id == workspace_id,
+            Import.file_hash == file_hash,
+            Import.status.not_in(("failed", "cancelled")),
+        )
+    )
+    existing_import = existing.scalars().first()
+    if existing_import is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            {
+                "detail": "Questo file risulta gia' importato in questo workspace",
+                "existing_import_id": str(existing_import.id),
+                "existing_status": existing_import.status,
+            },
+        )
+
+    # Verifica di interpretabilita' come CSV PRIMA di creare la riga import e
+    # scrivere su storage: un file non parsabile non deve lasciare stato
+    # orfano da ripulire (SPEC §53 — non fidarsi che sia davvero un CSV
+    # valido solo perche' ha passato il controllo binario).
+    text_sample = raw_bytes.decode("utf-8-sig", errors="replace")
+    try:
+        detect_mapping(text_sample)
+    except (ValueError, csv.Error, IndexError) as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Impossibile interpretare il file come CSV"
+        ) from exc
+
+    import_row = Import(
+        workspace_id=workspace_id,
+        financial_account_id=financial_account_id,
+        created_by_user_id=user.id,
+        status="uploaded",
+        filename=filename,
+        file_hash=file_hash,
+        file_size=len(raw_bytes),
+    )
+    # La preview si costruisce PRIMA del commit che crea la riga import:
+    # interroga solo altri import/mappature gia' esistenti, quindi non ha
+    # bisogno che questa riga esista ancora. Ordine importante — non un
+    # dettaglio stilistico: `SET LOCAL app.current_user_id` (impostato da
+    # get_current_user) vale solo per la transazione corrente e scade al
+    # commit; una query RLS-dipendente sulla STESSA sessione dopo il commit
+    # gira senza identita' impostata e le policy negano tutto (visto
+    # empiricamente: `invalid input syntax for type uuid: ""`).
+    preview = await _build_preview(db, workspace_id, financial_account_id, raw_bytes)
+
+    db.add(import_row)
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "File gia' in fase di import (rilevato in concorrenza)"
+        ) from exc
+
+    get_storage().save(original_file_path(workspace_id, import_row.id), raw_bytes)
+
+    return ImportUploadResponse(**{"import": import_row, "preview": preview})
+
+
+@router.get("", response_model=list[ImportOut])
+async def list_imports(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+    status_filter: str | None = Query(default=None, alias="status"),
+    financial_account_id: uuid.UUID | None = None,
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> list[Import]:
+    query = select(Import).where(Import.workspace_id == workspace_id)
+    if status_filter is not None:
+        query = query.where(Import.status == status_filter)
+    if financial_account_id is not None:
+        query = query.where(Import.financial_account_id == financial_account_id)
+    query = query.order_by(Import.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+@router.get("/{import_id}", response_model=ImportOut)
+async def get_import(
+    import_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> Import:
+    return await _get_import_or_404(db, workspace_id, import_id)
+
+
+@router.get("/{import_id}/preview", response_model=ImportPreview)
+async def get_import_preview(
+    import_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> ImportPreview:
+    import_row = await _get_import_or_404(db, workspace_id, import_id)
+    raw_bytes = get_storage().read(original_file_path(workspace_id, import_row.id))
+    return await _build_preview(db, workspace_id, import_row.financial_account_id, raw_bytes)
+
+
+@router.post("/{import_id}/confirm", response_model=ImportOut)
+async def confirm_import(
+    import_id: uuid.UUID,
+    payload: ImportConfirmRequest,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> Import:
+    import_row = await _get_import_or_404(db, workspace_id, import_id)
+    if import_row.status != "uploaded":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"Import in stato '{import_row.status}', non confermabile"
+        )
+
+    if payload.import_mapping_id is not None:
+        mapping_row = await db.get(ImportMapping, payload.import_mapping_id)
+        if mapping_row is None or mapping_row.workspace_id != workspace_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Import mapping not found")
+        mapping_config = MappingConfig(**mapping_row.config)
+        import_row.import_mapping_id = mapping_row.id
+    else:
+        mapping_config = payload.mapping
+        if payload.save_as:
+            mapping_row = ImportMapping(
+                workspace_id=workspace_id,
+                financial_account_id=import_row.financial_account_id,
+                name=payload.save_as,
+                config=mapping_config.model_dump(mode="json"),
+            )
+            db.add(mapping_row)
+            await db.flush()
+            import_row.import_mapping_id = mapping_row.id
+
+    raw_bytes = get_storage().read(original_file_path(workspace_id, import_row.id))
+    try:
+        text = raw_bytes.decode(mapping_config.encoding, errors="strict")
+    except (LookupError, UnicodeDecodeError) as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, f"Encoding '{mapping_config.encoding}' non valido per il file"
+        ) from exc
+
+    header, _sample = _extract_sample(text, mapping_config, max_rows=0)
+    missing = [name for name in _referenced_columns(mapping_config) if name not in header]
+    if missing:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Colonne mancanti nel file per la mappatura scelta: {', '.join(missing)}",
+        )
+
+    # Snapshot immutabile: indipendente da import_mapping_id, che punta a
+    # una mappatura riusabile salvata (opzionale) — questo e' l'unico posto
+    # da cui il worker recupera i parametri di parsing, anche quando la
+    # mappatura era inline e mai salvata.
+    import_row.mapping_config = mapping_config.model_dump(mode="json")
+
+    job_id = await enqueue_import_job(import_row.id, import_row.created_by_user_id)
+    import_row.job_id = job_id
+    import_row.status = "queued"
+    await db.commit()
+
+    await job_events.emit(
+        import_row.id,
+        "job.created",
+        job_id=job_id,
+        type="import",
+        stage="queued",
+        progress=0,
+        message="Import in coda",
+    )
+    return import_row
+
+
+@router.post("/{import_id}/cancel", response_model=ImportOut)
+async def cancel_import(
+    import_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> Import:
+    import_row = await _get_import_or_404(db, workspace_id, import_id)
+    if import_row.status not in ("uploaded", "queued"):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"Import in stato '{import_row.status}', non annullabile"
+        )
+
+    if import_row.job_id:
+        try:
+            from arq.jobs import Job
+
+            from app.worker.queue import get_arq_pool
+
+            pool = await get_arq_pool()
+            await Job(import_row.job_id, pool).abort()
+        except Exception:
+            # Best-effort: la vera rete di sicurezza e' il controllo dello
+            # stato ('queued') fatto dal job stesso appena parte (vedi
+            # app/worker/jobs/import_csv.py) — se l'abort arq non funziona,
+            # il job comunque non processa nulla trovando status=cancelled.
+            pass
+
+    import_row.status = "cancelled"
+    await db.commit()
+    await job_events.emit(import_row.id, "job.cancelled", message="Import annullato dall'utente")
+    return import_row
+
+
+@router.get("/{import_id}/events")
+async def stream_import_events(
+    import_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    # Autorizzato come ogni altro endpoint (bearer token + verifica
+    # workspace): EventSource nativo non puo' inviare un header Authorization
+    # e mettere il token in query string finirebbe nei log (SPEC §55), quindi
+    # la UI futura user' fetch()+ReadableStream mantenendo l'header, non
+    # EventSource — questo endpoint resta un normale endpoint protetto.
+    import_row = await _get_import_or_404(db, workspace_id, import_id)
+    return StreamingResponse(
+        job_events.stream(import_row.id),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

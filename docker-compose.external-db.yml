@@ -45,7 +45,7 @@ services:
   worker:
     build:
       context: ./backend
-    command: ["python", "-m", "app.worker.main"]
+    command: ["arq", "app.worker.main.WorkerSettings"]
     env_file: .env
     depends_on:
       redis:

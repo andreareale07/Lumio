@@ -64,6 +64,16 @@ class Transaction(Base):
         # BYPASSRLS), quindi una categoria privata di un altro workspace non
         # e' "visibile" alla verifica del vincolo e l'insert fallisce.
         # Verificato esplicitamente in test_rls_accounts_transactions.py.
+        # import_id (milestone 04): FK composita come financial_account_id,
+        # ON DELETE RESTRICT — cancellare un import non deve mai cancellare
+        # o orfanizzare silenziosamente transazioni finanziarie reali. Nessun
+        # endpoint DELETE su imports esiste in M04 per questo motivo.
+        ForeignKeyConstraint(
+            ["workspace_id", "import_id"],
+            ["imports.workspace_id", "imports.id"],
+            ondelete="RESTRICT",
+            name="fk_transactions_workspace_import",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -76,6 +86,7 @@ class Transaction(Base):
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("categories.id"), nullable=True
     )
+    import_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     transaction_date: Mapped[date] = mapped_column(Date, nullable=False)
     value_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     description_raw: Mapped[str] = mapped_column(String, nullable=False)
