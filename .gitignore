@@ -1,0 +1,39 @@
+# --- Python / backend ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Node / frontend ---
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- App data (self-hosted) ---
+storage/
+postgres_data/
+redis_data/
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Archive leftover ---
+Lumio.tar.gz
