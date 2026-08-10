@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     secret_key: str
     storage_path: str = "/app/storage"
 
+    access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 30
+
     ai_provider: str = "none"
     ai_endpoint: str = ""
     ai_model: str = ""

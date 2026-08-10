@@ -1,5 +1,20 @@
 # Modalita' power user: nessun container Postgres. DATABASE_URL in .env deve puntare
-# a un Postgres esterno gia' esistente, con un utente dedicato (non l'utente `postgres`).
+# a un Postgres esterno gia' esistente, con un ruolo dedicato — NON l'utente
+# amministrativo `postgres`, e NON un ruolo superuser/BYPASSRLS: la Row-Level
+# Security dell'app dipende da questo, non e' solo una convenzione igienica.
+# Sul Postgres esterno, prima di avviare questo compose, come utente
+# amministrativo esegui (le migration successive creano tabelle/policy, ma
+# non questi ruoli — vanno preparati a mano una volta):
+#
+#   CREATE ROLE lumio_app WITH LOGIN PASSWORD '...'
+#       NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+#   CREATE ROLE lumio_rls_helper
+#       WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;
+#   GRANT lumio_rls_helper TO lumio_app;
+#   CREATE DATABASE lumio OWNER lumio_app;
+#   \c lumio
+#   GRANT CREATE ON SCHEMA public TO lumio_rls_helper;
+#
 # Uso: cp .env.example .env && modifica DATABASE_URL && docker compose -f docker-compose.external-db.yml up -d
 
 services:

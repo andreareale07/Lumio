@@ -1,4 +1,7 @@
 from fastapi import APIRouter
 
+from app.api.v1 import auth
+
 api_router = APIRouter()
-# Le prossime milestone aggiungono qui i router di dominio (auth, accounts, transactions, ...).
+api_router.include_router(auth.router)
+# Le prossime milestone aggiungono qui altri router di dominio (accounts, transactions, ...).
