@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+:root {
+  --color-bg: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f1f2f5;
+  --color-border: #e3e5ea;
+  --color-text: #14151a;
+  --color-text-muted: #6b7280;
+  --color-primary: #2f6fed;
+  --color-primary-hover: #2558c4;
+  --color-primary-contrast: #ffffff;
+  --color-success: #17845b;
+  --color-success-bg: #e6f5ef;
+  --color-danger: #d1373f;
+  --color-danger-bg: #fbe9ea;
+  --color-warning: #b4780a;
+  --color-warning-bg: #fbf1de;
+  --color-focus-ring: #2f6fed;
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #101114;
+  --color-surface: #17181c;
+  --color-surface-hover: #1f2025;
+  --color-border: #2b2d33;
+  --color-text: #f2f3f5;
+  --color-text-muted: #9aa0ac;
+  --color-primary: #5b8cf7;
+  --color-primary-hover: #7ba1f9;
+  --color-primary-contrast: #0b0d12;
+  --color-success: #3ecf95;
+  --color-success-bg: #123328;
+  --color-danger: #f16871;
+  --color-danger-bg: #3a1417;
+  --color-warning: #e2a53c;
+  --color-warning-bg: #372a10;
+  --color-focus-ring: #5b8cf7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    --color-bg: #101114;
+    --color-surface: #17181c;
+    --color-surface-hover: #1f2025;
+    --color-border: #2b2d33;
+    --color-text: #f2f3f5;
+    --color-text-muted: #9aa0ac;
+    --color-primary: #5b8cf7;
+    --color-primary-hover: #7ba1f9;
+    --color-primary-contrast: #0b0d12;
+    --color-success: #3ecf95;
+    --color-success-bg: #123328;
+    --color-danger: #f16871;
+    --color-danger-bg: #3a1417;
+    --color-warning: #e2a53c;
+    --color-warning-bg: #372a10;
+    --color-focus-ring: #5b8cf7;
+  }
+}
+
+@theme {
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-hover: var(--color-surface-hover);
+  --color-border: var(--color-border);
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-primary-contrast: var(--color-primary-contrast);
+  --color-success: var(--color-success);
+  --color-success-bg: var(--color-success-bg);
+  --color-danger: var(--color-danger);
+  --color-danger-bg: var(--color-danger-bg);
+  --color-warning: var(--color-warning);
+  --color-warning-bg: var(--color-warning-bg);
+
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Numeri finanziari: tabular-nums evita che le cifre "ballino" in colonna
+   (SPEC_FE §66 — i valori monetari devono essere facilmente leggibili). */
+.font-numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}

@@ -1,12 +1,21 @@
-const appName = import.meta.env.VITE_APP_NAME || "Lumio";
-const appTagline = import.meta.env.VITE_APP_TAGLINE || "See your money clearly.";
+import { BrowserRouter } from "react-router-dom";
+
+import { AppRouter } from "./app/router/AppRouter";
+import { AuthProvider } from "./app/providers/AuthProvider";
+import { QueryProvider } from "./app/providers/QueryProvider";
+import { ThemeProvider } from "./app/providers/ThemeProvider";
 
 function App() {
   return (
-    <main>
-      <h1>{appName}</h1>
-      <p>{appTagline}</p>
-    </main>
+    <ThemeProvider>
+      <QueryProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <AppRouter />
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryProvider>
+    </ThemeProvider>
   );
 }
 

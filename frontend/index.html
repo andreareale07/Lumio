@@ -5,6 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lumio — See your money clearly.</title>
+    <script>
+      // Applica il tema salvato PRIMA del primo paint (SPEC_FE §63: evitare
+      // il flash del tema al caricamento) — deve girare inline, un modulo
+      // React arriverebbe troppo tardi.
+      (function () {
+        try {
+          var stored = localStorage.getItem("lumio-theme");
+          if (stored === "light" || stored === "dark") {
+            document.documentElement.setAttribute("data-theme", stored);
+          }
+        } catch (e) {
+          /* localStorage non disponibile (es. modalità privata): fallback al tema di sistema */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

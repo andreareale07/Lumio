@@ -1,0 +1,194 @@
+import { useMemo, useState } from "react";
+import { ArrowLeftRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+
+import { EmptyState } from "../../components/ui/EmptyState";
+import { ErrorState } from "../../components/ui/ErrorState";
+import { Select } from "../../components/ui/Select";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import { useAccounts } from "../accounts/api";
+import { useCategories } from "../categories/api";
+import { buildCategoryOptions, categoryLabel } from "../categories/utils";
+import { formatDate, formatSignedMoney } from "../../lib/format";
+import { TRANSACTION_TYPES, type Transaction } from "../../types/api";
+import { useTransactions } from "./api";
+import { TRANSACTION_TYPE_LABELS } from "./labels";
+import { TransactionDetailDrawer } from "./TransactionDetailDrawer";
+
+const PAGE_SIZE = 25;
+
+export function TransactionsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [offset, setOffset] = useState(0);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+
+  const accountId = searchParams.get("account") ?? "";
+  const categoryId = searchParams.get("category") ?? "";
+  const transactionType = searchParams.get("type") ?? "";
+
+  const { data: accounts } = useAccounts();
+  const { data: categories } = useCategories();
+  const categoryOptions = buildCategoryOptions(categories);
+  const accountsById = useMemo(() => new Map((accounts ?? []).map((a) => [a.id, a])), [accounts]);
+
+  const filters = {
+    financial_account_id: accountId || undefined,
+    category_id: categoryId || undefined,
+    transaction_type: transactionType || undefined,
+    limit: PAGE_SIZE,
+    offset,
+  };
+  const { data: transactions, isLoading, isError, refetch } = useTransactions(filters);
+
+  const updateFilter = (key: string, value: string) => {
+    setOffset(0);
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setSearchParams(next);
+  };
+
+  return (
+    <div className="mx-auto flex max-w-5xl flex-col gap-4">
+      <h1 className="text-lg font-semibold text-text">Movimenti</h1>
+
+      <div className="flex flex-wrap gap-3">
+        <Select
+          aria-label="Conto"
+          value={accountId}
+          onChange={(e) => updateFilter("account", e.target.value)}
+          className="w-auto"
+        >
+          <option value="">Tutti i conti</option>
+          {(accounts ?? []).map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.name}
+            </option>
+          ))}
+        </Select>
+        <Select
+          aria-label="Categoria"
+          value={categoryId}
+          onChange={(e) => updateFilter("category", e.target.value)}
+          className="w-auto"
+        >
+          <option value="">Tutte le categorie</option>
+          {categoryOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+        <Select
+          aria-label="Tipo"
+          value={transactionType}
+          onChange={(e) => updateFilter("type", e.target.value)}
+          className="w-auto"
+        >
+          <option value="">Tutti i tipi</option>
+          {TRANSACTION_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {TRANSACTION_TYPE_LABELS[type]}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {isLoading && <SkeletonRows rows={6} />}
+      {isError && (
+        <ErrorState message="Non siamo riusciti a caricare i tuoi movimenti." onRetry={() => void refetch()} />
+      )}
+
+      {!isLoading && !isError && transactions && transactions.length === 0 && (
+        <EmptyState
+          icon={ArrowLeftRight}
+          title="Nessun movimento"
+          description="I movimenti importati o creati manualmente appariranno qui."
+        />
+      )}
+
+      {!isLoading && !isError && transactions && transactions.length > 0 && (
+        <>
+          {/* Desktop: tabella (SPEC_FE §23) */}
+          <div className="hidden overflow-hidden rounded-xl border border-border md:block">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-hover text-left text-text-muted">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Data</th>
+                  <th className="px-3 py-2 font-medium">Descrizione</th>
+                  <th className="px-3 py-2 font-medium">Conto</th>
+                  <th className="px-3 py-2 font-medium">Categoria</th>
+                  <th className="px-3 py-2 font-medium">Tipo</th>
+                  <th className="px-3 py-2 text-right font-medium">Importo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((transaction) => (
+                  <tr
+                    key={transaction.id}
+                    onClick={() => setSelectedTransaction(transaction)}
+                    className="cursor-pointer border-t border-border bg-surface hover:bg-surface-hover"
+                  >
+                    <td className="px-3 py-2 text-text-muted">{formatDate(transaction.transaction_date)}</td>
+                    <td className="px-3 py-2 text-text">{transaction.merchant ?? transaction.description_raw}</td>
+                    <td className="px-3 py-2 text-text-muted">
+                      {accountsById.get(transaction.financial_account_id)?.name ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-text-muted">{categoryLabel(categories, transaction.category_id)}</td>
+                    <td className="px-3 py-2 text-text-muted">{TRANSACTION_TYPE_LABELS[transaction.transaction_type]}</td>
+                    <td className="font-numeric px-3 py-2 text-right text-text">
+                      {formatSignedMoney(transaction.amount, transaction.currency)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile: card list (SPEC_FE §24) */}
+          <div className="flex flex-col gap-2 md:hidden">
+            {transactions.map((transaction) => (
+              <button
+                key={transaction.id}
+                onClick={() => setSelectedTransaction(transaction)}
+                className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3 text-left"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-text">{transaction.merchant ?? transaction.description_raw}</span>
+                  <span className="font-numeric text-text">
+                    {formatSignedMoney(transaction.amount, transaction.currency)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-text-muted">
+                  <span>{categoryLabel(categories, transaction.category_id)}</span>
+                  <span>{formatDate(transaction.transaction_date)}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              disabled={offset === 0}
+              onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+              className="flex items-center gap-1 text-sm text-text-muted disabled:opacity-40"
+            >
+              <ChevronLeft className="h-4 w-4" /> Precedenti
+            </button>
+            <button
+              type="button"
+              disabled={transactions.length < PAGE_SIZE}
+              onClick={() => setOffset(offset + PAGE_SIZE)}
+              className="flex items-center gap-1 text-sm text-text-muted disabled:opacity-40"
+            >
+              Successivi <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </>
+      )}
+
+      <TransactionDetailDrawer transaction={selectedTransaction} onClose={() => setSelectedTransaction(null)} />
+    </div>
+  );
+}
