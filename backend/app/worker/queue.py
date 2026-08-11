@@ -46,27 +46,29 @@ async def enqueue_import_job(import_id: uuid.UUID, created_by_user_id: uuid.UUID
 
 
 async def enqueue_market_data_refresh(workspace_id: uuid.UUID, user_id: uuid.UUID) -> str:
-    """Trigger manuale (`POST /market-data/refresh`, SPEC §38). `_job_id`
-    fissato sul workspace: un doppio click mentre il refresh precedente e'
-    ancora in corso non ne accoda un secondo in sovrapposizione, stesso
-    principio di `enqueue_import_job`."""
+    """Trigger manuale (`POST /market-data/refresh`, SPEC §38).
+
+    NESSUN `_job_id` fissato sul workspace (a differenza di
+    `enqueue_import_job`, dove e' corretto: `import_id` e' generato una
+    volta sola per import). Bug reale trovato testando dal vivo: arq
+    considera "gia' esistente" un `_job_id` anche quando esiste solo il
+    RISULTATO di un'esecuzione passata ([arq/connections.py] `enqueue_job`,
+    `pipe.exists(job_key, result_key_prefix + job_id)`), e il risultato resta
+    in Redis per `keep_result` (default 1h). Con un id fisso per workspace,
+    ogni click dopo il primo refresh riuscito veniva silenziosamente
+    ignorato da arq per un'ora — l'endpoint restituiva comunque 202 (non
+    distingue "job accodato" da "arq l'ha scartato"), quindi il tasto
+    sembrava funzionare ma non succedeva piu' nulla. Il doppio-click
+    "mentre e' in corso" e' gestito ora a livello applicativo controllando
+    lo stato in `job_runs` (vedi il router), non da arq."""
     pool = await get_arq_pool()
-    job = await pool.enqueue_job(
-        MARKET_DATA_REFRESH_FUNCTION,
-        str(workspace_id),
-        str(user_id),
-        _job_id=f"market-data-refresh:{workspace_id}",
-    )
-    return job.job_id if job is not None else f"market-data-refresh:{workspace_id}"
+    job = await pool.enqueue_job(MARKET_DATA_REFRESH_FUNCTION, str(workspace_id), str(user_id))
+    return job.job_id if job is not None else ""
 
 
 async def enqueue_snapshot_rebuild(workspace_id: uuid.UUID, user_id: uuid.UUID) -> str:
-    """Trigger manuale (`POST /portfolio/snapshots/rebuild`, DoD M09)."""
+    """Trigger manuale (`POST /portfolio/snapshots/rebuild`, DoD M09) —
+    stesso principio/bugfix di `enqueue_market_data_refresh`."""
     pool = await get_arq_pool()
-    job = await pool.enqueue_job(
-        SNAPSHOT_REBUILD_FUNCTION,
-        str(workspace_id),
-        str(user_id),
-        _job_id=f"snapshot-rebuild:{workspace_id}",
-    )
-    return job.job_id if job is not None else f"snapshot-rebuild:{workspace_id}"
+    job = await pool.enqueue_job(SNAPSHOT_REBUILD_FUNCTION, str(workspace_id), str(user_id))
+    return job.job_id if job is not None else ""

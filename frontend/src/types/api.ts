@@ -575,6 +575,17 @@ export interface SnapshotRebuildTriggered {
   job_id: string;
 }
 
+/** Stato persistente dell'ultima esecuzione di un job async innescabile
+ * manualmente (refresh prezzi, ricalcolo snapshot) — sopravvive a un
+ * refresh pagina, a differenza del toast mostrato subito dopo il click.
+ * `null` (nessun JobRun) significa "non ancora eseguito", non un errore. */
+export interface JobRun {
+  status: "running" | "success" | "failed";
+  started_at: string;
+  finished_at: string | null;
+  message: string | null;
+}
+
 export interface Position {
   id: Uuid;
   workspace_id: Uuid;

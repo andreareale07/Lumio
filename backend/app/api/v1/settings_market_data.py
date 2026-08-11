@@ -10,6 +10,7 @@ from app.marketdata.base import MarketDataProviderError
 from app.marketdata.registry import build_provider
 from app.models.market_data_profile import MarketDataProfile
 from app.models.user import User
+from app.schemas.job_runs import JobRunOut
 from app.schemas.market_data import (
     MarketDataConnectionCheckRequest,
     MarketDataProfileCreate,
@@ -18,6 +19,7 @@ from app.schemas.market_data import (
     MarketDataRefreshTriggered,
     MarketDataTestConnectionResult,
 )
+from app.services.job_run_tracker import get_latest_run
 from app.services.market_data_profile_service import (
     activate_profile,
     apply_profile_update,
@@ -123,15 +125,40 @@ async def activate_market_data_profile(
 async def trigger_market_data_refresh(
     user: User = Depends(get_current_user),
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
 ) -> MarketDataRefreshTriggered:
     """Trigger manuale (DoD M09): accoda il job async invece di scaricare i
     prezzi nella request HTTP stessa (CLAUDE.md, "mai bloccare la request
     HTTP" per operazioni potenzialmente lunghe — il fetch di rete verso un
     provider esterno per ogni asset lo e'). Nessun canale SSE dedicato per
     questo job (vedi `MarketDataRefreshTriggered`): il frontend ri-esegue
-    semplicemente le query dopo qualche secondo."""
+    semplicemente le query dopo qualche secondo.
+
+    Il doppio-click mentre un refresh e' ancora in corso NON accoda un
+    secondo job: si controlla lo stato in `job_runs` (bug reale trovato
+    testando dal vivo con l'utente — l'id fisso per workspace che arq usava
+    prima per questo stesso scopo bloccava silenziosamente ANCHE i click
+    successivi al primo, per un'ora, vedi `enqueue_market_data_refresh`)."""
+    current = await get_latest_run(db, workspace_id, "market_data_refresh")
+    if current is not None and current.status == "running":
+        return MarketDataRefreshTriggered(job_id=current.job_id or "")
     job_id = await enqueue_market_data_refresh(workspace_id, user.id)
     return MarketDataRefreshTriggered(job_id=job_id)
+
+
+@router.get("/refresh-status", response_model=JobRunOut | None)
+async def get_market_data_refresh_status(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> JobRunOut | None:
+    """Stato persistente dell'ultimo refresh (manuale o cron): sopravvive a
+    un refresh pagina, a differenza del toast mostrato subito dopo il
+    click (vedi frontend, JobRunStatus). `null` se non e' mai stato
+    eseguito per questo workspace — stato valido, non un errore."""
+    # job_kind hardcoded: e' l'identita' di QUESTO endpoint, non un valore
+    # da parametrizzare (vedi JOB_KINDS in app/models/job_run.py).
+    run = await get_latest_run(db, workspace_id, "market_data_refresh")
+    return JobRunOut.model_validate(run) if run else None
 
 
 @router.post("/deactivate", status_code=status.HTTP_204_NO_CONTENT)

@@ -2,8 +2,11 @@
 valuation/allocation live, performance/net-worth-history letti dagli
 snapshot — mai ricalcolati al volo (DoD M09).
 """
+import uuid
+
 from httpx import AsyncClient
 
+from app.services.job_run_tracker import finish_run, start_run
 from app.worker.jobs.snapshot import write_snapshot_for_workspace
 
 
@@ -164,3 +167,74 @@ async def test_performance_and_net_worth_history_read_from_snapshots(client):
     nw_points = net_worth.json()["points"]
     assert len(nw_points) == 1
     assert nw_points[0]["investments"] == "1000.00"
+
+
+# --- Stato persistente del ricalcolo snapshot (gap UX, non un toast) ------
+
+
+async def test_snapshot_status_is_null_when_never_run(client):
+    token = await _register(client, "pf-snapshot-status-null@example.com")
+    response = await client.get("/api/v1/portfolios/snapshots/status", headers=_auth_headers(token))
+    assert response.status_code == 200
+    assert response.json() is None
+
+
+async def test_snapshot_status_reflects_last_run_and_survives_a_page_reload(client):
+    token = await _register(client, "pf-snapshot-status@example.com")
+    me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
+    workspace_id, user_id = me.json()["workspace_id"], me.json()["id"]
+
+    await write_snapshot_for_workspace(None, workspace_id, user_id)
+
+    response = await client.get("/api/v1/portfolios/snapshots/status", headers=_auth_headers(token))
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["finished_at"] is not None
+    assert "0 portfolio" in body["message"]  # nessun portfolio nominato creato in questo test
+
+
+async def test_snapshot_rebuild_does_not_enqueue_a_second_job_while_one_is_running(client, monkeypatch):
+    import app.api.v1.portfolios as portfolios_module
+
+    calls = []
+
+    async def fake_enqueue(workspace_id, user_id):
+        calls.append((workspace_id, user_id))
+        return "fake-job-id"
+
+    monkeypatch.setattr(portfolios_module, "enqueue_snapshot_rebuild", fake_enqueue)
+
+    token = await _register(client, "pf-rebuild-no-double-enqueue@example.com")
+    me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
+    workspace_id, user_id = uuid.UUID(me.json()["workspace_id"]), uuid.UUID(me.json()["id"])
+
+    await start_run(workspace_id, user_id, "snapshot_rebuild")
+
+    response = await client.post("/api/v1/portfolios/snapshots/rebuild", headers=_auth_headers(token))
+    assert response.status_code == 202
+    assert calls == []
+
+
+async def test_snapshot_rebuild_enqueues_again_after_a_previous_run_completed(client, monkeypatch):
+    """Stessa regressione di `test_refresh_enqueues_again_after_a_previous_run_completed`
+    ma per il ricalcolo snapshot."""
+    import app.api.v1.portfolios as portfolios_module
+
+    calls = []
+
+    async def fake_enqueue(workspace_id, user_id):
+        calls.append((workspace_id, user_id))
+        return "fake-job-id"
+
+    monkeypatch.setattr(portfolios_module, "enqueue_snapshot_rebuild", fake_enqueue)
+
+    token = await _register(client, "pf-rebuild-reenqueue@example.com")
+    me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
+    workspace_id, user_id = uuid.UUID(me.json()["workspace_id"]), uuid.UUID(me.json()["id"])
+
+    await start_run(workspace_id, user_id, "snapshot_rebuild")
+    await finish_run(workspace_id, user_id, "snapshot_rebuild", success=True, message="ok")
+
+    response = await client.post("/api/v1/portfolios/snapshots/rebuild", headers=_auth_headers(token))
+    assert response.status_code == 202
+    assert len(calls) == 1

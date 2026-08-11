@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../../lib/apiClient";
 import type {
+  JobRun,
   MarketDataConnectionCheckRequest,
   MarketDataProfile,
   MarketDataProfileCreate,
@@ -11,6 +12,7 @@ import type {
 } from "../../../types/api";
 
 export const marketDataProfilesKey = ["settings", "market-data", "profiles"] as const;
+export const marketDataRefreshStatusKey = ["settings", "market-data", "refresh-status"] as const;
 
 export function useMarketDataProfiles() {
   return useQuery({
@@ -86,5 +88,17 @@ export function useTestSavedMarketDataProfile() {
 export function useTriggerMarketDataRefresh() {
   return useMutation({
     mutationFn: () => api.post<MarketDataRefreshTriggered>("/settings/market-data/refresh"),
+  });
+}
+
+/** Stato persistente dell'ultimo refresh (manuale o cron) — sopravvive a un
+ * refresh pagina, a differenza del toast mostrato subito dopo il click.
+ * Polling leggero solo mentre e' "running" (stesso principio di
+ * useImport in features/imports/api.ts). */
+export function useMarketDataRefreshStatus() {
+  return useQuery({
+    queryKey: marketDataRefreshStatusKey,
+    queryFn: () => api.get<JobRun | null>("/settings/market-data/refresh-status"),
+    refetchInterval: (query) => (query.state.data?.status === "running" ? 3000 : false),
   });
 }

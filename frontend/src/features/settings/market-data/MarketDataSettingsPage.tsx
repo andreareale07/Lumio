@@ -8,6 +8,7 @@ import { Card } from "../../../components/ui/Card";
 import { Dialog } from "../../../components/ui/Dialog";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { ErrorState } from "../../../components/ui/ErrorState";
+import { JobRunStatus } from "../../../components/ui/JobRunStatus";
 import { SkeletonRows } from "../../../components/ui/Skeleton";
 import type { MarketDataProfile } from "../../../types/api";
 import {
@@ -15,6 +16,7 @@ import {
   useDeactivateMarketData,
   useDeleteMarketDataProfile,
   useMarketDataProfiles,
+  useMarketDataRefreshStatus,
   useTriggerMarketDataRefresh,
 } from "./api";
 import { MarketDataProfileFormDialog } from "./MarketDataProfileFormDialog";
@@ -30,12 +32,12 @@ export function MarketDataSettingsPage() {
   const deactivateMarketData = useDeactivateMarketData();
   const deleteProfile = useDeleteMarketDataProfile();
   const triggerRefresh = useTriggerMarketDataRefresh();
+  const refreshStatus = useMarketDataRefreshStatus();
   const queryClient = useQueryClient();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<MarketDataProfile | null>(null);
   const [profileToDelete, setProfileToDelete] = useState<MarketDataProfile | null>(null);
-  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
   const openCreate = () => {
     setEditingProfile(null);
@@ -49,16 +51,16 @@ export function MarketDataSettingsPage() {
   const activeProfile = profiles?.find((p) => p.is_active) ?? null;
 
   const onRefreshNow = async () => {
-    setRefreshMessage(null);
     await triggerRefresh.mutateAsync();
-    setRefreshMessage("Aggiornamento avviato in background. I nuovi prezzi appariranno a breve.");
     // Nessun canale di progresso live per questo job (vedi backend,
-    // MarketDataRefreshTriggered): si invalidano le query dei prezzi/
-    // posizioni dopo un breve ritardo, cosi' un refetch mostra i dati
-    // aggiornati senza che l'utente debba ricaricare la pagina a mano.
+    // MarketDataRefreshTriggered): dopo un breve ritardo (il tempo che il
+    // worker prenda in carico il job e scriva "running") si ri-legge lo
+    // stato persistente (JobRunStatus, sopravvive a un refresh pagina) e
+    // si invalidano le query dei prezzi/posizioni.
     setTimeout(() => {
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
-    }, 4000);
+      void refreshStatus.refetch();
+    }, 1500);
   };
 
   return (
@@ -146,11 +148,7 @@ export function MarketDataSettingsPage() {
           </Button>
         </Card>
       )}
-      {refreshMessage && (
-        <p role="status" className="text-sm text-success">
-          {refreshMessage}
-        </p>
-      )}
+      <JobRunStatus run={refreshStatus.data} />
 
       <MarketDataProfileFormDialog open={formOpen} onClose={() => setFormOpen(false)} profile={editingProfile} />
 

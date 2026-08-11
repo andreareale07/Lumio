@@ -9,6 +9,7 @@ from app.models.financial_account import FinancialAccount
 from app.models.import_ import Import
 from app.models.import_mapping import ImportMapping
 from app.models.investment_transaction import InvestmentTransaction
+from app.models.job_run import JobRun
 from app.models.market_data_profile import MarketDataProfile
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.portfolio import Portfolio
@@ -33,6 +34,7 @@ __all__ = [
     "Import",
     "ImportMapping",
     "InvestmentTransaction",
+    "JobRun",
     "MarketDataProfile",
     "NetWorthSnapshot",
     "Portfolio",

@@ -286,9 +286,15 @@ async def _upsert_net_worth_snapshot(
     snapshot.net_worth = liquidity + debt + investments
 
 
+@dataclass
+class SnapshotRunSummary:
+    snapshot_date: date
+    portfolios: int
+
+
 async def write_daily_snapshots(
     db: AsyncSession, workspace_id: uuid.UUID, snapshot_date: date | None = None
-) -> None:
+) -> SnapshotRunSummary:
     """Calcola e scrive (upsert) lo snapshot patrimonio + un portfolio
     snapshot per l'aggregato "tutti i conti" e per ogni portfolio nominato,
     per la data indicata (default oggi). Il chiamante e' responsabile del
@@ -327,6 +333,7 @@ async def write_daily_snapshots(
         balances.debt_total,
         aggregate.market_value,
     )
+    return SnapshotRunSummary(snapshot_date=snapshot_date, portfolios=len(portfolios))
 
 
 async def list_portfolio_snapshots(

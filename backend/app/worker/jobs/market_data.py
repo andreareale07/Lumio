@@ -11,6 +11,7 @@ sola — qui la "riga" e' un asset).
 """
 import logging
 import uuid
+from dataclasses import dataclass
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,9 +22,24 @@ from app.marketdata.base import AssetRef, MarketDataProviderError
 from app.marketdata.registry import build_provider
 from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
+from app.services.job_run_tracker import tracked_job_run
 from app.services.market_data_profile_service import get_active_profile
 
 logger = logging.getLogger(__name__)
+
+JOB_KIND = "market_data_refresh"
+
+
+@dataclass
+class RefreshSummary:
+    checked: int
+    updated: int
+
+
+def _refresh_message(summary: RefreshSummary) -> str:
+    if summary.checked == 0:
+        return "Nessun asset da aggiornare (nessun provider attivo o nessun asset con simbolo)."
+    return f"{summary.updated} prezzi aggiornati su {summary.checked} asset."
 
 
 async def list_workspace_owners() -> list[tuple[uuid.UUID, uuid.UUID]]:
@@ -36,10 +52,10 @@ async def list_workspace_owners() -> list[tuple[uuid.UUID, uuid.UUID]]:
     return [(row.workspace_id, row.owner_user_id) for row in rows]
 
 
-async def _refresh_workspace(db: AsyncSession, workspace_id: uuid.UUID) -> None:
+async def _refresh_workspace(db: AsyncSession, workspace_id: uuid.UUID) -> RefreshSummary:
     profile = await get_active_profile(db, workspace_id)
     if profile is None or profile.provider == "manual":
-        return  # market data disabilitato o solo manuale: nulla da scaricare
+        return RefreshSummary(checked=0, updated=0)  # market data disabilitato o solo manuale: nulla da scaricare
 
     provider = build_provider(profile)
     assets = (
@@ -48,6 +64,7 @@ async def _refresh_workspace(db: AsyncSession, workspace_id: uuid.UUID) -> None:
         )
     ).scalars().all()
 
+    updated = 0
     for asset in assets:
         try:
             quote = await provider.fetch_quote(
@@ -73,13 +90,25 @@ async def _refresh_workspace(db: AsyncSession, workspace_id: uuid.UUID) -> None:
         price_row.price = quote.price
         price_row.currency = quote.currency
         price_row.source = profile.provider
+        updated += 1
+
+    return RefreshSummary(checked=len(assets), updated=updated)
 
 
 async def refresh_market_data_job(ctx) -> None:
     for workspace_id, owner_user_id in await list_workspace_owners():
-        async with rls_session(owner_user_id) as db:
-            await _refresh_workspace(db, workspace_id)
-            await db.commit()
+        try:
+            async with tracked_job_run(workspace_id, owner_user_id, JOB_KIND) as run:
+                async with rls_session(owner_user_id) as db:
+                    summary = await _refresh_workspace(db, workspace_id)
+                    await db.commit()
+                run.message = _refresh_message(summary)
+        except Exception:
+            # Un workspace fallito non deve bloccare il refresh degli altri
+            # (stesso principio gia' applicato per asset singolo dentro
+            # _refresh_workspace) — lo stato "failed" e' comunque scritto da
+            # tracked_job_run prima di ri-lanciare, qui lo si logga e basta.
+            logger.exception("refresh prezzi cron falito per workspace %s", workspace_id)
 
 
 async def refresh_market_data_for_workspace(ctx, workspace_id: str, user_id: str) -> None:
@@ -90,6 +119,9 @@ async def refresh_market_data_for_workspace(ctx, workspace_id: str, user_id: str
     dependency `get_current_workspace_id`): a differenza del cron, che non
     ha una richiesta HTTP da cui ricavare un'identita' e usa sempre il
     proprietario, qui non serve risalire all'owner."""
-    async with rls_session(uuid.UUID(user_id)) as db:
-        await _refresh_workspace(db, uuid.UUID(workspace_id))
-        await db.commit()
+    ws_id, uid = uuid.UUID(workspace_id), uuid.UUID(user_id)
+    async with tracked_job_run(ws_id, uid, JOB_KIND) as run:
+        async with rls_session(uid) as db:
+            summary = await _refresh_workspace(db, ws_id)
+            await db.commit()
+        run.message = _refresh_message(summary)

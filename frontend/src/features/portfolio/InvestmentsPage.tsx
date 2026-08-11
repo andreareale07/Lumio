@@ -11,6 +11,7 @@ import { Card } from "../../components/ui/Card";
 import { Dialog } from "../../components/ui/Dialog";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
+import { JobRunStatus } from "../../components/ui/JobRunStatus";
 import { Select } from "../../components/ui/Select";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { Tabs } from "../../components/ui/Tabs";
@@ -35,6 +36,7 @@ import {
   usePortfolioValuation,
   usePositions,
   useRemovePortfolioAccount,
+  useSnapshotRebuildStatus,
   useTriggerSnapshotRebuild,
 } from "./api";
 import { INVESTMENT_TRANSACTION_TYPE_LABELS } from "./labels";
@@ -288,13 +290,17 @@ function PerformanceTab({ portfolioId }: { portfolioId: string | null }) {
 
   const performance = usePortfolioPerformance({ portfolio_id: portfolioId ?? undefined, date_from: dateFrom, date_to: dateTo });
   const rebuildSnapshot = useTriggerSnapshotRebuild();
-  const [rebuildMessage, setRebuildMessage] = useState<string | null>(null);
+  const rebuildStatus = useSnapshotRebuildStatus();
 
   const onRebuildNow = async () => {
-    setRebuildMessage(null);
     await rebuildSnapshot.mutateAsync();
-    setRebuildMessage("Ricalcolo avviato in background. Il grafico si aggiornerà a breve.");
-    setTimeout(() => void performance.refetch(), 4000);
+    // Stesso principio di MarketDataSettingsPage: nessun canale di
+    // progresso live, si ri-legge lo stato persistente (sopravvive a un
+    // refresh pagina) dopo che il worker ha avuto il tempo di scriverlo.
+    setTimeout(() => {
+      void performance.refetch();
+      void rebuildStatus.refetch();
+    }, 1500);
   };
 
   if (performance.isLoading) return <SkeletonRows rows={4} />;
@@ -331,11 +337,7 @@ function PerformanceTab({ portfolioId }: { portfolioId: string | null }) {
           <RefreshCw className="h-4 w-4" /> Ricalcola adesso
         </Button>
       </div>
-      {rebuildMessage && (
-        <p role="status" className="text-sm text-success">
-          {rebuildMessage}
-        </p>
-      )}
+      <JobRunStatus run={rebuildStatus.data} />
 
       <ChartCard
         title="Valore nel tempo"

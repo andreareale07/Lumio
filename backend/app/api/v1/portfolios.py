@@ -12,6 +12,7 @@ from app.models.financial_account import FinancialAccount
 from app.models.portfolio import Portfolio
 from app.models.portfolio_account import PortfolioAccount
 from app.models.user import User
+from app.schemas.job_runs import JobRunOut
 from app.schemas.portfolio_analytics import (
     AllocationItemOut,
     PortfolioAllocationOut,
@@ -29,6 +30,7 @@ from app.schemas.portfolios import (
 )
 from app.services import analytics as analytics_service
 from app.services import portfolio_analytics
+from app.services.job_run_tracker import get_latest_run
 from app.worker.queue import enqueue_snapshot_rebuild
 
 router = APIRouter(prefix="/portfolios", tags=["portfolio"])
@@ -301,11 +303,27 @@ async def remove_portfolio_account(
 async def trigger_snapshot_rebuild(
     user: User = Depends(get_current_user),
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
 ) -> SnapshotRebuildTriggered:
     """Ricalcolo manuale dello snapshot del giorno (in aggiunta al cron
     giornaliero, vedi `app/worker/main.py`) — utile subito dopo aver
     configurato un provider o corretto una posizione, senza aspettare la
-    prossima esecuzione schedulata. Job async, stesso principio di
-    `trigger_market_data_refresh`."""
+    prossima esecuzione schedulata. Job async, stesso principio (e stesso
+    bugfix anti-doppio-click via `job_runs`) di `trigger_market_data_refresh`."""
+    current = await get_latest_run(db, workspace_id, "snapshot_rebuild")
+    if current is not None and current.status == "running":
+        return SnapshotRebuildTriggered(job_id=current.job_id or "")
     job_id = await enqueue_snapshot_rebuild(workspace_id, user.id)
     return SnapshotRebuildTriggered(job_id=job_id)
+
+
+@router.get("/snapshots/status", response_model=JobRunOut | None)
+async def get_snapshot_rebuild_status(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> JobRunOut | None:
+    """Stato persistente dell'ultimo ricalcolo (manuale o cron) — stesso
+    principio di `get_market_data_refresh_status`. `null` se non e' mai
+    stato eseguito."""
+    run = await get_latest_run(db, workspace_id, "snapshot_rebuild")
+    return JobRunOut.model_validate(run) if run else None

@@ -6,6 +6,7 @@ import type {
   AssetType,
   InvestmentTransaction,
   InvestmentTransactionType,
+  JobRun,
   Portfolio,
   PortfolioAccountLink,
   PortfolioAllocation,
@@ -278,5 +279,15 @@ export function usePortfolioPerformance(filters: PortfolioPerformanceFilters = {
 export function useTriggerSnapshotRebuild() {
   return useMutation({
     mutationFn: () => api.post<SnapshotRebuildTriggered>("/portfolios/snapshots/rebuild"),
+  });
+}
+
+/** Stato persistente dell'ultimo ricalcolo (manuale o cron) — stesso
+ * principio di useMarketDataRefreshStatus (features/settings/market-data/api.ts). */
+export function useSnapshotRebuildStatus() {
+  return useQuery({
+    queryKey: ["portfolio", "snapshots", "status"] as const,
+    queryFn: () => api.get<JobRun | null>("/portfolios/snapshots/status"),
+    refetchInterval: (query) => (query.state.data?.status === "running" ? 3000 : false),
   });
 }

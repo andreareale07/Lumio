@@ -1,7 +1,12 @@
 """Test API dei profili MarketDataProvider e dei prezzi asset (milestone
 09b) — stesso pattern di `test_portfolio_api.py`.
 """
+import uuid
+
 from httpx import AsyncClient
+
+from app.services.job_run_tracker import finish_run, start_run
+from app.worker.jobs.market_data import refresh_market_data_for_workspace
 
 
 async def _register(client: AsyncClient, email: str) -> str:
@@ -195,3 +200,79 @@ async def test_asset_price_rejects_asset_from_another_workspace(client):
         headers=_auth_headers(token_a),
     )
     assert response.status_code == 404
+
+
+# --- Stato persistente del refresh (gap UX, non un toast effimero) --------
+
+
+async def test_refresh_status_is_null_when_never_run(client):
+    token = await _register(client, "md-refresh-status-null@example.com")
+    response = await client.get("/api/v1/settings/market-data/refresh-status", headers=_auth_headers(token))
+    assert response.status_code == 200
+    assert response.json() is None
+
+
+async def test_refresh_status_reflects_last_run_and_survives_a_page_reload(client):
+    token = await _register(client, "md-refresh-status@example.com")
+    me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
+    workspace_id, user_id = me.json()["workspace_id"], me.json()["id"]
+
+    # Simula il job del worker (nessun profilo attivo: nulla da scaricare,
+    # ma lo stato dell'esecuzione va comunque registrato).
+    await refresh_market_data_for_workspace(None, workspace_id, user_id)
+
+    response = await client.get("/api/v1/settings/market-data/refresh-status", headers=_auth_headers(token))
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["finished_at"] is not None
+    assert body["message"] is not None
+
+
+async def test_refresh_does_not_enqueue_a_second_job_while_one_is_running(client, monkeypatch):
+    import app.api.v1.settings_market_data as settings_market_data_module
+
+    calls = []
+
+    async def fake_enqueue(workspace_id, user_id):
+        calls.append((workspace_id, user_id))
+        return "fake-job-id"
+
+    monkeypatch.setattr(settings_market_data_module, "enqueue_market_data_refresh", fake_enqueue)
+
+    token = await _register(client, "md-refresh-no-double-enqueue@example.com")
+    me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
+    workspace_id, user_id = uuid.UUID(me.json()["workspace_id"]), uuid.UUID(me.json()["id"])
+
+    await start_run(workspace_id, user_id, "market_data_refresh")
+
+    response = await client.post("/api/v1/settings/market-data/refresh", headers=_auth_headers(token))
+    assert response.status_code == 202
+    assert calls == []  # un refresh e' gia' "running": nessun secondo job accodato
+
+
+async def test_refresh_enqueues_again_after_a_previous_run_completed(client, monkeypatch):
+    """Regressione del bug reale trovato testando dal vivo: l'id fisso per
+    workspace che arq usava per il dedup bloccava silenziosamente ANCHE i
+    click successivi al primo refresh completato (il risultato resta in
+    Redis per un'ora) — un'esecuzione GIA' TERMINATA non deve mai impedire
+    il trigger successivo."""
+    import app.api.v1.settings_market_data as settings_market_data_module
+
+    calls = []
+
+    async def fake_enqueue(workspace_id, user_id):
+        calls.append((workspace_id, user_id))
+        return "fake-job-id"
+
+    monkeypatch.setattr(settings_market_data_module, "enqueue_market_data_refresh", fake_enqueue)
+
+    token = await _register(client, "md-refresh-reenqueue@example.com")
+    me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
+    workspace_id, user_id = uuid.UUID(me.json()["workspace_id"]), uuid.UUID(me.json()["id"])
+
+    await start_run(workspace_id, user_id, "market_data_refresh")
+    await finish_run(workspace_id, user_id, "market_data_refresh", success=True, message="ok")
+
+    response = await client.post("/api/v1/settings/market-data/refresh", headers=_auth_headers(token))
+    assert response.status_code == 202
+    assert len(calls) == 1

@@ -168,6 +168,46 @@ describe("InvestmentsPage", () => {
     expect(within(table).getByText("Trade Republic")).toBeInTheDocument();
   });
 
+  it("mostra lo stato persistente dell'ultimo ricalcolo snapshot nel tab Performance", async () => {
+    mockApiRoutes({
+      // "/portfolios/snapshots/status" DEVE precedere "/portfolios" nelle
+      // chiavi: la substring match di mockApiRoutes risolve al primo
+      // percorso che compare come sottostringa dell'URL (stesso problema
+      // gia' documentato per le rotte analytics sopra).
+      "/portfolios/snapshots/status": {
+        status: "success",
+        started_at: "2026-08-11T02:00:00Z",
+        finished_at: "2026-08-11T02:00:03Z",
+        message: "Snapshot ricalcolato per il 2026-08-11 (1 portfolio).",
+      },
+      "/portfolios": [],
+      "/positions": [],
+      "/investment-transactions": [],
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "Performance" }));
+
+    expect(await screen.findByText("Completato")).toBeInTheDocument();
+    expect(screen.getByText(/Snapshot ricalcolato per il 2026-08-11/)).toBeInTheDocument();
+  });
+
+  it("mostra 'Non ancora eseguito' nel tab Performance se lo snapshot non e' mai stato calcolato", async () => {
+    mockApiRoutes({
+      "/portfolios/snapshots/status": null,
+      "/portfolios": [],
+      "/positions": [],
+      "/investment-transactions": [],
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "Performance" }));
+
+    expect(await screen.findByText("Non ancora eseguito.")).toBeInTheDocument();
+  });
+
   it("mostra l'empty state dei movimenti e apre il form di un nuovo movimento", async () => {
     mockApiRoutes({
       "/portfolios": [],
