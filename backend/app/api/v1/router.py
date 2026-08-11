@@ -3,13 +3,18 @@ from fastapi import APIRouter
 from app.api.v1 import (
     accounts,
     analytics,
+    assets,
     auth,
     banks,
     categories,
     import_mappings,
     imports,
+    investment_transactions,
+    portfolios,
+    positions,
     rules,
     settings_ai,
+    settings_market_data,
     transactions,
 )
 
@@ -23,4 +28,9 @@ api_router.include_router(imports.router)
 api_router.include_router(import_mappings.router)
 api_router.include_router(rules.router)
 api_router.include_router(settings_ai.router)
+api_router.include_router(settings_market_data.router)
 api_router.include_router(analytics.router)
+api_router.include_router(assets.router)
+api_router.include_router(portfolios.router)
+api_router.include_router(investment_transactions.router)
+api_router.include_router(positions.router)

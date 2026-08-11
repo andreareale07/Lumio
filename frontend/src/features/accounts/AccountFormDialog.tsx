@@ -37,9 +37,9 @@ function valuesFrom(account: FinancialAccount | null | undefined): FormValues {
  * dashboard finisce il saldo — Liquidità vs Investimenti (milestone 08,
  * SPEC §18/§30) — quindi deve poter essere corretto dopo la creazione: un
  * conto Trade Republic usato anche per la spesa quotidiana (carta + saldo
- * spendibile) va registrato come conto normale, non "Conto titoli", anche
- * se in futuro (M09) traccerà anche posizioni reali — il tracciamento
- * delle posizioni si lega all'id del conto, non al suo `account_type`. */
+ * spendibile) va registrato come conto normale, non "Conto titoli": il
+ * tracciamento delle posizioni (M09, `investment_transactions`/`positions`)
+ * si lega all'id del conto, non al suo `account_type`. */
 export function AccountFormDialog({ open, onClose, account }: AccountFormDialogProps) {
   const createAccount = useCreateAccount();
   const updateAccount = useUpdateAccount();

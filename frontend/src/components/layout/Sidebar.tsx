@@ -3,6 +3,8 @@ import {
   Banknote,
   LayoutDashboard,
   Landmark,
+  LineChart,
+  PiggyBank,
   Receipt,
   Sparkles,
   UploadCloud,
@@ -18,12 +20,15 @@ const NAV_ITEMS = [
   { to: "/expenses", label: "Spese", icon: Receipt },
   { to: "/income", label: "Entrate", icon: Banknote },
   { to: "/net-worth", label: "Patrimonio", icon: Wallet },
+  { to: "/investments", label: "Investimenti", icon: PiggyBank },
   { to: "/imports", label: "Import", icon: UploadCloud },
   { to: "/settings/rules", label: "Regole", icon: Wand2 },
   { to: "/settings/ai", label: "AI", icon: Sparkles },
+  { to: "/settings/market-data", label: "Market Data", icon: LineChart },
 ];
 
-/** Milestone 08: aggiunte Panoramica/Spese/Entrate/Patrimonio (SPEC §41). */
+/** Milestone 08: aggiunte Panoramica/Spese/Entrate/Patrimonio (SPEC §41).
+ * Milestone 09: aggiunte Investimenti e Market Data. */
 export function Sidebar() {
   return (
     <nav

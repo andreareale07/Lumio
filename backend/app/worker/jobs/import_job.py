@@ -40,16 +40,20 @@ from app.db.rls import rls_session
 from app.models.bank_parser import BankParser as BankParserRow
 from app.models.classification import Classification
 from app.models.import_ import Import
+from app.models.investment_transaction import InvestmentTransaction
 from app.models.transaction import Transaction
 from app.parsers import get_parser
 from app.services import job_events
 from app.services.ai_classification import classify_transaction, load_category_options
 from app.services.ai_profile_service import get_active_profile
+from app.services.asset_matching import get_or_create_asset_by_isin
 from app.services.confidence import compute_ai_confidence
 from app.services.csv_import import MappingConfig, ParsedRow, parse_rows
 from app.services.import_paths import original_file_path
+from app.services.position_service import recompute_position
 from app.services.rule_loader import load_active_rule_specs
 from app.services.rules_engine import Probe, evaluate
+from app.services.trade_parsing import ParsedTrade, parse_trade_description
 from app.storage import get_storage
 
 logger = logging.getLogger("lumio.worker.import_job")
@@ -210,6 +214,12 @@ async def _insert_transactions_and_complete(
         transactions: list[Transaction] = []
         matched_categories: dict[int, uuid.UUID] = {}
         ai_results: dict[int, AIClassificationResult] = {}
+        # Milestone 09c: se la DESCRIZIONE matcha il formato Trade Republic
+        # per i movimenti "Commercio" (verificato sui dati reali dell'utente,
+        # vedi docstring di trade_parsing.py), si deriva automaticamente un
+        # InvestmentTransaction — indipendente dal canale/parser, il check e'
+        # solo sul testo della descrizione.
+        parsed_trades: dict[int, ParsedTrade] = {}
         for index, row in enumerate(rows):
             probe = Probe(
                 description_raw=row.description_raw,
@@ -247,6 +257,7 @@ async def _insert_transactions_and_complete(
                 currency=row.currency,
                 direction=row.direction,
                 transaction_type=row.transaction_type,
+                source_type_raw=row.source_type_raw,
                 balance_after=row.balance_after,
                 category_id=matched_category_id,
             )
@@ -255,7 +266,11 @@ async def _insert_transactions_and_complete(
             if matched_category_id is not None and index not in ai_results:
                 matched_categories[index] = matched_category_id
 
-        if matched_categories or ai_results:
+            parsed_trade = parse_trade_description(row.description_raw)
+            if parsed_trade is not None:
+                parsed_trades[index] = parsed_trade
+
+        if matched_categories or ai_results or parsed_trades:
             # Serve un flush per ottenere gli id (server-generated) delle
             # transazioni appena aggiunte, prima di poterli referenziare da
             # `classifications.transaction_id` — un solo commit resta alla
@@ -282,6 +297,40 @@ async def _insert_transactions_and_complete(
                         explanation=ai_result.explanation,
                     )
                 )
+
+            # Milestone 09c: un InvestmentTransaction per ogni riga
+            # riconosciuta, collegata alla transazione bancaria via
+            # `transaction_id` (link opzionale, qui popolato perche' e'
+            # esattamente il movimento che ha generato quel cash flow — mai
+            # una seconda scrittura di cassa duplicata). Prezzo = importo
+            # assoluto / quantita' (commissione spalmata, vedi
+            # trade_parsing.py); asset auto-riconosciuto/creato per ISIN.
+            touched_assets: dict[uuid.UUID, str] = {}
+            for index, trade in parsed_trades.items():
+                transaction = transactions[index]
+                asset = await get_or_create_asset_by_isin(
+                    db, workspace_id, trade.isin, trade.asset_name, transaction.currency
+                )
+                price = abs(transaction.amount) / trade.quantity
+                db.add(
+                    InvestmentTransaction(
+                        workspace_id=workspace_id,
+                        financial_account_id=financial_account_id,
+                        asset_id=asset.id,
+                        transaction_id=transaction.id,
+                        trade_date=transaction.transaction_date,
+                        type=trade.type,
+                        quantity=trade.quantity,
+                        price=price,
+                        amount=transaction.amount,
+                        currency=transaction.currency,
+                        source_type_raw=trade.source_type_raw,
+                    )
+                )
+                touched_assets[asset.id] = transaction.currency
+
+            for asset_id, currency in touched_assets.items():
+                await recompute_position(db, workspace_id, financial_account_id, asset_id, currency)
 
         import_row.status = "completed"
         import_row.transactions_found = len(rows)

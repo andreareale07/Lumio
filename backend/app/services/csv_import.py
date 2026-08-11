@@ -100,6 +100,11 @@ class ParsedRow(BaseModel):
     currency: str
     direction: str
     transaction_type: str
+    # Etichetta grezza del provider per il tipo (SPEC: "conservare sempre il
+    # dato raw" — vedi Transaction.source_type_raw). Il canale CSV non ha
+    # oggi una colonna mappata per questo (nessun `columns.transaction_type`
+    # in ColumnsConfig): resta None, mai un default inventato.
+    source_type_raw: str | None = None
     reference: str | None
     balance_after: Decimal | None
 

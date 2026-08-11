@@ -384,3 +384,206 @@ export interface AnalyticsMerchantBreakdown {
   period: AnalyticsPeriod;
   items: MerchantBreakdownItem[];
 }
+
+// Portfolio (milestone 09a) — nessun market data ancora: tutti i valori
+// monetari legati a un asset sono "a costo" (average_cost), non a mercato.
+
+export const ASSET_TYPES = ["etf", "stock", "bond", "crypto", "fund", "cash", "other"] as const;
+export type AssetType = (typeof ASSET_TYPES)[number];
+
+export interface Asset {
+  id: Uuid;
+  workspace_id: Uuid;
+  symbol: string | null;
+  isin: string | null;
+  name: string;
+  asset_type: AssetType;
+  currency: string;
+  notes: string | null;
+  created_at: IsoDateTime;
+  updated_at: IsoDateTime;
+}
+
+export interface Portfolio {
+  id: Uuid;
+  workspace_id: Uuid;
+  name: string;
+  description: string | null;
+  currency: string;
+  created_at: IsoDateTime;
+  updated_at: IsoDateTime;
+}
+
+export interface PortfolioAccountLink {
+  id: Uuid;
+  portfolio_id: Uuid;
+  financial_account_id: Uuid;
+  created_at: IsoDateTime;
+}
+
+export const INVESTMENT_TRANSACTION_TYPES = [
+  "buy",
+  "sell",
+  "dividend",
+  "deposit",
+  "withdrawal",
+  "fee",
+  "tax",
+  "split",
+  "opening",
+  "adjustment",
+] as const;
+export type InvestmentTransactionType = (typeof INVESTMENT_TRANSACTION_TYPES)[number];
+
+export interface InvestmentTransaction {
+  id: Uuid;
+  workspace_id: Uuid;
+  financial_account_id: Uuid;
+  asset_id: Uuid | null;
+  transaction_id: Uuid | null;
+  trade_date: IsoDate;
+  type: InvestmentTransactionType;
+  quantity: string | null;
+  price: string | null;
+  amount: string;
+  fees: string;
+  tax: string;
+  currency: string;
+  source_type_raw: string | null;
+  notes: string | null;
+  created_at: IsoDateTime;
+  updated_at: IsoDateTime;
+}
+
+export const MARKET_DATA_PROVIDERS = ["manual", "stooq", "yahoo", "custom"] as const;
+export type MarketDataProviderName = (typeof MARKET_DATA_PROVIDERS)[number];
+
+/** Un profilo salvato (SPEC §38) — stesso pattern di `AIProfile`: piu' per
+ * workspace, al massimo UNO con `is_active: true`. */
+export interface MarketDataProfile {
+  id: Uuid;
+  name: string;
+  provider: MarketDataProviderName;
+  endpoint: string | null;
+  api_key_set: boolean;
+  price_field: string | null;
+  currency_field: string | null;
+  is_active: boolean;
+  created_at: IsoDateTime;
+  updated_at: IsoDateTime;
+}
+
+export interface MarketDataProfileCreate {
+  name: string;
+  provider: MarketDataProviderName;
+  endpoint?: string | null;
+  api_key?: string;
+  price_field?: string | null;
+  currency_field?: string | null;
+}
+
+export interface MarketDataProfileUpdate {
+  name?: string;
+  endpoint?: string | null;
+  api_key?: string;
+  price_field?: string | null;
+  currency_field?: string | null;
+}
+
+export interface MarketDataConnectionCheckRequest {
+  provider: MarketDataProviderName;
+  endpoint?: string | null;
+  api_key?: string;
+  price_field?: string | null;
+  currency_field?: string | null;
+}
+
+export interface MarketDataTestConnectionResult {
+  success: boolean;
+  message: string;
+}
+
+export interface MarketDataRefreshTriggered {
+  job_id: string;
+}
+
+export interface AssetPrice {
+  id: Uuid;
+  asset_id: Uuid;
+  price_date: IsoDate;
+  price: string;
+  currency: string;
+  source: MarketDataProviderName;
+  created_at: IsoDateTime;
+}
+
+export interface PortfolioValuation {
+  currency: string;
+  as_of: IsoDate;
+  market_value: string;
+  cost_basis: string;
+  unrealized_pl: string;
+  realized_pl: string;
+  has_market_data: boolean;
+  has_holdings: boolean;
+}
+
+export interface AllocationItem {
+  key: string;
+  label: string;
+  value: string;
+  share: string;
+}
+
+export interface PortfolioAllocation {
+  currency: string;
+  as_of: IsoDate;
+  has_market_data: boolean;
+  by_asset_type: AllocationItem[];
+  by_asset: AllocationItem[];
+  by_account: AllocationItem[];
+}
+
+export interface PortfolioSnapshotPoint {
+  snapshot_date: IsoDate;
+  market_value: string;
+  cost_basis: string;
+  unrealized_pl: string;
+  realized_pl: string;
+  has_market_data: boolean;
+}
+
+export interface PortfolioPerformance {
+  currency: string;
+  points: PortfolioSnapshotPoint[];
+}
+
+export interface NetWorthSnapshotPoint {
+  snapshot_date: IsoDate;
+  liquidity: string;
+  debt: string;
+  investments: string;
+  net_worth: string;
+}
+
+export interface NetWorthHistory {
+  currency: string;
+  points: NetWorthSnapshotPoint[];
+}
+
+export interface SnapshotRebuildTriggered {
+  job_id: string;
+}
+
+export interface Position {
+  id: Uuid;
+  workspace_id: Uuid;
+  financial_account_id: Uuid;
+  asset_id: Uuid;
+  quantity: string;
+  average_cost: string;
+  realized_pl: string;
+  currency: string;
+  created_at: IsoDateTime;
+  updated_at: IsoDateTime;
+}

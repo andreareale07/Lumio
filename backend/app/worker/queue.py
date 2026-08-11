@@ -16,6 +16,8 @@ from app.core.config import get_settings
 _pool: ArqRedis | None = None
 
 IMPORT_JOB_FUNCTION = "import_job"
+MARKET_DATA_REFRESH_FUNCTION = "refresh_market_data_for_workspace"
+SNAPSHOT_REBUILD_FUNCTION = "write_snapshot_for_workspace"
 
 
 async def get_arq_pool() -> ArqRedis:
@@ -41,3 +43,30 @@ async def enqueue_import_job(import_id: uuid.UUID, created_by_user_id: uuid.UUID
     )
     job_id = job.job_id if job is not None else f"import:{import_id}"
     return job_id
+
+
+async def enqueue_market_data_refresh(workspace_id: uuid.UUID, user_id: uuid.UUID) -> str:
+    """Trigger manuale (`POST /market-data/refresh`, SPEC §38). `_job_id`
+    fissato sul workspace: un doppio click mentre il refresh precedente e'
+    ancora in corso non ne accoda un secondo in sovrapposizione, stesso
+    principio di `enqueue_import_job`."""
+    pool = await get_arq_pool()
+    job = await pool.enqueue_job(
+        MARKET_DATA_REFRESH_FUNCTION,
+        str(workspace_id),
+        str(user_id),
+        _job_id=f"market-data-refresh:{workspace_id}",
+    )
+    return job.job_id if job is not None else f"market-data-refresh:{workspace_id}"
+
+
+async def enqueue_snapshot_rebuild(workspace_id: uuid.UUID, user_id: uuid.UUID) -> str:
+    """Trigger manuale (`POST /portfolio/snapshots/rebuild`, DoD M09)."""
+    pool = await get_arq_pool()
+    job = await pool.enqueue_job(
+        SNAPSHOT_REBUILD_FUNCTION,
+        str(workspace_id),
+        str(user_id),
+        _job_id=f"snapshot-rebuild:{workspace_id}",
+    )
+    return job.job_id if job is not None else f"snapshot-rebuild:{workspace_id}"

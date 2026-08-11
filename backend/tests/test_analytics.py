@@ -104,7 +104,7 @@ async def test_brokerage_account_counts_as_liquidity_not_investment(client):
     body = response.json()
     assert body["liquidity_total"] == "872.70"
     assert body["debt_total"] == "-50.00"
-    assert body["investment_total"] == "0"
+    assert body["investment_total"] == "0.00"
     assert body["has_investments"] is False
 
 

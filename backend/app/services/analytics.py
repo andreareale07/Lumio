@@ -168,11 +168,12 @@ async def account_balances(
     as_of: date | None = None,
     financial_account_id: uuid.UUID | None = None,
 ) -> AccountBalances:
+    resolved_as_of = as_of or date.today()
     result = await db.execute(
         _ACCOUNT_BALANCES_SQL,
         {
             "workspace_id": workspace_id,
-            "as_of": as_of or date.today(),
+            "as_of": resolved_as_of,
             "currency": currency,
             "financial_account_id": financial_account_id,
         },
@@ -195,15 +196,27 @@ async def account_balances(
                 balance=balance,
             )
         )
+
+    # M09b: valore REALE delle posizioni (prima sempre 0/False in M08, vedi
+    # storia del commento su LIQUIDITY_ACCOUNT_TYPES). Import locale per
+    # evitare un ciclo con `portfolio_analytics.py`, che chiama a sua volta
+    # `account_balances` per lo snapshot patrimonio (vedi nota li').
+    # NESSUN doppio conteggio: il saldo di un conto titoli e' sempre e solo
+    # il cash su quel conto (LIQUIDITY_ACCOUNT_TYPES sopra); una posizione e'
+    # un asset distinto, valorizzato qui separatamente — un acquisto reale
+    # ha gia' ridotto il cash del conto (e quindi liquidity_total) tramite il
+    # movimento bancario importato, prima ancora che la posizione esista.
+    from app.services.portfolio_analytics import compute_valuation
+
+    account_ids = {financial_account_id} if financial_account_id is not None else None
+    valuation = await compute_valuation(db, workspace_id, account_ids, resolved_as_of, currency)
+
     return AccountBalances(
         accounts=accounts,
         liquidity_total=liquidity_total,
         debt_total=debt_total,
-        # Sempre 0/False in M08 (vedi commento su LIQUIDITY_ACCOUNT_TYPES):
-        # nessun account_type da' diritto a un valore di investimento reale
-        # senza il dominio Portfolio di M09.
-        investment_total=Decimal("0"),
-        has_investments=False,
+        investment_total=valuation.market_value,
+        has_investments=valuation.has_holdings,
     )
 
 

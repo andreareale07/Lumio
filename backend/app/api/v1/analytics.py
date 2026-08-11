@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +21,9 @@ from app.schemas.analytics import (
     PeriodOut,
     SummaryOut,
 )
+from app.schemas.portfolio_analytics import NetWorthHistoryOut, NetWorthSnapshotPointOut
 from app.services import analytics as analytics_service
+from app.services import portfolio_analytics
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -181,6 +183,42 @@ async def get_by_category(
         direction=direction,
         period=PeriodOut(date_from=date_from, date_to=date_to),
         items=[CategoryBreakdownItemOut(**i) for i in items],
+    )
+
+
+@router.get("/net-worth-history", response_model=NetWorthHistoryOut)
+async def get_net_worth_history(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+    date_from: date | None = None,
+    date_to: date | None = None,
+    currency: str | None = None,
+) -> NetWorthHistoryOut:
+    """Storico patrimonio (SPEC §31) — legge SEMPRE dagli snapshot gia'
+    scritti (`net_worth_snapshots`, cron/trigger manuale), mai ricalcolato
+    da zero: a differenza di `/balance-history` (M08, ricostruito a
+    ritroso dalle sole transazioni), qui il patrimonio include gli
+    investimenti a valore di mercato, che non e' derivabile dalle sole
+    transazioni bancarie (DoD M09)."""
+    resolved_currency = await analytics_service.resolve_currency(db, workspace_id, currency)
+    resolved_to = date_to or date.today()
+    resolved_from = date_from or (resolved_to - timedelta(days=365))
+    snapshots = await portfolio_analytics.list_net_worth_snapshots(
+        db, workspace_id, resolved_from, resolved_to
+    )
+    return NetWorthHistoryOut(
+        currency=resolved_currency,
+        points=[
+            NetWorthSnapshotPointOut(
+                snapshot_date=s.snapshot_date,
+                liquidity=s.liquidity,
+                debt=s.debt,
+                investments=s.investments,
+                net_worth=s.net_worth,
+            )
+            for s in snapshots
+            if s.currency == resolved_currency
+        ],
     )
 
 

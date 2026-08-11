@@ -143,6 +143,21 @@ def _transaction_type(tipo: str, direction: str) -> str:
     Decisione presa come dettaglio minore (non specificato da SPEC/ROADMAP
     per M05): mappatura onesta e corregibile dall'utente, stesso principio
     gia' usato dal parser CSV per il default expense/income.
+
+    Regola di design (hotfix pre-M09, vedi git blame/ROADMAP): un parser puo'
+    mappare solo cio' che l'etichetta *afferma*, non cio' che deduce. Se
+    l'etichetta e' semantica ("Interessi", "Imposte") si mappa sul tipo
+    canonico corrispondente. Se l'etichetta e' solo uno STRUMENTO di
+    pagamento ("Bonifico") non si deduce nulla oltre al segno: un bonifico
+    puo' essere un incasso da un cliente (income), un pagamento a un
+    fornitore (expense) o un trasferimento tra due conti propri (transfer) —
+    l'estratto conto di UN SOLO conto non permette di distinguere questi tre
+    casi. Prima di questo fix "Bonifico" mappava sempre su `transfer`, che e'
+    escluso dal cash flow (`analytics.py:_EXCLUDED_FROM_CASH_FLOW`): ogni
+    bonifico in entrata o in uscita spariva silenziosamente da entrate/spese
+    (bug osservato su dati reali). `transfer` resta assegnabile solo
+    manualmente dall'utente via UI/API, mai da un parser (SPEC §21, pairing
+    tra le due transazioni gemelle rimandato).
     """
     normalized = tipo.lower()
     if normalized == "interessi":
@@ -151,12 +166,12 @@ def _transaction_type(tipo: str, direction: str) -> str:
         return "income"
     if normalized == "imposte":
         return "tax"
-    if normalized == "bonifico":
-        return "transfer"
     if normalized == "commercio":
         return "investment"
     if normalized == "transazione con carta":
         return "refund" if direction == "credit" else "expense"
+    # "bonifico" e qualunque TIPO non riconosciuto: fallback onesto sulla
+    # sola direzione, stesso principio del parser CSV.
     return "income" if direction == "credit" else "expense"
 
 
@@ -227,6 +242,7 @@ class TradeRepublicParser:
                             currency="EUR",
                             direction=direction,
                             transaction_type=transaction_type,
+                            source_type_raw=tipo or None,
                             reference=None,
                             balance_after=saldo,
                         )

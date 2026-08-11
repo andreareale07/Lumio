@@ -1,4 +1,5 @@
 import { Landmark, PiggyBank } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
@@ -13,13 +14,14 @@ import { useAnalyticsBalanceHistory, useAnalyticsBalances, useAnalyticsSummary }
 import { formatBucketLabel } from "./chartData";
 
 /** SPEC_FE §33-34: storico + breakdown per gruppo di conti + attribution
- * del periodo. Il dominio investimenti (assets/positions/performance) non
- * esiste ancora (arriva con M09): il saldo di QUALSIASI conto — incluso un
- * conto titoli, spesso ibrido (spendibile con carta E usato per investire,
- * es. Trade Republic/Fineco) — conta come Liquidita', non come
- * investimento. L'attribution si limita a Entrate/Spese/Totale — senza una
- * riga "Investimenti" separata, che richiederebbe dati di portfolio non
- * ancora disponibili. */
+ * del periodo. Il saldo di QUALSIASI conto — incluso un conto titoli,
+ * spesso ibrido (spendibile con carta E usato per investire, es. Trade
+ * Republic/Fineco) — conta come Liquidita', non come investimento: un
+ * acquisto reale sposta cash verso una posizione, valorizzata separatamente
+ * (M09b, `balances.investment_total`) — mai un doppio conteggio. Il grafico
+ * storico resta sulla sola liquidita' (ricostruita dalle transazioni, SPEC
+ * §31); lo storico del valore delle posizioni vive in Investimenti →
+ * Performance, che legge dagli snapshot invece di ricalcolare al volo. */
 export function NetWorthPage() {
   const { dateFrom, dateTo } = usePeriodFilter();
   const period = { date_from: dateFrom, date_to: dateTo };
@@ -46,9 +48,7 @@ export function NetWorthPage() {
               {formatMoney(summary.data.liquidity, currency)}
             </span>
           )}
-          <p className="text-sm text-text-muted">
-            Liquidità disponibile. Il valore delle posizioni di investimento arriva con il modulo Portfolio.
-          </p>
+          <p className="text-sm text-text-muted">Liquidità disponibile. Il patrimonio totale è nel dettaglio sotto.</p>
         </div>
         <PeriodFilter />
       </div>
@@ -92,17 +92,38 @@ export function NetWorthPage() {
                   <span className="font-numeric text-danger">{formatMoney(balances.data.debt_total, currency)}</span>
                 </li>
               )}
+              {/* Il saldo dei conti titoli conta gia' come Liquidita' sopra
+                  — questa riga e' il valore delle POSIZIONI (asset
+                  posseduti), un dato distinto, mai un doppio conteggio. */}
+              {balances.data.has_investments && (
+                <li className="flex items-center justify-between">
+                  <span className="text-text">Investimenti</span>
+                  <span className="font-numeric text-text">
+                    {formatMoney(balances.data.investment_total, currency)}
+                  </span>
+                </li>
+              )}
+              {balances.data.has_investments && (
+                <li className="flex items-center justify-between border-t border-border pt-2 font-semibold">
+                  <span className="text-text">Patrimonio totale</span>
+                  <span className="font-numeric text-text">
+                    {formatMoney(
+                      Number(balances.data.liquidity_total) +
+                        Number(balances.data.debt_total) +
+                        Number(balances.data.investment_total),
+                      currency,
+                    )}
+                  </span>
+                </li>
+              )}
             </ul>
           )}
-          {/* Il saldo dei conti titoli conta gia' come Liquidita' sopra
-              (sono spesso ibridi: spendibili con carta E usati per
-              investire) — il valore reale delle posizioni arriva solo col
-              modulo Portfolio. */}
-          {balances.data && (
+          {balances.data && !balances.data.has_investments && (
             <EmptyState
               icon={PiggyBank}
-              title="Il valore delle posizioni arriva con Portfolio"
-              description="Azioni, ETF e obbligazioni saranno tracciati con il modulo Portfolio, a prescindere dal tipo di conto."
+              title="Non hai ancora aggiunto investimenti"
+              description="Azioni, ETF e obbligazioni appariranno qui non appena registrerai una posizione in Investimenti."
+              action={<Link to="/investments" className="text-sm font-medium text-primary hover:underline">Vai a Investimenti</Link>}
             />
           )}
         </Card>
@@ -129,7 +150,8 @@ export function NetWorthPage() {
             </ul>
           )}
           <p className="text-sm text-text-muted">
-            Il movimento degli investimenti sarà scomposto separatamente con il modulo Portfolio (M09).
+            I movimenti di investimento (acquisti, vendite, dividendi) sono esclusi da entrate e spese: li trovi
+            in Investimenti.
           </p>
         </Card>
       </div>

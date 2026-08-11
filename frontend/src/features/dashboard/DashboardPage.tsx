@@ -11,11 +11,12 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
 import { Skeleton, SkeletonRows } from "../../components/ui/Skeleton";
-import { formatDate, formatMoney, formatPeriodLabel, formatSignedMoney } from "../../lib/format";
+import { formatDate, formatMoney, formatPercent, formatPeriodLabel, formatSignedMoney } from "../../lib/format";
 import { usePeriodFilter } from "../../lib/usePeriodFilter";
 import { useTransactions } from "../transactions/api";
 import { useAnalyticsByCategory, useAnalyticsCashFlow, useAnalyticsSummary } from "../analytics/api";
 import { formatBucketLabel, greetingForHour } from "../analytics/chartData";
+import { usePortfolioAllocation, usePortfolioValuation } from "../portfolio/api";
 
 export function DashboardPage() {
   const { dateFrom, dateTo } = usePeriodFilter();
@@ -124,20 +125,12 @@ export function DashboardPage() {
           )}
         </div>
 
-        {summary.data && (
-          <Card className="flex h-full flex-col gap-2">
-            <h3 className="text-sm font-semibold text-text">Investimenti</h3>
-            {/* Il saldo dei conti titoli conta gia' come Liquidita' (sono
-                spesso ibridi: spendibili con carta E usati per investire,
-                es. Trade Republic/Fineco) — il valore reale delle posizioni
-                arriva solo col modulo Portfolio, non da account_type. */}
-            <EmptyState
-              icon={PiggyBank}
-              title="Il valore delle posizioni arriva con Portfolio"
-              description="Il saldo dei tuoi conti, incluso quelli titoli, è già in Liquidità. Azioni, ETF e obbligazioni saranno tracciati con il modulo Portfolio."
-            />
-          </Card>
-        )}
+        {/* Il saldo dei conti titoli conta gia' come Liquidita' (sono spesso
+            ibridi: spendibili con carta E usati per investire, es. Trade
+            Republic/Fineco) — questo widget mostra il valore delle
+            POSIZIONI (asset posseduti), un dato distinto dal cash, mai
+            doppio conteggio (M09b). */}
+        <PortfolioWidget />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -233,5 +226,80 @@ export function DashboardPage() {
         </LinkButton>
       </div>
     </div>
+  );
+}
+
+/** SPEC_FE §17 "Portfolio Widget": valore + performance + composizione, o
+ * un empty state — mai un grafico vuoto se l'utente non ha investimenti
+ * (SPEC §73). Aggregato su "tutti i conti" (nessun filtro portfolio qui,
+ * la dashboard e' una vista d'insieme). */
+function PortfolioWidget() {
+  const valuation = usePortfolioValuation(null);
+  const allocation = usePortfolioAllocation(null);
+
+  if (valuation.isLoading) {
+    return (
+      <Card className="flex h-full flex-col gap-2">
+        <Skeleton className="h-24 w-full" />
+      </Card>
+    );
+  }
+  if (valuation.isError) {
+    return (
+      <Card className="flex h-full flex-col gap-2">
+        <h3 className="text-sm font-semibold text-text">Investimenti</h3>
+        <ErrorState message="Portfolio non disponibile." onRetry={() => void valuation.refetch()} />
+      </Card>
+    );
+  }
+
+  const data = valuation.data;
+  if (!data || !data.has_holdings) {
+    return (
+      <Card className="flex h-full flex-col gap-2">
+        <h3 className="text-sm font-semibold text-text">Investimenti</h3>
+        <EmptyState
+          icon={PiggyBank}
+          title="Non hai ancora aggiunto investimenti"
+          description="Registra i tuoi acquisti in Investimenti per vederne qui il valore e la composizione."
+          action={<LinkButton to="/investments" size="sm">Vai a Investimenti</LinkButton>}
+        />
+      </Card>
+    );
+  }
+
+  const costBasis = Number(data.cost_basis);
+  const performancePct = costBasis !== 0 ? Number(data.unrealized_pl) / costBasis : 0;
+  const topAllocation = allocation.data?.by_asset_type.slice(0, 4) ?? [];
+
+  return (
+    <Card className="flex h-full flex-col gap-3">
+      <div>
+        <h3 className="text-sm font-semibold text-text">Investimenti</h3>
+        <div className="flex items-baseline gap-2">
+          <span className="font-numeric text-xl font-semibold text-text">
+            {formatMoney(data.market_value, data.currency)}
+          </span>
+          {data.has_market_data && (
+            <span className={`text-sm font-medium ${performancePct >= 0 ? "text-success" : "text-danger"}`}>
+              {formatPercent(performancePct, { signed: true })}
+            </span>
+          )}
+        </div>
+      </div>
+      {topAllocation.length > 0 && (
+        <ul className="flex flex-col gap-1 text-sm">
+          {topAllocation.map((item) => (
+            <li key={item.key} className="flex items-center justify-between text-text-muted">
+              <span>{item.label}</span>
+              <span className="font-numeric text-text">{formatPercent(item.share)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Link to="/investments" className="text-sm font-medium text-primary hover:underline">
+        Vai a Investimenti
+      </Link>
+    </Card>
   );
 }

@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Numeric,
     String,
+    UniqueConstraint,
     func,
     text,
 )
@@ -74,6 +75,10 @@ class Transaction(Base):
             ondelete="RESTRICT",
             name="fk_transactions_workspace_import",
         ),
+        # Milestone 09: abilita la FK composita da
+        # `investment_transactions.transaction_id` (link opzionale verso la
+        # transazione bancaria corrispondente, SPEC §57).
+        UniqueConstraint("workspace_id", "id", name="uq_transactions_workspace_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -97,6 +102,15 @@ class Transaction(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     direction: Mapped[str] = mapped_column(String, nullable=False)
     transaction_type: Mapped[str] = mapped_column(String, nullable=False)
+    # Etichetta grezza del provider per il "tipo" (es. "Bonifico", "Commercio"
+    # per Trade Republic) — MAI usata dal codice applicativo per decisioni,
+    # solo conservata (CLAUDE.md: "conservare sempre il dato raw insieme al
+    # normalizzato"). `transaction_type` sopra e' il vocabolario canonico
+    # provider-agnostico su cui girano regole/AI/analytics; questo campo
+    # serve a poter rimappare in futuro senza dover reimportare (M09.5).
+    # Nullable: il canale CSV storico e gli import precedenti a questa
+    # colonna non la popolano.
+    source_type_raw: Mapped[str | None] = mapped_column(String, nullable=True)
     balance_after: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'confirmed'"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

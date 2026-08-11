@@ -56,6 +56,46 @@ const CASH_FLOW = {
   points: [{ period: "2026-08-01", income: "2000.00", expenses: "500.00", net: "1500.00" }],
 };
 
+const VALUATION_WITH_HOLDINGS = {
+  currency: "EUR",
+  as_of: "2026-08-15",
+  market_value: "500.00",
+  cost_basis: "450.00",
+  unrealized_pl: "50.00",
+  realized_pl: "0.00",
+  has_market_data: true,
+  has_holdings: true,
+};
+
+const VALUATION_EMPTY = {
+  currency: "EUR",
+  as_of: "2026-08-15",
+  market_value: "0.00",
+  cost_basis: "0.00",
+  unrealized_pl: "0.00",
+  realized_pl: "0.00",
+  has_market_data: true,
+  has_holdings: false,
+};
+
+const ALLOCATION_WITH_ITEMS = {
+  currency: "EUR",
+  as_of: "2026-08-15",
+  has_market_data: true,
+  by_asset_type: [{ key: "etf", label: "etf", value: "500.00", share: "1.0000" }],
+  by_asset: [],
+  by_account: [],
+};
+
+const ALLOCATION_EMPTY = {
+  currency: "EUR",
+  as_of: "2026-08-15",
+  has_market_data: true,
+  by_asset_type: [],
+  by_asset: [],
+  by_account: [],
+};
+
 const RECENT_TRANSACTION = {
   id: "t1",
   workspace_id: "w1",
@@ -95,6 +135,8 @@ describe("DashboardPage", () => {
       { test: /\/analytics\/cash-flow/, response: () => jsonResponse(CASH_FLOW) },
       { test: /\/analytics\/by-category/, response: () => jsonResponse(byCategory) },
       { test: /\/transactions/, response: () => jsonResponse([RECENT_TRANSACTION]) },
+      { test: /\/portfolios\/analytics\/valuation/, response: () => jsonResponse(VALUATION_WITH_HOLDINGS) },
+      { test: /\/portfolios\/analytics\/allocation/, response: () => jsonResponse(ALLOCATION_WITH_ITEMS) },
     ]);
 
     renderPage();
@@ -104,7 +146,9 @@ describe("DashboardPage", () => {
     // (sr-only) sia nella lista visibile sotto — entrambe legittime.
     expect((await screen.findAllByText("Alimentari")).length).toBeGreaterThan(0);
     expect(await screen.findByText("LIDL")).toBeInTheDocument();
-    expect(screen.getByText("Il valore delle posizioni arriva con Portfolio")).toBeInTheDocument();
+    // Widget Portfolio (M09b): valore reale invece del vecchio placeholder.
+    expect(await screen.findByText("etf")).toBeInTheDocument();
+    expect(screen.getByText("Vai a Investimenti")).toBeInTheDocument();
   });
 
   it("mostra l'empty state per le spese quando il periodo non ne ha", async () => {
@@ -119,12 +163,15 @@ describe("DashboardPage", () => {
       { test: /\/analytics\/cash-flow/, response: () => jsonResponse(CASH_FLOW) },
       { test: /\/analytics\/by-category/, response: () => jsonResponse(emptyCategory) },
       { test: /\/transactions/, response: () => jsonResponse([]) },
+      { test: /\/portfolios\/analytics\/valuation/, response: () => jsonResponse(VALUATION_EMPTY) },
+      { test: /\/portfolios\/analytics\/allocation/, response: () => jsonResponse(ALLOCATION_EMPTY) },
     ]);
 
     renderPage();
 
     expect(await screen.findByText("Nessuna spesa in questo periodo")).toBeInTheDocument();
     expect(await screen.findByText("Nessun movimento")).toBeInTheDocument();
+    expect(await screen.findByText("Non hai ancora aggiunto investimenti")).toBeInTheDocument();
   });
 
   it("mostra un errore con azione di recupero se la panoramica non carica", async () => {
@@ -142,6 +189,8 @@ describe("DashboardPage", () => {
           }),
       },
       { test: /\/transactions/, response: () => jsonResponse([]) },
+      { test: /\/portfolios\/analytics\/valuation/, response: () => jsonResponse(VALUATION_EMPTY) },
+      { test: /\/portfolios\/analytics\/allocation/, response: () => jsonResponse(ALLOCATION_EMPTY) },
     ]);
 
     renderPage();

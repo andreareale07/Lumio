@@ -62,10 +62,16 @@ def test_parse_extracts_expected_transactions():
     assert interessi.transaction_type == "interest"
     assert interessi.direction == "credit"
 
+    # "Bonifico" e' uno strumento di pagamento, non un tipo semantico: un
+    # bonifico in entrata puo' essere un incasso reale (income), non
+    # necessariamente un trasferimento tra conti propri — vedi il commento
+    # su _transaction_type (hotfix pre-M09: prima di questo fix finiva
+    # sempre su "transfer" e spariva dal cash flow).
     bonifico = by_description["Incoming transfer test"]
-    assert bonifico.transaction_type == "transfer"
+    assert bonifico.transaction_type == "income"
     assert bonifico.direction == "credit"
     assert bonifico.amount == Decimal("500.00")
+    assert bonifico.source_type_raw == "Bonifico"
 
     imposte = by_description["Stamp Duty Tax"]
     assert imposte.transaction_type == "tax"
@@ -124,12 +130,15 @@ def test_transaction_type_mapping_covers_all_known_tipo_values():
     assert _transaction_type("Interessi", "credit") == "interest"
     assert _transaction_type("Premio", "credit") == "income"
     assert _transaction_type("Imposte", "debit") == "tax"
-    assert _transaction_type("Bonifico", "credit") == "transfer"
-    assert _transaction_type("Bonifico", "debit") == "transfer"
     assert _transaction_type("Commercio", "debit") == "investment"
     assert _transaction_type("Commercio", "credit") == "investment"
     assert _transaction_type("Transazione con carta", "debit") == "expense"
     assert _transaction_type("Transazione con carta", "credit") == "refund"
+    # "Bonifico" e' uno strumento di pagamento, non un tipo semantico: non
+    # deducibile a "transfer" da un solo estratto conto (hotfix pre-M09).
+    # Fallback onesto sulla sola direzione, come un TIPO sconosciuto.
+    assert _transaction_type("Bonifico", "debit") == "expense"
+    assert _transaction_type("Bonifico", "credit") == "income"
     # TIPO sconosciuto: fallback onesto sulla sola direzione (stesso
     # principio del parser CSV per il default expense/income).
     assert _transaction_type("Tipo Mai Visto", "debit") == "expense"

@@ -105,7 +105,10 @@ async def test_confirm_pdf_queues_job_and_worker_creates_transactions(client):
     assert "Cash reward allocation" in descriptions
     assert "Stamp Duty Tax" in descriptions
     types = {t["transaction_type"] for t in transactions.json()}
-    assert types == {"income", "interest", "investment", "transfer", "tax"}
+    # "Bonifico" non mappa piu' su "transfer" (hotfix pre-M09: uno strumento
+    # di pagamento non e' un tipo semantico) — la riga "Incoming transfer
+    # test" e' credit, quindi ricade su "income" insieme a "Premio".
+    assert types == {"income", "interest", "investment", "tax"}
 
 
 async def test_pdf_upload_dedup_same_as_csv(client):
