@@ -49,7 +49,7 @@ from decimal import Decimal
 
 import pdfplumber
 
-from app.parsers.base import ParsedStatement
+from app.parsers.base import ParsedStatement, TransferCounterparty
 from app.services.csv_import import ParsedRow
 
 _ITALIAN_MONTHS = {
@@ -59,6 +59,14 @@ _ITALIAN_MONTHS = {
 _DATE_RE = re.compile(r"^(\d{2})\s+([a-z]{3})\s+(\d{4})$")
 _AMOUNT_TAIL_RE = re.compile(r"(\d{1,3}(?:\.\d{3})*,\d{2})$")
 _WHITESPACE_RE = re.compile(r"\s+")
+
+# Milestone 09.5b: formato verificato su un estratto conto reale (SPEC §37) —
+# la colonna DESCRIZIONE dei bonifici riporta nome e IBAN della controparte,
+# stessa struttura sia in entrata che in uscita, solo il verbo cambia:
+# "Outgoing transfer for {nome} ({iban})" / "Incoming transfer for {nome} ({iban})".
+_TRANSFER_COUNTERPARTY_RE = re.compile(
+    r"^(?:Outgoing|Incoming) transfer for (?P<name>.+?) \((?P<iban>[A-Z]{2}\d{2}[A-Z0-9]+)\)$"
+)
 
 # Soglie in punti PDF, specifiche di questo template (SPEC §17: se Trade
 # Republic cambia layout, serve una nuova versione del parser, non un
@@ -179,6 +187,24 @@ class TradeRepublicParser:
     bank_code = "trade_republic"
     parser_type = "trade_republic_pdf"
     version = "1"
+
+    def default_transaction_type(self, source_type_raw: str, direction: str) -> str:
+        """Punto di accesso stabile al default hardcoded di questo parser
+        (milestone 09.5: serve sia all'import — se non esiste un override
+        dell'utente — sia al ricalcolo in `transaction_type_mapping_service.
+        reapply_mapping`, per capire se una transazione e' ancora al valore
+        di default o e' stata corretta a mano). Nessun comportamento nuovo,
+        solo un metodo del `BankParser` che espone `_transaction_type`."""
+        return _transaction_type(source_type_raw, direction)
+
+    def extract_transfer_counterparty(self, description_raw: str) -> TransferCounterparty | None:
+        """Milestone 09.5b: `None` se la descrizione non e' nel formato
+        "Outgoing/Incoming transfer for {nome} ({iban})" verificato sui
+        dati reali — mai un'estrazione parziale o indovinata."""
+        match = _TRANSFER_COUNTERPARTY_RE.match(description_raw.strip())
+        if match is None:
+            return None
+        return TransferCounterparty(name=match.group("name"), iban=match.group("iban"))
 
     def detect(self, raw_bytes: bytes) -> bool:
         try:

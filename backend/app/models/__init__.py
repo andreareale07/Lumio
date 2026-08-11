@@ -18,6 +18,7 @@ from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.position import Position
 from app.models.rule import Rule
 from app.models.transaction import Transaction
+from app.models.transaction_type_mapping import TransactionTypeMapping
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_member import WorkspaceMember
@@ -43,6 +44,7 @@ __all__ = [
     "Position",
     "Rule",
     "Transaction",
+    "TransactionTypeMapping",
     "User",
     "Workspace",
     "WorkspaceMember",

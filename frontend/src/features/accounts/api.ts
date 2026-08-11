@@ -16,6 +16,7 @@ export interface CreateAccountInput {
   name: string;
   account_type: AccountType;
   currency: string;
+  iban?: string | null;
 }
 
 export function useCreateAccount() {
@@ -40,6 +41,7 @@ export interface UpdateAccountInput {
   name?: string;
   account_type?: AccountType;
   currency?: string;
+  iban?: string | null;
 }
 
 /** Serve soprattutto a correggere il `account_type` scelto in creazione

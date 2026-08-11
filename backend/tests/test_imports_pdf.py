@@ -12,6 +12,7 @@ from app.worker.jobs.import_job import import_job
 from tests.fixtures.trade_republic_pdf import (
     build_fixture_pdf,
     build_non_pdf_bytes_with_pdf_looking_name,
+    build_transfer_fixture_pdf,
 )
 
 PDF_SAMPLE = build_fixture_pdf()
@@ -109,6 +110,40 @@ async def test_confirm_pdf_queues_job_and_worker_creates_transactions(client):
     # di pagamento non e' un tipo semantico) — la riga "Incoming transfer
     # test" e' credit, quindi ricade su "income" insieme a "Premio".
     assert types == {"income", "interest", "investment", "tax"}
+
+
+async def test_transfer_to_own_iban_recognized_transfer_to_third_party_stays_expense(client):
+    """Milestone 09.5b (SPEC §37): un bonifico verso un conto proprio del
+    workspace (IBAN corrispondente) diventa `transfer`; uno verso terzi,
+    con lo stesso TIPO "Bonifico" e nessun IBAN/nominativo riconosciuto,
+    resta il default onesto attuale (entrata/uscita sul segno)."""
+    token = await _register(client, "pdfimp-transfer-recognition@example.com")
+    account_id = await _create_account(client, token)
+    await client.patch(
+        f"/api/v1/accounts/{account_id}",
+        json={"iban": "IT31U0760116700001099179999"},
+        headers=_auth_headers(token),
+    )
+
+    pdf = build_transfer_fixture_pdf(
+        outgoing_name="Luca Bianchi",
+        outgoing_iban="IT99Z9999999999999999999999",
+        incoming_name="Mario Rossi",
+        incoming_iban="IT31U0760116700001099179999",
+    )
+    upload = await _upload_pdf(client, token, account_id, pdf, filename="estratto_trasferimenti.pdf")
+    import_id = upload.json()["import"]["id"]
+    await client.post(f"/api/v1/imports/{import_id}/confirm", json={}, headers=_auth_headers(token))
+
+    me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
+    await import_job(None, import_id, me.json()["id"])
+
+    transactions = await client.get(
+        "/api/v1/transactions", params={"financial_account_id": account_id}, headers=_auth_headers(token)
+    )
+    by_description = {t["description_raw"]: t["transaction_type"] for t in transactions.json()}
+    assert by_description["Outgoing transfer for Luca Bianchi (IT99Z9999999999999999999999)"] == "expense"
+    assert by_description["Incoming transfer for Mario Rossi (IT31U0760116700001099179999)"] == "transfer"
 
 
 async def test_pdf_upload_dedup_same_as_csv(client):

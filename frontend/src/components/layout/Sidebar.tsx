@@ -7,6 +7,7 @@ import {
   PiggyBank,
   Receipt,
   Sparkles,
+  Tags,
   UploadCloud,
   Wallet,
   Wand2,
@@ -25,10 +26,12 @@ const NAV_ITEMS = [
   { to: "/settings/rules", label: "Regole", icon: Wand2 },
   { to: "/settings/ai", label: "AI", icon: Sparkles },
   { to: "/settings/market-data", label: "Market Data", icon: LineChart },
+  { to: "/settings/transaction-types", label: "Tipi di transazione", icon: Tags },
 ];
 
 /** Milestone 08: aggiunte Panoramica/Spese/Entrate/Patrimonio (SPEC §41).
- * Milestone 09: aggiunte Investimenti e Market Data. */
+ * Milestone 09: aggiunte Investimenti e Market Data.
+ * Milestone 09.5: aggiunta Tipi di transazione (mappatura configurabile). */
 export function Sidebar() {
   return (
     <nav

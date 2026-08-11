@@ -12,10 +12,21 @@ import { ACCOUNT_TYPES, type FinancialAccount } from "../../types/api";
 import { useCreateAccount, useUpdateAccount } from "./api";
 import { ACCOUNT_TYPE_LABELS } from "./labels";
 
+// Nessun controllo di checksum IBAN in questa fase (milestone 09.5b): solo
+// una sanity-check di lunghezza/charset, sufficiente a evitare un valore
+// palesemente sbagliato senza inventare una validazione completa non richiesta.
+const IBAN_PATTERN = /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/;
+
 const schema = z.object({
   name: z.string().min(1, "Inserisci un nome"),
   account_type: z.enum(ACCOUNT_TYPES),
   currency: z.string().length(3, "Codice valuta a 3 lettere (es. EUR)"),
+  iban: z
+    .string()
+    .trim()
+    .transform((v) => v.toUpperCase().replace(/\s+/g, ""))
+    .refine((v) => v === "" || IBAN_PATTERN.test(v), "IBAN non valido")
+    .optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -28,9 +39,14 @@ interface AccountFormDialogProps {
 
 function valuesFrom(account: FinancialAccount | null | undefined): FormValues {
   if (account) {
-    return { name: account.name, account_type: account.account_type, currency: account.currency };
+    return {
+      name: account.name,
+      account_type: account.account_type,
+      currency: account.currency,
+      iban: account.iban ?? "",
+    };
   }
-  return { name: "", account_type: "checking", currency: "EUR" };
+  return { name: "", account_type: "checking", currency: "EUR", iban: "" };
 }
 
 /** Il tipo di conto (`account_type`) determina in quale bucket del
@@ -71,11 +87,12 @@ export function AccountFormDialog({ open, onClose, account }: AccountFormDialogP
 
   const onSubmit = async (values: FormValues) => {
     setFormError(null);
+    const payload = { ...values, iban: values.iban || null };
     try {
       if (isEditing) {
-        await updateAccount.mutateAsync({ id: account.id, ...values });
+        await updateAccount.mutateAsync({ id: account.id, ...payload });
       } else {
-        await createAccount.mutateAsync(values);
+        await createAccount.mutateAsync(payload);
       }
       close();
     } catch (error) {
@@ -100,6 +117,13 @@ export function AccountFormDialog({ open, onClose, account }: AccountFormDialogP
           className="uppercase"
           error={errors.currency?.message}
           {...register("currency")}
+        />
+        <Input
+          label="IBAN (opzionale)"
+          className="uppercase"
+          placeholder="Serve a riconoscere i bonifici verso questo conto come trasferimenti interni"
+          error={errors.iban?.message}
+          {...register("iban")}
         />
         {formError && (
           <p role="alert" className="text-sm text-danger">

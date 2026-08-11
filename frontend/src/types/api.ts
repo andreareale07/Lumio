@@ -35,6 +35,7 @@ export interface FinancialAccount {
   account_type: AccountType;
   currency: string;
   account_identifier_masked: string | null;
+  iban: string | null;
   is_active: boolean;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
@@ -584,6 +585,28 @@ export interface JobRun {
   started_at: string;
   finished_at: string | null;
   message: string | null;
+}
+
+/** Milestone 09.5: mappatura tipi transazione configurabile per parser
+ * (`app/services/transaction_type_mapping_service.py`). */
+export interface TransactionTypeCount {
+  transaction_type: TransactionType;
+  count: number;
+}
+
+export interface TransactionTypeLabel {
+  source_type_raw: string;
+  total_count: number;
+  // Puo' avere piu' di una riga: il default del parser per la stessa
+  // etichetta puo' variare per direzione (es. "Transazione con carta").
+  current_types: TransactionTypeCount[];
+  override: TransactionType | null;
+}
+
+export interface TransactionTypeMappingUpsertResult {
+  source_type_raw: string;
+  transaction_type: TransactionType;
+  reapply: { updated: number; skipped: number };
 }
 
 export interface Position {

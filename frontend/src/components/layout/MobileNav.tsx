@@ -9,6 +9,7 @@ import {
   PiggyBank,
   Receipt,
   Sparkles,
+  Tags,
   UploadCloud,
   Wallet,
   Wand2,
@@ -36,6 +37,7 @@ const MORE_ITEMS = [
   { to: "/settings/rules", label: "Regole", icon: Wand2 },
   { to: "/settings/ai", label: "AI", icon: Sparkles },
   { to: "/settings/market-data", label: "Market Data", icon: LineChart },
+  { to: "/settings/transaction-types", label: "Tipi di transazione", icon: Tags },
 ];
 
 export function MobileNav() {

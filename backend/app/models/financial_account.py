@@ -43,6 +43,12 @@ class FinancialAccount(Base):
     account_type: Mapped[str] = mapped_column(String, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     account_identifier_masked: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Milestone 09.5b: segnale piu' affidabile del solo nominativo per
+    # riconoscere se la controparte di un bonifico e' un conto proprio del
+    # workspace (SPEC §37) — vedi app/services/transfer_recognition.py.
+    # A differenza di account_identifier_masked (pensato per la UI, gia'
+    # mascherato), qui serve il valore completo per il confronto esatto.
+    iban: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

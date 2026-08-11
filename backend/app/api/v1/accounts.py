@@ -9,6 +9,7 @@ from app.api.deps import get_current_workspace_id
 from app.db.session import get_db
 from app.models.financial_account import FinancialAccount
 from app.schemas.accounts import FinancialAccountCreate, FinancialAccountOut, FinancialAccountUpdate
+from app.services.transfer_recognition import reapply_internal_transfer_detection
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -35,10 +36,20 @@ async def create_account(
     account = FinancialAccount(workspace_id=workspace_id, **payload.model_dump())
     db.add(account)
     try:
-        await db.commit()
+        await db.flush()
     except IntegrityError as exc:
         await db.rollback()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid bank reference") from exc
+
+    # Milestone 09.5b: un conto creato con l'IBAN gia' compilato puo' far
+    # riconoscere trasferimenti interni gia' importati su ALTRI conti (SPEC
+    # §37) — es. il conto corrente si registra dopo l'estratto TR che
+    # riporta gia' un bonifico verso di esso. UN SOLO commit a fine
+    # richiesta (mai commit-poi-altre-query sulla stessa sessione: SET
+    # LOCAL app.current_user_id scade al commit, vedi app/db/rls.py).
+    if account.iban:
+        await reapply_internal_transfer_detection(db, workspace_id)
+    await db.commit()
     return account
 
 
@@ -72,13 +83,22 @@ async def update_account(
     db: AsyncSession = Depends(get_db),
 ) -> FinancialAccount:
     account = await _get_account_or_404(db, workspace_id, account_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
         setattr(account, field, value)
     try:
-        await db.commit()
+        await db.flush()
     except IntegrityError as exc:
         await db.rollback()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid bank reference") from exc
+
+    # Milestone 09.5b: stesso principio "salva e riapplica subito" di M09.5
+    # — un IBAN nuovo/cambiato puo' rendere riconoscibili trasferimenti
+    # interni gia' importati (SPEC §37). UN SOLO commit a fine richiesta,
+    # stesso motivo di create_account sopra.
+    if "iban" in updates and updates["iban"]:
+        await reapply_internal_transfer_detection(db, workspace_id)
+    await db.commit()
     return account
 
 

@@ -12,6 +12,7 @@ class FinancialAccountCreate(BaseModel):
     account_type: str = Field(pattern="^(" + "|".join(ACCOUNT_TYPES) + ")$")
     currency: str = Field(min_length=3, max_length=3)
     account_identifier_masked: str | None = None
+    iban: str | None = None
 
 
 class FinancialAccountUpdate(BaseModel):
@@ -20,6 +21,7 @@ class FinancialAccountUpdate(BaseModel):
     account_type: str | None = Field(default=None, pattern="^(" + "|".join(ACCOUNT_TYPES) + ")$")
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     account_identifier_masked: str | None = None
+    iban: str | None = None
     is_active: bool | None = None
 
 
@@ -31,6 +33,7 @@ class FinancialAccountOut(BaseModel):
     account_type: str
     currency: str
     account_identifier_masked: str | None
+    iban: str | None
     is_active: bool
     created_at: datetime
     updated_at: datetime

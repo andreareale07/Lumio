@@ -143,3 +143,40 @@ def test_transaction_type_mapping_covers_all_known_tipo_values():
     # principio del parser CSV per il default expense/income).
     assert _transaction_type("Tipo Mai Visto", "debit") == "expense"
     assert _transaction_type("Tipo Mai Visto", "credit") == "income"
+
+
+def test_default_transaction_type_method_matches_the_module_function():
+    # Milestone 09.5: il metodo sul parser e' solo un punto di accesso
+    # stabile a _transaction_type (usato da import_job.py e dal servizio
+    # di mappatura configurabile), nessuna logica nuova.
+    parser = TradeRepublicParser()
+    assert parser.default_transaction_type("Bonifico", "credit") == "income"
+    assert parser.default_transaction_type("Interessi", "credit") == "interest"
+
+
+def test_extract_transfer_counterparty_outgoing():
+    # Milestone 09.5b: formato verificato su un estratto conto reale (nomi/IBAN
+    # qui sono inventati) — SPEC §37, riconoscimento trasferimenti interni.
+    parser = TradeRepublicParser()
+    result = parser.extract_transfer_counterparty(
+        "Outgoing transfer for Luca Bianchi (IT31U0760116700009944199997)"
+    )
+    assert result is not None
+    assert result.name == "Luca Bianchi"
+    assert result.iban == "IT31U0760116700009944199997"
+
+
+def test_extract_transfer_counterparty_incoming():
+    parser = TradeRepublicParser()
+    result = parser.extract_transfer_counterparty(
+        "Incoming transfer for Mario Rossi (IT31U0760116700001099179999)"
+    )
+    assert result is not None
+    assert result.name == "Mario Rossi"
+    assert result.iban == "IT31U0760116700001099179999"
+
+
+def test_extract_transfer_counterparty_returns_none_for_unrelated_description():
+    parser = TradeRepublicParser()
+    assert parser.extract_transfer_counterparty("Savings plan execution IE00B4L5Y983, quantity: 1") is None
+    assert parser.extract_transfer_counterparty("Interessi maturati su liquidita'") is None

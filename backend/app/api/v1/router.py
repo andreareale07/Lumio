@@ -15,6 +15,7 @@ from app.api.v1 import (
     rules,
     settings_ai,
     settings_market_data,
+    transaction_type_mappings,
     transactions,
 )
 
@@ -29,6 +30,7 @@ api_router.include_router(import_mappings.router)
 api_router.include_router(rules.router)
 api_router.include_router(settings_ai.router)
 api_router.include_router(settings_market_data.router)
+api_router.include_router(transaction_type_mappings.router)
 api_router.include_router(analytics.router)
 api_router.include_router(assets.router)
 api_router.include_router(portfolios.router)

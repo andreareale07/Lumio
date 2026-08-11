@@ -22,6 +22,7 @@ TIPO->transaction_type, quest'ultima comunque testata anche direttamente
 import io
 
 from reportlab.lib.pagesizes import A4
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
 _FONT = ("Helvetica", 9)
@@ -98,6 +99,78 @@ def build_fixture_pdf() -> bytes:
 
     _draw_row(c, y, "05", "mag", "Imposte", "Stamp Duty Tax", None, None, "2,50", "1.460,88")
     y -= _ROW_HEIGHT
+
+    c.showPage()
+    c.save()
+    return buffer.getvalue()
+
+
+# Margine di sicurezza sotto la larghezza reale della colonna DESCRIZIONE
+# del parser (150-410pt, vedi app/parsers/trade_republic.py) — un token
+# disegnato oltre x0=410 verrebbe scartato dal bucket "descrizione".
+_DESCR_MAX_WIDTH = 150.0
+
+
+def _wrap_description(text: str) -> list[str]:
+    words = text.split(" ")
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if stringWidth(candidate, *_FONT) <= _DESCR_MAX_WIDTH:
+            current = candidate
+        else:
+            if current:
+                lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
+def build_transfer_fixture_pdf(
+    *, outgoing_name: str, outgoing_iban: str, incoming_name: str, incoming_iban: str
+) -> bytes:
+    """Milestone 09.5b: PDF sintetico con due righe di bonifico nel FORMATO
+    REALE verificato dall'utente (nome+IBAN della controparte tra
+    parentesi in descrizione, es. "Outgoing transfer for {nome} ({iban})")
+    — `build_fixture_pdf()` sopra usa deliberatamente un formato piu'
+    semplice ("Incoming transfer test") per non legare tutti gli altri
+    test a questo dettaglio di formato.
+    """
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    _, height = A4
+    c.setFont(*_FONT)
+
+    c.drawString(75, height - 60, "TRADE REPUBLIC BANK GMBH, BRANCH ITALY SPACES GAE AULENTI")
+    c.drawString(75, height - 75, "IBAN IT00X0000000000000000000000 BIC TRBKITMMXXX")
+    c.drawString(_COL_DATA_X, height - 120, "DATA")
+    c.drawString(_COL_TIPO_X, height - 120, "TIPO")
+    c.drawString(_COL_DESCR_X, height - 120, "DESCRIZIONE")
+    c.drawString(_COL_ENTRATA_X, height - 120, "IN ENTRATA")
+    c.drawString(_COL_USCITA_X, height - 120, "IN USCITA")
+    c.drawString(_COL_SALDO_X, height - 120, "SALDO")
+
+    y = height - 160
+    rows = [
+        ("04", "mag", f"Outgoing transfer for {outgoing_name} ({outgoing_iban})", None, "500,00", "5.766,14"),
+        ("05", "mag", f"Incoming transfer for {incoming_name} ({incoming_iban})", "500,00", None, "6.266,14"),
+    ]
+    for day, month, description, entrata, uscita, saldo in rows:
+        lines = _wrap_description(description)
+        c.drawString(_COL_DATA_X, y, f"{day} {month}")
+        c.drawString(_COL_TIPO_X, y - _SUBLINE, "Bonifico")
+        c.drawString(_COL_DESCR_X, y - _SUBLINE, lines[0])
+        if entrata is not None:
+            c.drawString(_COL_ENTRATA_X, y - _SUBLINE, entrata)
+        if uscita is not None:
+            c.drawString(_COL_USCITA_X, y - _SUBLINE, uscita)
+        c.drawString(_COL_SALDO_X, y - _SUBLINE, saldo)
+        c.drawString(_COL_DATA_X, y - 2 * _SUBLINE, "2026")
+        for i, extra_line in enumerate(lines[1:], start=2):
+            c.drawString(_COL_DESCR_X, y - i * _SUBLINE, extra_line)
+        y -= _ROW_HEIGHT
 
     c.showPage()
     c.save()

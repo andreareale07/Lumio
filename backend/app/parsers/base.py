@@ -14,6 +14,7 @@ stesso identico schema con cui il worker gia' crea le `Transaction` per il
 canale CSV (milestone 04), cosi' i due canali di import (CSV, PDF) convergono
 sulla stessa forma intermedia prima di toccare il dominio transazioni.
 """
+from dataclasses import dataclass
 from typing import Protocol
 
 from app.services.csv_import import ParsedRow
@@ -23,6 +24,18 @@ class ParsedStatement:
     def __init__(self, rows: list[ParsedRow], warnings: list[str]) -> None:
         self.rows = rows
         self.warnings = warnings
+
+
+@dataclass
+class TransferCounterparty:
+    """Identita' della controparte di un movimento di bonifico, estratta
+    dalla descrizione grezza — milestone 09.5b, SPEC §37 ("escludere
+    correttamente i trasferimenti interni"). Entrambi opzionali: un parser
+    puo' trovare solo il nome, solo l'IBAN, o nessuno dei due (in quel caso
+    non estrae nulla, vedi `extract_transfer_counterparty`)."""
+
+    name: str | None
+    iban: str | None
 
 
 class BankParser(Protocol):
@@ -50,4 +63,29 @@ class BankParser(Protocol):
         `detect()` ma poi risulta comunque non interpretabile (es. layout
         cambiato) — il chiamante (worker) tratta questo come fallimento
         dell'import, stesso comportamento di un CSV non parsabile."""
+        ...
+
+    def default_transaction_type(self, source_type_raw: str, direction: str) -> str:
+        """Mappatura HARDCODED (non configurabile) di questo parser da
+        `source_type_raw` a `transaction_type` canonico — milestone 09.5:
+        e' il fallback quando l'utente non ha salvato nessun override per
+        questa etichetta (`app/services/transaction_type_mapping_service.py`),
+        e il punto di confronto per capire se una transazione gia' importata
+        e' ancora al default o e' stata corretta a mano. Stessa regola di
+        design di sempre: mai assumere `transfer` da un'etichetta che non lo
+        afferma esplicitamente (vedi `trade_republic.py:_transaction_type`)."""
+        ...
+
+    def extract_transfer_counterparty(self, description_raw: str) -> TransferCounterparty | None:
+        """Milestone 09.5b: se `description_raw` e' un movimento di
+        bonifico in un formato che questo parser sa interpretare, estrae
+        nome/IBAN della controparte — usati da
+        `app/services/transfer_recognition.py` per riconoscere se il
+        bonifico e' verso un conto proprio del workspace (SPEC §37).
+        `None` se la riga non e' un bonifico riconoscibile, O se questo
+        parser non supporta l'estrazione: e' una capability OPZIONALE,
+        specifica del formato reale di ogni istituto — un parser futuro
+        (es. BancoPosta) puo' legittimamente non implementarla e ritornare
+        sempre `None`, se il suo estratto conto non riporta questa
+        informazione."""
         ...

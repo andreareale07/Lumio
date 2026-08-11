@@ -54,6 +54,8 @@ from app.services.position_service import recompute_position
 from app.services.rule_loader import load_active_rule_specs
 from app.services.rules_engine import Probe, evaluate
 from app.services.trade_parsing import ParsedTrade, parse_trade_description
+from app.services.transaction_type_mapping_service import resolve_transaction_type
+from app.services.transfer_recognition import is_internal_transfer
 from app.storage import get_storage
 
 logger = logging.getLogger("lumio.worker.import_job")
@@ -146,6 +148,7 @@ async def _process_pdf(import_uuid: uuid.UUID, user_uuid: uuid.UUID) -> None:
         # il registro per ottenere l'implementazione concreta, senza ripetere
         # la detection.
         parser = get_parser(bank_parser_row.parser_type)
+        parser_type = bank_parser_row.parser_type
 
         raw_bytes = get_storage().read(original_file_path(workspace_id, import_row.id, "pdf"))
 
@@ -174,6 +177,26 @@ async def _process_pdf(import_uuid: uuid.UUID, user_uuid: uuid.UUID) -> None:
     await job_events.emit(
         import_uuid, "job.progress", stage="parsing", progress=60, transactions_found=len(result.rows)
     )
+
+    # Milestone 09.5b: riconoscimento dei trasferimenti interni (SPEC §37) —
+    # PRIMA dell'override per etichetta di M09.5 sotto, cosi' l'utente puo'
+    # sempre forzare un comportamento diverso se questa euristica sbaglia.
+    # Capability opzionale del parser (None per un parser che non la
+    # supporta, o per una riga che non e' un bonifico riconoscibile).
+    async with rls_session(user_uuid) as db:
+        for row in result.rows:
+            counterparty = parser.extract_transfer_counterparty(row.description_raw)
+            if counterparty is not None and await is_internal_transfer(db, workspace_id, counterparty):
+                row.transaction_type = "transfer"
+
+    # Milestone 09.5: il default del parser (gia' in row.transaction_type)
+    # resta il fallback — qui si sovrascrive solo se l'utente ha salvato un
+    # override per questa etichetta di QUESTO parser, in QUESTO workspace.
+    async with rls_session(user_uuid) as db:
+        for row in result.rows:
+            row.transaction_type = await resolve_transaction_type(
+                db, workspace_id, parser_type, row.source_type_raw, row.transaction_type
+            )
 
     await _insert_transactions_and_complete(
         import_uuid, user_uuid, workspace_id, financial_account_id, result.rows
