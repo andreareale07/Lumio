@@ -41,6 +41,14 @@ export interface FinancialAccount {
   updated_at: IsoDateTime;
 }
 
+/** Milestone 09.5c: IBAN precedenti di un conto (un istituto puo' cambiare
+ * l'IBAN pur restando lo stesso conto) — vedi transfer_recognition.py. */
+export interface IbanHistoryEntry {
+  id: Uuid;
+  iban: string;
+  created_at: IsoDateTime;
+}
+
 export interface Category {
   id: Uuid;
   workspace_id: Uuid | null;

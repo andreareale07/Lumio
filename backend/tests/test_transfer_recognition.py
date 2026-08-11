@@ -5,15 +5,20 @@ test_transaction_type_mapping_service.py.
 import uuid
 from datetime import date
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from app.db.base import async_session_factory
 from app.db.rls import rls_session
 from app.models.financial_account import FinancialAccount
+from app.models.financial_account_iban_history import FinancialAccountIbanHistory
 from app.models.import_ import Import
 from app.models.transaction import Transaction
 from app.parsers.base import TransferCounterparty
-from app.services.transfer_recognition import is_internal_transfer, reapply_internal_transfer_detection
+from app.services.transfer_recognition import (
+    archive_previous_iban,
+    is_internal_transfer,
+    reapply_internal_transfer_detection,
+)
 
 _TR_BANK_ID = uuid.UUID("6bb6eb78-276d-4b2f-ac63-8eef2c57d307")
 _TR_BANK_PARSER_ID = uuid.UUID("1f6a5b19-3b40-4b3e-9a7b-2e0d6f1c9a44")
@@ -167,6 +172,52 @@ async def test_no_match_for_a_different_name():
     async with rls_session(user_id) as db:
         result = await is_internal_transfer(db, workspace_id, TransferCounterparty(name="Luca Bianchi", iban=None))
     assert result is False
+
+
+# --- storico IBAN (milestone 09.5c) ---------------------------------------
+
+
+async def test_matches_a_historical_iban_no_longer_current():
+    """Caso reale: un istituto cambia l'IBAN di un conto (es. migrazione
+    DE->IT di Trade Republic) — i bonifici storici riportano ancora il
+    vecchio IBAN, che deve restare riconoscibile anche se non e' piu'
+    quello attuale del conto."""
+    user_id, workspace_id = await _create_user_with_workspace("tr-iban-history@example.com")
+    async with rls_session(user_id) as db:
+        account_id = await _create_account(db, workspace_id, iban="IT31U0760116700001099179999")
+        await db.commit()
+
+    async with rls_session(user_id) as db:
+        await archive_previous_iban(db, workspace_id, account_id, "DE44500105175407324931")
+        await db.commit()
+
+    async with rls_session(user_id) as db:
+        result = await is_internal_transfer(
+            db, workspace_id, TransferCounterparty(name=None, iban="DE44 5001 0517 5407 3249 31")
+        )
+    assert result is True
+
+
+async def test_archive_previous_iban_is_idempotent_no_duplicate_row():
+    user_id, workspace_id = await _create_user_with_workspace("tr-iban-archive-idempotent@example.com")
+    async with rls_session(user_id) as db:
+        account_id = await _create_account(db, workspace_id, iban="IT31U0760116700001099179999")
+        await db.commit()
+
+    async with rls_session(user_id) as db:
+        await archive_previous_iban(db, workspace_id, account_id, "DE44500105175407324931")
+        await archive_previous_iban(db, workspace_id, account_id, "DE44500105175407324931")
+        await db.commit()
+
+    async with rls_session(user_id) as db:
+        rows = (
+            await db.execute(
+                select(FinancialAccountIbanHistory).where(
+                    FinancialAccountIbanHistory.workspace_id == workspace_id
+                )
+            )
+        ).scalars().all()
+    assert len(rows) == 1
 
 
 # --- reapply_internal_transfer_detection ----------------------------------

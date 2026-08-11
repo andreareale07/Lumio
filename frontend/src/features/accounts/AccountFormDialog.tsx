@@ -9,7 +9,7 @@ import { Input } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import { ACCOUNT_TYPES, type FinancialAccount } from "../../types/api";
-import { useCreateAccount, useUpdateAccount } from "./api";
+import { useAddIbanHistory, useCreateAccount, useDeleteIbanHistory, useIbanHistory, useUpdateAccount } from "./api";
 import { ACCOUNT_TYPE_LABELS } from "./labels";
 
 // Nessun controllo di checksum IBAN in questa fase (milestone 09.5b): solo
@@ -139,6 +139,79 @@ export function AccountFormDialog({ open, onClose, account }: AccountFormDialogP
           </Button>
         </div>
       </form>
+      {/* Gestione manuale distinta dal form sopra: la storicizzazione
+       * automatica (useUpdateAccount) scatta solo quando il campo IBAN
+       * cambia DENTRO l'app — non basta per chi imposta il conto per la
+       * prima volta conoscendo gia' un IBAN precedente. */}
+      {isEditing && <IbanHistorySection accountId={account.id} />}
     </Dialog>
+  );
+}
+
+function IbanHistorySection({ accountId }: { accountId: string }) {
+  const { data: history } = useIbanHistory(accountId);
+  const addHistory = useAddIbanHistory(accountId);
+  const deleteHistory = useDeleteIbanHistory(accountId);
+  const [newIban, setNewIban] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const onAdd = async () => {
+    setError(null);
+    const normalized = newIban.trim().toUpperCase().replace(/\s+/g, "");
+    if (!IBAN_PATTERN.test(normalized)) {
+      setError("IBAN non valido");
+      return;
+    }
+    try {
+      await addHistory.mutateAsync(normalized);
+      setNewIban("");
+    } catch (err) {
+      setError(friendlyErrorMessage(err, "Non è stato possibile aggiungere l'IBAN."));
+    }
+  };
+
+  return (
+    <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
+      <p className="text-sm font-medium text-text">IBAN precedenti</p>
+      <p className="text-sm text-text-muted">
+        Se questo conto ha avuto un IBAN diverso in passato (es. un istituto che l'ha cambiato), aggiungilo
+        qui: i bonifici storici che lo riportano continueranno a essere riconosciuti come trasferimenti
+        interni.
+      </p>
+      {history && history.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {history.map((entry) => (
+            <li key={entry.id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="font-mono text-text">{entry.iban}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                loading={deleteHistory.isPending}
+                onClick={() => deleteHistory.mutate(entry.id)}
+              >
+                Rimuovi
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex items-center gap-2">
+        <Input
+          className="uppercase"
+          placeholder="Nuovo IBAN storico"
+          value={newIban}
+          onChange={(e) => setNewIban(e.target.value)}
+        />
+        <Button type="button" variant="secondary" size="sm" loading={addHistory.isPending} onClick={() => void onAdd()}>
+          Aggiungi
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

@@ -6,6 +6,7 @@ from app.models.bank_parser import BankParser
 from app.models.category import Category
 from app.models.classification import Classification
 from app.models.financial_account import FinancialAccount
+from app.models.financial_account_iban_history import FinancialAccountIbanHistory
 from app.models.import_ import Import
 from app.models.import_mapping import ImportMapping
 from app.models.investment_transaction import InvestmentTransaction
@@ -32,6 +33,7 @@ __all__ = [
     "Category",
     "Classification",
     "FinancialAccount",
+    "FinancialAccountIbanHistory",
     "Import",
     "ImportMapping",
     "InvestmentTransaction",

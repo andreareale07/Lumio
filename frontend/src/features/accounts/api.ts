@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../lib/apiClient";
-import type { AccountType, FinancialAccount } from "../../types/api";
+import type { AccountType, FinancialAccount, IbanHistoryEntry } from "../../types/api";
 
 export const accountsKey = ["accounts"] as const;
 
@@ -54,5 +54,39 @@ export function useUpdateAccount() {
   return useMutation({
     mutationFn: ({ id, ...input }: UpdateAccountInput) => api.patch<FinancialAccount>(`/accounts/${id}`, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: accountsKey }),
+  });
+}
+
+function ibanHistoryKey(accountId: string) {
+  return ["accounts", accountId, "iban-history"] as const;
+}
+
+/** Milestone 09.5c: IBAN storici di un conto — aggiunta MANUALE, per chi
+ * conosce gia' un IBAN precedente quando imposta il conto per la prima
+ * volta (distinta dalla storicizzazione automatica di useUpdateAccount,
+ * che scatta solo quando il campo cambia dentro l'app). */
+export function useIbanHistory(accountId: string | null) {
+  return useQuery({
+    queryKey: ibanHistoryKey(accountId ?? ""),
+    queryFn: () => api.get<IbanHistoryEntry[]>(`/accounts/${accountId}/iban-history`),
+    enabled: !!accountId,
+  });
+}
+
+export function useAddIbanHistory(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (iban: string) =>
+      api.post<IbanHistoryEntry>(`/accounts/${accountId}/iban-history`, { iban }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ibanHistoryKey(accountId) }),
+  });
+}
+
+export function useDeleteIbanHistory(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (historyId: string) =>
+      api.delete<void>(`/accounts/${accountId}/iban-history/${historyId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ibanHistoryKey(accountId) }),
   });
 }

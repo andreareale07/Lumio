@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_parser import BankParser as BankParserRow
 from app.models.financial_account import FinancialAccount
+from app.models.financial_account_iban_history import FinancialAccountIbanHistory
 from app.models.import_ import Import
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -50,14 +51,28 @@ def _normalize_name(name: str) -> frozenset[str]:
 
 
 async def _matches_known_account_iban(db: AsyncSession, workspace_id: uuid.UUID, iban: str) -> bool:
+    """Milestone 09.5c: un istituto puo' cambiare l'IBAN di un conto pur
+    restando lo stesso conto (es. migrazione DE->IT osservata su Trade
+    Republic) — gli estratti conto passati riportano ancora il VECCHIO
+    IBAN come controparte. Si controlla quindi sia l'IBAN ATTUALE di ogni
+    conto sia tutti quelli storici (`financial_account_iban_history`,
+    popolata automaticamente da `app/api/v1/accounts.py`)."""
     target = _normalize_iban(iban)
-    result = await db.execute(
+    current_result = await db.execute(
         select(FinancialAccount.iban).where(
             FinancialAccount.workspace_id == workspace_id,
             FinancialAccount.iban.is_not(None),
         )
     )
-    return any(_normalize_iban(row[0]) == target for row in result.all())
+    if any(_normalize_iban(row[0]) == target for row in current_result.all()):
+        return True
+
+    history_result = await db.execute(
+        select(FinancialAccountIbanHistory.iban).where(
+            FinancialAccountIbanHistory.workspace_id == workspace_id,
+        )
+    )
+    return any(_normalize_iban(row[0]) == target for row in history_result.all())
 
 
 async def _matches_workspace_member_name(db: AsyncSession, workspace_id: uuid.UUID, name: str) -> bool:
@@ -87,6 +102,39 @@ async def is_internal_transfer(
     if counterparty.name and await _matches_workspace_member_name(db, workspace_id, counterparty.name):
         return True
     return False
+
+
+async def archive_previous_iban(
+    db: AsyncSession, workspace_id: uuid.UUID, financial_account_id: uuid.UUID, previous_iban: str
+) -> FinancialAccountIbanHistory:
+    """Milestone 09.5c: aggiunge un IBAN storico per un conto — usata sia
+    automaticamente PRIMA di sovrascrivere `financial_accounts.iban` con un
+    valore diverso (`app/api/v1/accounts.py:update_account`), sia per
+    l'aggiunta MANUALE di un IBAN storico gia' noto all'utente
+    (`POST /accounts/{id}/iban-history`, utile a chi imposta un conto per
+    la prima volta conoscendo gia' un IBAN precedente). Conserva il vecchio
+    valore cosi' i bonifici storici che lo referenziano restano
+    riconoscibili (vedi `_matches_known_account_iban`). Idempotente: un
+    valore gia' storicizzato non viene duplicato, ne torna la riga
+    esistente."""
+    existing = await db.execute(
+        select(FinancialAccountIbanHistory).where(
+            FinancialAccountIbanHistory.workspace_id == workspace_id,
+            FinancialAccountIbanHistory.financial_account_id == financial_account_id,
+            FinancialAccountIbanHistory.iban == previous_iban,
+        )
+    )
+    entry = existing.scalar_one_or_none()
+    if entry is not None:
+        return entry
+    entry = FinancialAccountIbanHistory(
+        workspace_id=workspace_id,
+        financial_account_id=financial_account_id,
+        iban=previous_iban,
+    )
+    db.add(entry)
+    await db.flush()
+    return entry
 
 
 @dataclass
