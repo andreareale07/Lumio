@@ -17,6 +17,16 @@
   --color-warning: #b4780a;
   --color-warning-bg: #fbf1de;
   --color-focus-ring: #2f6fed;
+
+  /* Palette categorica per grafici multi-serie (donut spese/entrate per
+     categoria o merchant, SPEC §45) — distinta da success/danger/warning,
+     che restano riservati a positivo/negativo ed errori. */
+  --color-chart-1: #0891b2;
+  --color-chart-2: #7c3aed;
+  --color-chart-3: #d97706;
+  --color-chart-4: #db2777;
+  --color-chart-5: #0284c7;
+  --color-chart-6: #65a30d;
 }
 
 :root[data-theme="dark"] {
@@ -36,6 +46,13 @@
   --color-warning: #e2a53c;
   --color-warning-bg: #372a10;
   --color-focus-ring: #5b8cf7;
+
+  --color-chart-1: #22d3ee;
+  --color-chart-2: #a78bfa;
+  --color-chart-3: #fbbf24;
+  --color-chart-4: #f472b6;
+  --color-chart-5: #38bdf8;
+  --color-chart-6: #a3e635;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -56,6 +73,13 @@
     --color-warning: #e2a53c;
     --color-warning-bg: #372a10;
     --color-focus-ring: #5b8cf7;
+
+    --color-chart-1: #22d3ee;
+    --color-chart-2: #a78bfa;
+    --color-chart-3: #fbbf24;
+    --color-chart-4: #f472b6;
+    --color-chart-5: #38bdf8;
+    --color-chart-6: #a3e635;
   }
 }
 
@@ -75,6 +99,13 @@
   --color-danger-bg: var(--color-danger-bg);
   --color-warning: var(--color-warning);
   --color-warning-bg: var(--color-warning-bg);
+
+  --color-chart-1: var(--color-chart-1);
+  --color-chart-2: var(--color-chart-2);
+  --color-chart-3: var(--color-chart-3);
+  --color-chart-4: var(--color-chart-4);
+  --color-chart-5: var(--color-chart-5);
+  --color-chart-6: var(--color-chart-6);
 
   --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
 }

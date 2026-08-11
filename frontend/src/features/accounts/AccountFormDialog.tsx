@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -8,8 +8,8 @@ import { Dialog } from "../../components/ui/Dialog";
 import { Input } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
-import { ACCOUNT_TYPES } from "../../types/api";
-import { useCreateAccount } from "./api";
+import { ACCOUNT_TYPES, type FinancialAccount } from "../../types/api";
+import { useCreateAccount, useUpdateAccount } from "./api";
 import { ACCOUNT_TYPE_LABELS } from "./labels";
 
 const schema = z.object({
@@ -19,9 +19,33 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-export function CreateAccountDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+interface AccountFormDialogProps {
+  open: boolean;
+  onClose: () => void;
+  /** Se presente, il dialog modifica questo conto invece di crearne uno nuovo. */
+  account?: FinancialAccount | null;
+}
+
+function valuesFrom(account: FinancialAccount | null | undefined): FormValues {
+  if (account) {
+    return { name: account.name, account_type: account.account_type, currency: account.currency };
+  }
+  return { name: "", account_type: "checking", currency: "EUR" };
+}
+
+/** Il tipo di conto (`account_type`) determina in quale bucket del
+ * dashboard finisce il saldo — Liquidità vs Investimenti (milestone 08,
+ * SPEC §18/§30) — quindi deve poter essere corretto dopo la creazione: un
+ * conto Trade Republic usato anche per la spesa quotidiana (carta + saldo
+ * spendibile) va registrato come conto normale, non "Conto titoli", anche
+ * se in futuro (M09) traccerà anche posizioni reali — il tracciamento
+ * delle posizioni si lega all'id del conto, non al suo `account_type`. */
+export function AccountFormDialog({ open, onClose, account }: AccountFormDialogProps) {
   const createAccount = useCreateAccount();
+  const updateAccount = useUpdateAccount();
   const [formError, setFormError] = useState<string | null>(null);
+  const isEditing = !!account;
+
   const {
     register,
     handleSubmit,
@@ -29,11 +53,18 @@ export function CreateAccountDialog({ open, onClose }: { open: boolean; onClose:
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { account_type: "checking", currency: "EUR" },
+    defaultValues: valuesFrom(account),
   });
 
+  useEffect(() => {
+    if (open) {
+      reset(valuesFrom(account));
+      setFormError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset intenzionale solo su open/account
+  }, [open, account]);
+
   const close = () => {
-    reset();
     setFormError(null);
     onClose();
   };
@@ -41,15 +72,19 @@ export function CreateAccountDialog({ open, onClose }: { open: boolean; onClose:
   const onSubmit = async (values: FormValues) => {
     setFormError(null);
     try {
-      await createAccount.mutateAsync(values);
+      if (isEditing) {
+        await updateAccount.mutateAsync({ id: account.id, ...values });
+      } else {
+        await createAccount.mutateAsync(values);
+      }
       close();
     } catch (error) {
-      setFormError(friendlyErrorMessage(error, "Non è stato possibile creare il conto."));
+      setFormError(friendlyErrorMessage(error, "Non è stato possibile salvare il conto."));
     }
   };
 
   return (
-    <Dialog open={open} onClose={close} title="Nuovo conto">
+    <Dialog open={open} onClose={close} title={isEditing ? "Modifica conto" : "Nuovo conto"}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
         <Input label="Nome" error={errors.name?.message} {...register("name")} />
         <Select label="Tipo" error={errors.account_type?.message} {...register("account_type")}>
@@ -76,7 +111,7 @@ export function CreateAccountDialog({ open, onClose }: { open: boolean; onClose:
             Annulla
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            Crea conto
+            {isEditing ? "Salva" : "Crea conto"}
           </Button>
         </div>
       </form>

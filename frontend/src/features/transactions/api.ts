@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../lib/apiClient";
+import { buildQueryString } from "../../lib/queryString";
 import type { Classification, Transaction } from "../../types/api";
 
 export interface TransactionFilters {
@@ -15,15 +16,6 @@ export interface TransactionFilters {
 
 export const transactionsKey = (filters: TransactionFilters) => ["transactions", filters] as const;
 export const classificationsKey = (transactionId: string) => ["classifications", transactionId] as const;
-
-function buildQueryString(filters: TransactionFilters): string {
-  const params = new URLSearchParams();
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== "") params.set(key, String(value));
-  });
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
-}
 
 export function useTransactions(filters: TransactionFilters, options: { enabled?: boolean } = {}) {
   return useQuery({

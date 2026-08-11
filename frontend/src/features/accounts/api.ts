@@ -34,3 +34,23 @@ export function useSetAccountActive() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: accountsKey }),
   });
 }
+
+export interface UpdateAccountInput {
+  id: string;
+  name?: string;
+  account_type?: AccountType;
+  currency?: string;
+}
+
+/** Serve soprattutto a correggere il `account_type` scelto in creazione
+ * (es. un conto Trade Republic usato per la spesa quotidiana, non solo per
+ * investire): l'`account_type` determina in quale bucket del dashboard
+ * finisce il saldo (Liquidità vs Investimenti, milestone 08), quindi deve
+ * poter essere corretto senza ricreare il conto. */
+export function useUpdateAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: UpdateAccountInput) => api.patch<FinancialAccount>(`/accounts/${id}`, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: accountsKey }),
+  });
+}

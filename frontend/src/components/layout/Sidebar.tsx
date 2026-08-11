@@ -1,17 +1,29 @@
-import { ArrowLeftRight, Landmark, Sparkles, UploadCloud, Wand2 } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Banknote,
+  LayoutDashboard,
+  Landmark,
+  Receipt,
+  Sparkles,
+  UploadCloud,
+  Wallet,
+  Wand2,
+} from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const NAV_ITEMS = [
+  { to: "/", label: "Panoramica", icon: LayoutDashboard },
   { to: "/accounts", label: "Conti", icon: Landmark },
   { to: "/transactions", label: "Transazioni", icon: ArrowLeftRight },
+  { to: "/expenses", label: "Spese", icon: Receipt },
+  { to: "/income", label: "Entrate", icon: Banknote },
+  { to: "/net-worth", label: "Patrimonio", icon: Wallet },
   { to: "/imports", label: "Import", icon: UploadCloud },
   { to: "/settings/rules", label: "Regole", icon: Wand2 },
   { to: "/settings/ai", label: "AI", icon: Sparkles },
 ];
 
-/** Solo le voci che esistono davvero in questa slice (SPEC_FE §11 non
- * impone di anticipare Overview/Expenses/Income/Net Worth/Investments,
- * non ancora costruiti — vedi piano). "AI" aggiunta in M07. */
+/** Milestone 08: aggiunte Panoramica/Spese/Entrate/Patrimonio (SPEC §41). */
 export function Sidebar() {
   return (
     <nav
@@ -22,6 +34,7 @@ export function Sidebar() {
         <NavLink
           key={to}
           to={to}
+          end={to === "/"}
           className={({ isActive }) =>
             `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               isActive ? "bg-primary/10 text-primary" : "text-text hover:bg-surface-hover"

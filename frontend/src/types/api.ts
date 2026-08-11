@@ -283,3 +283,104 @@ export interface JobEvent {
 export interface ApiErrorBody {
   detail: string | { detail: string; existing_import_id?: Uuid; existing_status?: string } | unknown;
 }
+
+// Analytics (milestone 08) — Decimal serializzati come stringa da Pydantic,
+// stesso motivo di `Transaction.amount` sopra.
+
+export const ANALYTICS_GRANULARITIES = ["day", "week", "month", "quarter", "year"] as const;
+export type AnalyticsGranularity = (typeof ANALYTICS_GRANULARITIES)[number];
+
+export type AnalyticsDirection = "expense" | "income";
+
+export interface AnalyticsPeriod {
+  date_from: IsoDate;
+  date_to: IsoDate;
+}
+
+export interface AnalyticsSummary {
+  currency: string;
+  period: AnalyticsPeriod;
+  comparison_period: AnalyticsPeriod;
+  liquidity: string;
+  debt: string;
+  investments: string;
+  has_investments: boolean;
+  income: string;
+  expenses: string;
+  net_cash_flow: string;
+  previous_income: string;
+  previous_expenses: string;
+  previous_net_cash_flow: string;
+}
+
+export interface AccountBalance {
+  financial_account_id: Uuid;
+  name: string;
+  account_type: AccountType;
+  balance: string;
+}
+
+export interface AnalyticsBalances {
+  currency: string;
+  as_of: IsoDate;
+  accounts: AccountBalance[];
+  liquidity_total: string;
+  debt_total: string;
+  investment_total: string;
+  has_investments: boolean;
+}
+
+export interface BalanceHistoryPoint {
+  period: IsoDate;
+  balance: string;
+}
+
+export interface AnalyticsBalanceHistory {
+  currency: string;
+  granularity: AnalyticsGranularity;
+  period: AnalyticsPeriod;
+  points: BalanceHistoryPoint[];
+}
+
+export interface CashFlowPoint {
+  period: IsoDate;
+  income: string;
+  expenses: string;
+  net: string;
+}
+
+export interface AnalyticsCashFlow {
+  currency: string;
+  granularity: AnalyticsGranularity;
+  period: AnalyticsPeriod;
+  points: CashFlowPoint[];
+}
+
+export interface CategoryBreakdownItem {
+  category_id: Uuid | null;
+  name: string;
+  total: string;
+  share: string;
+  transactions_count: number;
+}
+
+export interface AnalyticsCategoryBreakdown {
+  currency: string;
+  direction: AnalyticsDirection;
+  period: AnalyticsPeriod;
+  items: CategoryBreakdownItem[];
+}
+
+export interface MerchantBreakdownItem {
+  merchant: string;
+  total: string;
+  share: string;
+  transactions_count: number;
+}
+
+export interface AnalyticsMerchantBreakdown {
+  currency: string;
+  direction: AnalyticsDirection;
+  period: AnalyticsPeriod;
+  items: MerchantBreakdownItem[];
+}

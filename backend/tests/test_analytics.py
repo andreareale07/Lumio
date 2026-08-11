@@ -1,0 +1,276 @@
+from httpx import AsyncClient
+
+
+async def _register(client: AsyncClient, email: str) -> str:
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": "correct-password-123", "display_name": "Test"},
+    )
+    return response.json()["access_token"]
+
+
+def _auth_headers(token: str) -> dict:
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _create_account(client: AsyncClient, token: str, **overrides) -> str:
+    payload = {"name": "Conto", "account_type": "checking", "currency": "EUR"}
+    payload.update(overrides)
+    response = await client.post(
+        "/api/v1/accounts", json=payload, headers=_auth_headers(token)
+    )
+    return response.json()["id"]
+
+
+async def _create_transaction(client: AsyncClient, token: str, account_id: str, **overrides) -> dict:
+    payload = {
+        "financial_account_id": account_id,
+        "transaction_date": "2026-08-01",
+        "description_raw": "Movimento",
+        "amount": "-10.00",
+        "currency": "EUR",
+        "direction": "debit",
+        "transaction_type": "expense",
+    }
+    payload.update(overrides)
+    response = await client.post(
+        "/api/v1/transactions", json=payload, headers=_auth_headers(token)
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+async def _category_id(client: AsyncClient, token: str, code: str) -> str:
+    response = await client.get("/api/v1/categories", headers=_auth_headers(token))
+    return next(c["id"] for c in response.json() if c["code"] == code)
+
+
+async def test_summary_excludes_transfers_and_investments(client):
+    token = await _register(client, "summary@example.com")
+    account_id = await _create_account(client, token)
+
+    await _create_transaction(
+        client, token, account_id,
+        amount="2000.00", direction="credit", transaction_type="income",
+    )
+    await _create_transaction(
+        client, token, account_id,
+        amount="-500.00", direction="debit", transaction_type="expense",
+    )
+    await _create_transaction(
+        client, token, account_id,
+        amount="-300.00", direction="debit", transaction_type="transfer",
+    )
+    await _create_transaction(
+        client, token, account_id,
+        amount="-200.00", direction="debit", transaction_type="investment",
+    )
+
+    response = await client.get(
+        "/api/v1/analytics/summary",
+        params={"date_from": "2026-08-01", "date_to": "2026-08-31"},
+        headers=_auth_headers(token),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["currency"] == "EUR"
+    # Cash flow ignora transfer/investment (SPEC §21/§30, CLAUDE.md).
+    assert body["income"] == "2000.00"
+    assert body["expenses"] == "500.00"
+    assert body["net_cash_flow"] == "1500.00"
+    # Il saldo del conto invece riflette TUTTE le transazioni reali,
+    # transfer/investment incluse: 2000 - 500 - 300 - 200 = 1000.
+    assert body["liquidity"] == "1000.00"
+    assert body["has_investments"] is False
+
+
+async def test_brokerage_account_counts_as_liquidity_not_investment(client):
+    # Decisione rivista dopo feedback reale: conti come Trade Republic/
+    # Fineco sono ibridi (spendibili con carta E utilizzabili per comprare
+    # titoli sullo stesso conto) — "brokerage" non deve escludere il saldo
+    # dalla liquidita'. Nessun account_type oggi da' diritto a un valore di
+    # investimento reale (arriva con M09), quindi has_investments resta
+    # sempre False.
+    token = await _register(client, "brokerage-liquidity@example.com")
+    brokerage_id = await _create_account(client, token, account_type="brokerage")
+    credit_card_id = await _create_account(client, token, account_type="credit_card")
+
+    await _create_transaction(
+        client, token, brokerage_id, amount="872.70", direction="credit", transaction_type="income"
+    )
+    await _create_transaction(client, token, credit_card_id, amount="-50.00")
+
+    response = await client.get("/api/v1/analytics/balances", headers=_auth_headers(token))
+    body = response.json()
+    assert body["liquidity_total"] == "872.70"
+    assert body["debt_total"] == "-50.00"
+    assert body["investment_total"] == "0"
+    assert body["has_investments"] is False
+
+
+async def test_by_category_rolls_up_subcategories_to_parent(client):
+    token = await _register(client, "category@example.com")
+    account_id = await _create_account(client, token)
+    supermercato_id = await _category_id(client, token, "alimentari.supermercato")
+    mercato_id = await _category_id(client, token, "alimentari.mercato")
+
+    await _create_transaction(
+        client, token, account_id, category_id=supermercato_id, amount="-100.00"
+    )
+    await _create_transaction(
+        client, token, account_id, category_id=mercato_id, amount="-50.00"
+    )
+
+    response = await client.get(
+        "/api/v1/analytics/by-category",
+        params={"date_from": "2026-08-01", "date_to": "2026-08-31", "direction": "expense"},
+        headers=_auth_headers(token),
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 1
+    assert items[0]["name"] == "Alimentari"
+    assert items[0]["total"] == "150.00"
+    assert items[0]["transactions_count"] == 2
+    assert items[0]["share"] == "1"
+
+
+async def test_by_merchant_breakdown_and_category_drilldown(client):
+    token = await _register(client, "merchant@example.com")
+    account_id = await _create_account(client, token)
+    supermercato_id = await _category_id(client, token, "alimentari.supermercato")
+
+    await _create_transaction(
+        client, token, account_id, merchant="LIDL", category_id=supermercato_id, amount="-30.00"
+    )
+    await _create_transaction(
+        client, token, account_id, merchant="ESSELUNGA", category_id=supermercato_id, amount="-20.00"
+    )
+    await _create_transaction(
+        client, token, account_id, merchant="NETFLIX", amount="-9.99"
+    )
+
+    all_merchants = await client.get(
+        "/api/v1/analytics/by-merchant",
+        params={"date_from": "2026-08-01", "date_to": "2026-08-31", "direction": "expense"},
+        headers=_auth_headers(token),
+    )
+    assert {i["merchant"] for i in all_merchants.json()["items"]} == {"LIDL", "ESSELUNGA", "NETFLIX"}
+
+    drilldown = await client.get(
+        "/api/v1/analytics/by-merchant",
+        params={
+            "date_from": "2026-08-01",
+            "date_to": "2026-08-31",
+            "direction": "expense",
+            "category_id": supermercato_id,
+        },
+        headers=_auth_headers(token),
+    )
+    assert {i["merchant"] for i in drilldown.json()["items"]} == {"LIDL", "ESSELUNGA"}
+
+
+async def test_by_merchant_drilldown_on_parent_category_includes_subcategory_transactions(client):
+    # Bug osservato manualmente in browser: il frontend passa a
+    # /by-merchant?category_id=... il group_id RIACCORPATO di /by-category
+    # (COALESCE(parent_id, id) — quasi sempre il padre), ma le transazioni
+    # sono taggate con la SOTTOCATEGORIA figlia. Un confronto diretto
+    # category_id == :category_id non trova mai nulla per un padre con
+    # figli.
+    token = await _register(client, "merchant-parent-drilldown@example.com")
+    account_id = await _create_account(client, token)
+    alimentari_id = await _category_id(client, token, "alimentari")
+    supermercato_id = await _category_id(client, token, "alimentari.supermercato")
+    assert alimentari_id != supermercato_id
+
+    await _create_transaction(
+        client, token, account_id, merchant="LIDL", category_id=supermercato_id, amount="-30.00"
+    )
+
+    drilldown = await client.get(
+        "/api/v1/analytics/by-merchant",
+        params={
+            "date_from": "2026-08-01",
+            "date_to": "2026-08-31",
+            "direction": "expense",
+            "category_id": alimentari_id,
+        },
+        headers=_auth_headers(token),
+    )
+    items = drilldown.json()["items"]
+    assert items
+    assert {i["merchant"] for i in items} == {"LIDL"}
+
+
+async def test_cash_flow_buckets_by_month(client):
+    token = await _register(client, "cashflow@example.com")
+    account_id = await _create_account(client, token)
+
+    await _create_transaction(
+        client, token, account_id, transaction_date="2026-08-15",
+        amount="1000.00", direction="credit", transaction_type="income",
+    )
+    await _create_transaction(
+        client, token, account_id, transaction_date="2026-08-20", amount="-200.00",
+    )
+    await _create_transaction(
+        client, token, account_id, transaction_date="2026-09-10",
+        amount="500.00", direction="credit", transaction_type="income",
+    )
+
+    response = await client.get(
+        "/api/v1/analytics/cash-flow",
+        params={"date_from": "2026-08-01", "date_to": "2026-09-30", "granularity": "month"},
+        headers=_auth_headers(token),
+    )
+    assert response.status_code == 200
+    points = {p["period"]: p for p in response.json()["points"]}
+    assert points["2026-08-01"]["income"] == "1000.00"
+    assert points["2026-08-01"]["expenses"] == "200.00"
+    assert points["2026-08-01"]["net"] == "800.00"
+    assert points["2026-09-01"]["income"] == "500.00"
+    assert points["2026-09-01"]["expenses"] == "0"
+
+
+async def test_balance_history_last_point_matches_current_liquidity(client):
+    token = await _register(client, "history@example.com")
+    account_id = await _create_account(client, token)
+
+    await _create_transaction(client, token, account_id, transaction_date="2026-07-10", amount="1000.00", direction="credit", transaction_type="income")
+    await _create_transaction(client, token, account_id, transaction_date="2026-08-05", amount="-150.00")
+
+    balances = await client.get("/api/v1/analytics/balances", headers=_auth_headers(token))
+    history = await client.get(
+        "/api/v1/analytics/balance-history",
+        params={"date_from": "2026-07-01", "date_to": "2026-08-31", "granularity": "month"},
+        headers=_auth_headers(token),
+    )
+    assert history.status_code == 200
+    points = history.json()["points"]
+    assert points[-1]["balance"] == balances.json()["liquidity_total"]
+
+
+async def test_analytics_do_not_leak_across_workspaces(client):
+    token_a = await _register(client, "iso-a@example.com")
+    token_b = await _register(client, "iso-b@example.com")
+    account_a = await _create_account(client, token_a)
+    account_b = await _create_account(client, token_b)
+
+    await _create_transaction(client, token_a, account_a, amount="-40.00")
+    await _create_transaction(
+        client, token_b, account_b, amount="-9000.00", merchant="SHOULD-NOT-LEAK"
+    )
+
+    summary_a = await client.get(
+        "/api/v1/analytics/summary",
+        params={"date_from": "2026-08-01", "date_to": "2026-08-31"},
+        headers=_auth_headers(token_a),
+    )
+    assert summary_a.json()["expenses"] == "40.00"
+
+    by_merchant_a = await client.get(
+        "/api/v1/analytics/by-merchant",
+        params={"date_from": "2026-08-01", "date_to": "2026-08-31", "direction": "expense"},
+        headers=_auth_headers(token_a),
+    )
+    assert "SHOULD-NOT-LEAK" not in {i["merchant"] for i in by_merchant_a.json()["items"]}
