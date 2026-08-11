@@ -138,6 +138,59 @@ export interface RuleSuggestion {
   transaction_ids: Uuid[];
 }
 
+export const AI_PROVIDERS = ["ollama", "openai", "anthropic", "custom"] as const;
+export type AIProvider = (typeof AI_PROVIDERS)[number];
+
+/** Un profilo salvato (SPEC §25-28) — un workspace puo' averne piu' d'uno,
+ * anche dello stesso provider, ma al massimo UNO con `is_active: true`. */
+export interface AIProfile {
+  id: Uuid;
+  name: string;
+  provider: AIProvider;
+  endpoint: string | null;
+  model: string | null;
+  api_key_set: boolean;
+  is_active: boolean;
+  created_at: IsoDateTime;
+  updated_at: IsoDateTime;
+}
+
+export interface AIProfileCreate {
+  name: string;
+  provider: AIProvider;
+  endpoint?: string | null;
+  model?: string | null;
+  api_key?: string;
+}
+
+export interface AIProfileUpdate {
+  /** `provider` non e' modificabile: cambiarlo richiede un nuovo profilo. */
+  name?: string;
+  endpoint?: string | null;
+  model?: string | null;
+  /** undefined = mantieni la chiave salvata, "" = rimuovila, altro = sostituiscila. */
+  api_key?: string;
+}
+
+/** Payload di test/elenco-modelli per un profilo NON ANCORA salvato. */
+export interface AIConnectionCheckRequest {
+  provider: AIProvider;
+  endpoint?: string | null;
+  model?: string | null;
+  api_key?: string;
+}
+
+export interface AITestConnectionResult {
+  success: boolean;
+  message: string;
+}
+
+export interface AIModelListResult {
+  success: boolean;
+  models: string[];
+  message: string;
+}
+
 export type ImportFileType = "csv" | "pdf";
 export type ImportStatus =
   | "uploaded"

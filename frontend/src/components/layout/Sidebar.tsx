@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Landmark, UploadCloud, Wand2 } from "lucide-react";
+import { ArrowLeftRight, Landmark, Sparkles, UploadCloud, Wand2 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const NAV_ITEMS = [
@@ -6,11 +6,12 @@ const NAV_ITEMS = [
   { to: "/transactions", label: "Transazioni", icon: ArrowLeftRight },
   { to: "/imports", label: "Import", icon: UploadCloud },
   { to: "/settings/rules", label: "Regole", icon: Wand2 },
+  { to: "/settings/ai", label: "AI", icon: Sparkles },
 ];
 
 /** Solo le voci che esistono davvero in questa slice (SPEC_FE §11 non
  * impone di anticipare Overview/Expenses/Income/Net Worth/Investments,
- * non ancora costruiti — vedi piano). */
+ * non ancora costruiti — vedi piano). "AI" aggiunta in M07. */
 export function Sidebar() {
   return (
     <nav

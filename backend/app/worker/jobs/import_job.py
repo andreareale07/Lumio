@@ -33,6 +33,8 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from app.ai.base import AIClassificationResult, ClassifiableTransaction
+from app.ai.registry import build_classifier
 from app.core.config import get_settings
 from app.db.rls import rls_session
 from app.models.bank_parser import BankParser as BankParserRow
@@ -41,6 +43,9 @@ from app.models.import_ import Import
 from app.models.transaction import Transaction
 from app.parsers import get_parser
 from app.services import job_events
+from app.services.ai_classification import classify_transaction, load_category_options
+from app.services.ai_profile_service import get_active_profile
+from app.services.confidence import compute_ai_confidence
 from app.services.csv_import import MappingConfig, ParsedRow, parse_rows
 from app.services.import_paths import original_file_path
 from app.services.rule_loader import load_active_rule_specs
@@ -188,23 +193,47 @@ async def _insert_transactions_and_complete(
         if import_row is None or import_row.status != "parsing":
             return
 
-        # Rules Engine (milestone 06, SPEC §23): valutato prima di
-        # qualsiasi AI (che in M06 non esiste ancora) — nessun parser
-        # popola ancora `merchant`, quindi le regole matchano solo su
-        # description qui, ma il motore resta invariato quando arrivera'.
+        # Rules Engine (milestone 06, SPEC §23) valutato prima di qualsiasi
+        # AI (milestone 07, SPEC §28: Rules -> AI) — nessun parser popola
+        # ancora `merchant`, quindi entrambi matchano solo su description
+        # qui, ma i motori restano invariati quando un parser lo popolera'.
+        # Le chiamate AI restano sequenziali dentro la stessa transazione
+        # DB gia' usata per le regole: accettabile alla scala di un import
+        # personale (decine/centinaia di righe), non pensato per volumi
+        # enterprise — un provider lento allunga la durata del job ma non
+        # blocca richieste HTTP (gia' async via worker, SPEC §51).
         active_rules = await load_active_rule_specs(db, workspace_id)
+        active_ai_profile = await get_active_profile(db, workspace_id)
+        ai_classifier = build_classifier(active_ai_profile)
+        ai_categories = await load_category_options(db, workspace_id) if active_ai_profile is not None else []
 
         transactions: list[Transaction] = []
         matched_categories: dict[int, uuid.UUID] = {}
+        ai_results: dict[int, AIClassificationResult] = {}
         for index, row in enumerate(rows):
-            matched_category_id = evaluate(
-                active_rules,
-                Probe(
-                    description_raw=row.description_raw,
-                    description_normalized=row.description_normalized,
-                    merchant=None,
-                ),
+            probe = Probe(
+                description_raw=row.description_raw,
+                description_normalized=row.description_normalized,
+                merchant=None,
             )
+            matched_category_id = evaluate(active_rules, probe)
+            if matched_category_id is None and ai_categories:
+                ai_result = await classify_transaction(
+                    ai_classifier,
+                    ai_categories,
+                    ClassifiableTransaction(
+                        description_raw=row.description_raw,
+                        description_normalized=row.description_normalized,
+                        merchant=None,
+                        amount=str(row.amount),
+                        currency=row.currency,
+                        direction=row.direction,
+                    ),
+                )
+                if ai_result is not None:
+                    matched_category_id = ai_result.category_id
+                    ai_results[index] = ai_result
+
             transaction = Transaction(
                 workspace_id=workspace_id,
                 financial_account_id=financial_account_id,
@@ -223,10 +252,10 @@ async def _insert_transactions_and_complete(
             )
             db.add(transaction)
             transactions.append(transaction)
-            if matched_category_id is not None:
+            if matched_category_id is not None and index not in ai_results:
                 matched_categories[index] = matched_category_id
 
-        if matched_categories:
+        if matched_categories or ai_results:
             # Serve un flush per ottenere gli id (server-generated) delle
             # transazioni appena aggiunte, prima di poterli referenziare da
             # `classifications.transaction_id` — un solo commit resta alla
@@ -239,6 +268,18 @@ async def _insert_transactions_and_complete(
                         method="rule",
                         category_id=category_id,
                         score=Decimal("1.00"),
+                    )
+                )
+            for index, ai_result in ai_results.items():
+                db.add(
+                    Classification(
+                        transaction_id=transactions[index].id,
+                        method="ai",
+                        provider=active_ai_profile.provider,
+                        model=active_ai_profile.model,
+                        category_id=ai_result.category_id,
+                        score=compute_ai_confidence(ai_result.raw_confidence, has_merchant=False),
+                        explanation=ai_result.explanation,
                     )
                 )
 

@@ -19,9 +19,14 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
 
-    ai_provider: str = "none"
-    ai_endpoint: str = ""
-    ai_model: str = ""
+    # --- AI Abstraction (milestone 07) ---
+    # Ogni workspace configura i propri profili AI via `/settings/ai`
+    # (piu' profili salvabili, uno attivo per volta) — nessun default
+    # d'istanza da `.env`: a differenza della prima versione di questa
+    # milestone (un'unica riga per workspace), un profilo ha anche un
+    # `name` scelto dall'utente, che non ha senso pre-generare da env var.
+    ai_classify_timeout_seconds: int = 30
+    ai_test_timeout_seconds: int = 10
 
     google_enabled: bool = False
 

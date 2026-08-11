@@ -1,3 +1,4 @@
+from app.models.ai_profile import AIProfile
 from app.models.bank import Bank
 from app.models.bank_parser import BankParser
 from app.models.category import Category
@@ -12,6 +13,7 @@ from app.models.workspace import Workspace
 from app.models.workspace_member import WorkspaceMember
 
 __all__ = [
+    "AIProfile",
     "Bank",
     "BankParser",
     "Category",
