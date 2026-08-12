@@ -1,6 +1,7 @@
 from app.models.ai_profile import AIProfile
 from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
+from app.models.audit_log import AuditLog
 from app.models.bank import Bank
 from app.models.bank_parser import BankParser
 from app.models.category import Category
@@ -29,6 +30,7 @@ __all__ = [
     "AIProfile",
     "Asset",
     "AssetPrice",
+    "AuditLog",
     "Bank",
     "BankParser",
     "Category",

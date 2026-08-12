@@ -1,3 +1,4 @@
+import hashlib
 import secrets
 import uuid
 
@@ -8,7 +9,11 @@ _REDIS_KEY_PREFIX = "refresh_token:"
 
 
 def _redis_key(token: str) -> str:
-    return f"{_REDIS_KEY_PREFIX}{token}"
+    # Solo l'hash finisce su Redis (SPEC §55): il token vero resta solo nel
+    # cookie httpOnly del client — un dump/replica/MONITOR di Redis non deve
+    # esporre un valore direttamente riusabile per impersonare la sessione.
+    digest = hashlib.sha256(token.encode()).hexdigest()
+    return f"{_REDIS_KEY_PREFIX}{digest}"
 
 
 async def create_refresh_token(user_id: uuid.UUID) -> str:

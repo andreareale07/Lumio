@@ -267,6 +267,30 @@ async def test_user_a_cannot_see_user_b_import_via_api(client):
     assert list_response.json() == []
 
 
+async def test_user_a_cannot_read_user_b_import_file_via_preview_or_confirm(client):
+    """Gap chiuso in milestone 11 (SPEC §56, 'files' tra le entita' elencate):
+    a differenza di test_user_a_cannot_see_user_b_import_via_api sopra (solo
+    metadata), qui si verifica che gli endpoint che leggono davvero i BYTE
+    del file originale da storage (/preview, /confirm) neghino l'accesso
+    allo stesso modo — mai un percorso che arrivi a get_storage().read() con
+    l'import_id di un altro workspace."""
+    token_a = await _register(client, "imp-file-iso-a@example.com")
+    token_b = await _register(client, "imp-file-iso-b@example.com")
+    account_b_id = await _create_account(client, token_b)
+    upload = await _upload(client, token_b, account_b_id, CSV_SAMPLE.encode())
+    import_b_id = upload.json()["import"]["id"]
+
+    preview_response = await client.get(
+        f"/api/v1/imports/{import_b_id}/preview", headers=_auth_headers(token_a)
+    )
+    assert preview_response.status_code == 404
+
+    confirm_response = await client.post(
+        f"/api/v1/imports/{import_b_id}/confirm", json={}, headers=_auth_headers(token_a)
+    )
+    assert confirm_response.status_code == 404
+
+
 async def test_random_import_id_returns_404(client):
     token = await _register(client, "imp-404@example.com")
     response = await client.get(f"/api/v1/imports/{uuid.uuid4()}", headers=_auth_headers(token))

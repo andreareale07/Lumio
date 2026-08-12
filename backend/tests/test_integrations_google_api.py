@@ -9,8 +9,22 @@ import uuid
 from urllib.parse import parse_qs, urlsplit
 
 from httpx import AsyncClient
+from sqlalchemy import text
 
+from app.db.base import async_session_factory
 from app.services.job_run_tracker import start_run
+
+
+async def _audit_events(user_id: uuid.UUID, event_type: str) -> list[dict]:
+    async with async_session_factory() as session:
+        await session.execute(
+            text("SELECT set_config('app.current_user_id', :uid, true)"), {"uid": str(user_id)}
+        )
+        result = await session.execute(
+            text("SELECT entity_type, metadata FROM audit_log WHERE event_type = :event_type"),
+            {"event_type": event_type},
+        )
+        return [dict(row._mapping) for row in result]
 
 
 async def _register(client: AsyncClient, email: str) -> tuple[str, uuid.UUID, uuid.UUID]:
@@ -69,7 +83,7 @@ async def test_connect_returns_google_authorize_url(client):
 
 
 async def test_callback_creates_integration_with_spreadsheet_and_email(client, httpx_mock):
-    token, _, _ = await _register(client, "google-callback@example.com")
+    token, user_id, _ = await _register(client, "google-callback@example.com")
     await _connect_google(client, token, httpx_mock, email="callback@gmail.com")
 
     status_resp = await client.get("/api/v1/integrations/google", headers=_auth_headers(token))
@@ -77,6 +91,12 @@ async def test_callback_creates_integration_with_spreadsheet_and_email(client, h
     assert body["google_account_email"] == "callback@gmail.com"
     assert body["spreadsheet_url"].endswith("sheet123")
     assert body["drive_folder_name"] is None
+
+    # Milestone 11 (SPEC §59): l'evento va scritto DOPO il commit interno di
+    # save_new_integration, che fa scadere l'identita' RLS impostata a inizio
+    # callback — verifica anche il fix del gotcha, non solo la presenza
+    # dell'evento (senza il re-set la INSERT verrebbe negata silenziosamente).
+    assert len(await _audit_events(user_id, "GOOGLE_CONNECTED")) == 1
 
 
 async def test_callback_with_invalid_state_redirects_with_error(client):
@@ -149,8 +169,11 @@ async def test_export_enqueues_job_and_is_idempotent_while_running(client, httpx
     assert response.status_code == 202
     assert response.json()["job_id"] == "fake-export-job-id"
     assert len(calls) == 1
+    assert len(await _audit_events(user_id, "EXPORT_CREATED")) == 1
 
-    # Doppio-click mentre un export e' gia' "running": nessun secondo job accodato.
+    # Doppio-click mentre un export e' gia' "running": nessun secondo job
+    # accodato, e nemmeno un secondo evento di audit (nessun export nuovo
+    # creato davvero).
     await start_run(workspace_id, user_id, "google_sheets_export")
     response2 = await client.post(
         "/api/v1/integrations/google/export",
@@ -159,6 +182,7 @@ async def test_export_enqueues_job_and_is_idempotent_while_running(client, httpx
     )
     assert response2.status_code == 202
     assert len(calls) == 1
+    assert len(await _audit_events(user_id, "EXPORT_CREATED")) == 1
 
 
 async def test_export_status_null_when_never_run(client, httpx_mock):

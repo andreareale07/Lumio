@@ -5,10 +5,12 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_workspace_id
+from app.api.deps import get_current_user, get_current_workspace_id
 from app.db.session import get_db
 from app.models.category import Category
+from app.models.user import User
 from app.schemas.categories import CategoryCreate, CategoryOut, CategoryUpdate
+from app.services.audit_log_service import log_event
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
@@ -46,11 +48,17 @@ async def list_categories(
 async def create_category(
     payload: CategoryCreate,
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Category:
     category = Category(workspace_id=workspace_id, **payload.model_dump())
     db.add(category)
     try:
+        await db.flush()
+        await log_event(
+            db, workspace_id, user.id, "CATEGORY_CHANGED",
+            entity_type="category", entity_id=category.id, metadata={"action": "created"},
+        )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -63,12 +71,17 @@ async def update_category(
     category_id: uuid.UUID,
     payload: CategoryUpdate,
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Category:
     category = await _get_writable_category_or_404(db, workspace_id, category_id)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(category, field, value)
     try:
+        await log_event(
+            db, workspace_id, user.id, "CATEGORY_CHANGED",
+            entity_type="category", entity_id=category.id, metadata={"action": "updated"},
+        )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -80,11 +93,17 @@ async def update_category(
 async def delete_category(
     category_id: uuid.UUID,
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     category = await _get_writable_category_or_404(db, workspace_id, category_id)
+    deleted_category_id = category.id
     await db.delete(category)
     try:
+        await log_event(
+            db, workspace_id, user.id, "CATEGORY_CHANGED",
+            entity_type="category", entity_id=deleted_category_id, metadata={"action": "deleted"},
+        )
         await db.commit()
     except IntegrityError as exc:
         # category_id ha una FK semplice (non composita) verso categories,

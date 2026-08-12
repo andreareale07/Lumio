@@ -47,6 +47,7 @@ from app.services import job_events
 from app.services.ai_classification import classify_transaction, load_category_options
 from app.services.ai_profile_service import get_active_profile
 from app.services.asset_matching import get_or_create_asset_by_isin
+from app.services.audit_log_service import log_event
 from app.services.confidence import compute_ai_confidence
 from app.services.csv_import import MappingConfig, ParsedRow, parse_rows
 from app.services.import_paths import original_file_path
@@ -363,6 +364,15 @@ async def _insert_transactions_and_complete(
             import_row.period_start = min(dates)
             import_row.period_end = max(dates)
         import_row.completed_at = datetime.now(UTC)
+        await log_event(
+            db,
+            workspace_id,
+            user_uuid,
+            "IMPORT_COMPLETED",
+            entity_type="import",
+            entity_id=import_row.id,
+            metadata={"transactions_imported": len(rows)},
+        )
         await db.commit()
 
     await job_events.emit(

@@ -1,18 +1,20 @@
 import uuid
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_primary_workspace_id, set_rls_current_user
 from app.core.config import get_settings
+from app.core.rate_limit import LOGIN_RATE_LIMIT, REFRESH_RATE_LIMIT, REGISTER_RATE_LIMIT, limiter
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_db
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_member import WorkspaceMember
 from app.schemas.auth import LoginRequest, MeResponse, RegisterRequest, TokenResponse, UserOut
+from app.services.audit_log_service import log_event
 from app.services.session import (
     create_refresh_token,
     get_user_id_for_refresh_token,
@@ -62,8 +64,9 @@ async def _build_token_response(db: AsyncSession, user: User) -> TokenResponse:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit(REGISTER_RATE_LIMIT)
 async def register(
-    payload: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)
+    request: Request, payload: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)
 ) -> TokenResponse:
     user = User(
         email=payload.email,
@@ -105,8 +108,9 @@ async def register(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit(LOGIN_RATE_LIMIT)
 async def login(
-    payload: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
+    request: Request, payload: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
 ) -> TokenResponse:
     user = await db.scalar(select(User).where(User.email == payload.email))
 
@@ -118,13 +122,19 @@ async def login(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
 
     token_response = await _build_token_response(db, user)
+    await log_event(
+        db, token_response.user.workspace_id, user.id, "LOGIN", entity_type="user", entity_id=user.id
+    )
+    await db.commit()
     refresh_token = await create_refresh_token(user.id)
     _set_refresh_cookie(response, refresh_token)
     return token_response
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit(REFRESH_RATE_LIMIT)
 async def refresh(
+    request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
     refresh_token: str | None = Cookie(default=None),

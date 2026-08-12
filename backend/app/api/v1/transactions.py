@@ -19,6 +19,7 @@ from app.schemas.transactions import (
     TransactionOut,
     TransactionUpdate,
 )
+from app.services.audit_log_service import log_event
 from app.services.rule_loader import load_active_rule_specs
 from app.services.rules_engine import Probe, evaluate
 
@@ -153,6 +154,11 @@ async def update_transaction(
                 category_id=transaction.category_id,
                 created_by_user_id=user.id,
             )
+        )
+
+    if updates:
+        await log_event(
+            db, workspace_id, user.id, "TRANSACTION_UPDATED", entity_type="transaction", entity_id=transaction.id
         )
 
     try:

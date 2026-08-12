@@ -5,12 +5,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_workspace_id
+from app.api.deps import get_current_user, get_current_workspace_id
 from app.db.session import get_db
 from app.models.classification import Classification
 from app.models.rule import Rule
 from app.models.transaction import Transaction
+from app.models.user import User
 from app.schemas.rules import RuleCreate, RuleOut, RuleSuggestion, RuleUpdate
+from app.services.audit_log_service import log_event
 from app.services.rule_loader import load_active_rule_specs
 from app.services.rules_engine import Probe, evaluate
 
@@ -43,11 +45,14 @@ async def list_rules(
 async def create_rule(
     payload: RuleCreate,
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Rule:
     rule = Rule(workspace_id=workspace_id, **payload.model_dump())
     db.add(rule)
     try:
+        await db.flush()
+        await log_event(db, workspace_id, user.id, "RULE_CREATED", entity_type="rule", entity_id=rule.id)
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -132,12 +137,14 @@ async def update_rule(
     rule_id: uuid.UUID,
     payload: RuleUpdate,
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Rule:
     rule = await _get_rule_or_404(db, workspace_id, rule_id)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(rule, field, value)
     try:
+        await log_event(db, workspace_id, user.id, "RULE_UPDATED", entity_type="rule", entity_id=rule.id)
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()

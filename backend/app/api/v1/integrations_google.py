@@ -22,6 +22,7 @@ from app.schemas.integrations_google import (
 )
 from app.schemas.job_runs import JobRunOut
 from app.services import job_events
+from app.services.audit_log_service import log_event
 from app.services.google_integration_service import (
     disconnect,
     get_integration,
@@ -126,6 +127,14 @@ async def google_callback(
         await db.flush()
 
     await save_new_integration(db, workspace_id, credentials, email, spreadsheet_id, spreadsheet_url)
+    # save_new_integration ha gia' committato: SET LOCAL app.current_user_id
+    # e' scaduto con quel commit (vedi app/db/rls.py), va rimpostato prima di
+    # qualunque nuova query/INSERT RLS-dipendente sulla stessa sessione.
+    await set_rls_current_user(db, user_id)
+    await log_event(
+        db, workspace_id, user_id, "GOOGLE_CONNECTED", entity_type="google_integration", entity_id=None
+    )
+    await db.commit()
     return RedirectResponse("/settings/integrations?connected=1&step=choose-folder")
 
 
@@ -196,6 +205,11 @@ async def trigger_google_export(
         "include_charts": payload.include_charts,
     }
     job_id = await enqueue_google_sheets_export(workspace_id, user.id, options)
+    await log_event(
+        db, workspace_id, user.id, "EXPORT_CREATED",
+        entity_type="job", entity_id=None, metadata={"job_kind": JOB_KIND, "job_id": job_id},
+    )
+    await db.commit()
     return ExportTriggered(job_id=job_id)
 
 

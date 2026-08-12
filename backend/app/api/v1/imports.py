@@ -27,6 +27,7 @@ from app.schemas.imports import (
     ImportUploadResponse,
 )
 from app.services import job_events, upload_validation
+from app.services.audit_log_service import log_event
 from app.services.csv_import import MappingConfig, detect_mapping
 from app.services.import_paths import original_file_path
 from app.storage import get_storage
@@ -238,6 +239,10 @@ async def upload_import(
     # empiricamente: `invalid input syntax for type uuid: ""`).
     db.add(import_row)
     try:
+        await db.flush()
+        await log_event(
+            db, workspace_id, user.id, "IMPORT_CREATED", entity_type="import", entity_id=import_row.id
+        )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()

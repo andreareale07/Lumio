@@ -30,7 +30,7 @@ async def _clean_tables():
                 "assets, portfolios, portfolio_accounts, investment_transactions, positions, "
                 "market_data_profiles, asset_prices, portfolio_snapshots, net_worth_snapshots, "
                 "job_runs, transaction_type_mappings, financial_account_iban_history, "
-                "google_integrations CASCADE"
+                "google_integrations, audit_log CASCADE"
             )
         )
         # La policy INSERT su categories richiede workspace_id NOT NULL (per
@@ -81,6 +81,13 @@ async def _reset_connection_pools():
     storage_root = get_settings().storage_path
     shutil.rmtree(f"{storage_root}/workspaces", ignore_errors=True)
     async for key in redis_client.scan_iter(match="lumio:jobs:*"):
+        await redis_client.delete(key)
+    # Contatori del rate limiter (app/core/rate_limit.py, chiave "LIMITS:...",
+    # libreria `limits`): senza reset, i tanti register/login di test diversi
+    # nello stesso processo (stessa IP 127.0.0.1) esaurirebbero il limite
+    # reale e romperebbero test che non hanno nulla a che fare col rate
+    # limiting stesso.
+    async for key in redis_client.scan_iter(match="LIMITS:*"):
         await redis_client.delete(key)
     await redis_client.aclose()
     await engine.dispose()

@@ -125,6 +125,27 @@ async def test_user_cannot_select_another_workspace_asset_via_rls():
         assert result.first() is None
 
 
+async def test_user_cannot_select_another_workspace_portfolio_via_rls():
+    """Gap chiuso in milestone 11 (SPEC §56): `portfolios` aveva gia' un test
+    di INSERT cross-tenant (parametrizzato sopra) ma nessuno di SELECT, a
+    differenza di assets/investment_transactions/positions/portfolio_accounts
+    sotto in questo stesso file."""
+    user_a, _workspace_a = await _create_user_with_workspace("pf-rls-portfolio-a@example.com")
+    user_b, workspace_b = await _create_user_with_workspace("pf-rls-portfolio-b@example.com")
+
+    async with async_session_factory() as session:
+        await _set_current_user(session, user_b)
+        portfolio_id = await _create_portfolio(session, workspace_b)
+        await session.commit()
+
+    async with async_session_factory() as session:
+        await _set_current_user(session, user_a)
+        result = await session.execute(
+            text("SELECT id FROM portfolios WHERE id = :id"), {"id": str(portfolio_id)}
+        )
+        assert result.first() is None
+
+
 async def test_user_cannot_select_another_workspace_investment_transaction_via_rls():
     user_a, _workspace_a = await _create_user_with_workspace("pf-rls-itx-a@example.com")
     user_b, workspace_b = await _create_user_with_workspace("pf-rls-itx-b@example.com")

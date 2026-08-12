@@ -5,10 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIClassifier, AIProviderError
 from app.ai.registry import build_classifier
-from app.api.deps import get_current_workspace_id
+from app.api.deps import get_current_user, get_current_workspace_id
 from app.core.crypto import encrypt_secret
 from app.db.session import get_db
 from app.models.ai_profile import AIProfile
+from app.models.user import User
 from app.schemas.ai_settings import (
     AIConnectionCheckRequest,
     AIModelListResult,
@@ -25,6 +26,7 @@ from app.services.ai_profile_service import (
     list_profiles,
     validate_connection_prerequisites,
 )
+from app.services.audit_log_service import log_event
 
 router = APIRouter(prefix="/settings/ai", tags=["ai"])
 
@@ -108,10 +110,16 @@ async def delete_ai_profile(
 async def activate_ai_profile(
     profile_id: uuid.UUID,
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AIProfileOut:
     profile = await _get_profile_or_404(db, workspace_id, profile_id)
     await activate_profile(db, profile)
+    await log_event(
+        db, workspace_id, user.id, "AI_PROVIDER_CHANGED",
+        entity_type="ai_profile", entity_id=profile.id,
+        metadata={"provider": profile.provider, "action": "activated"},
+    )
     await db.commit()
     return _to_out(profile)
 
@@ -119,9 +127,14 @@ async def activate_ai_profile(
 @router.post("/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 async def deactivate_ai(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await deactivate_all_profiles(db, workspace_id)
+    await log_event(
+        db, workspace_id, user.id, "AI_PROVIDER_CHANGED",
+        entity_type="ai_profile", entity_id=None, metadata={"action": "deactivated"},
+    )
     await db.commit()
 
 
