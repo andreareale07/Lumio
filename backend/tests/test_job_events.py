@@ -66,3 +66,32 @@ async def test_live_event_is_picked_up_after_replay_completes():
     events = await _collect_until_terminal(import_id)
 
     assert [e["event"] for e in events] == ["job.created", "job.completed"]
+
+
+async def test_payload_uses_generic_topic_id_field():
+    topic_id = uuid.uuid4()
+    await job_events.emit(topic_id, "job.completed")
+    events = await _collect_until_terminal(topic_id)
+    assert events[0]["topic_id"] == str(topic_id)
+
+
+async def test_namespace_isolates_streams_for_the_same_topic_id():
+    """Milestone 10: l'export Google Sheets riusa `topic_id=workspace_id`
+    con `namespace="google_export"`, distinto dallo stream import dello
+    stesso id (in teoria mai collidente in pratica, ma la generalizzazione
+    di `job_events.py` deve comunque isolare i namespace per costruzione)."""
+    topic_id = uuid.uuid4()
+    await job_events.emit(topic_id, "job.created", namespace="google_export")
+    await job_events.emit(topic_id, "job.completed", namespace="google_export")
+    await job_events.emit(topic_id, "job.started", namespace="import")
+
+    google_events = []
+    async for line in job_events.stream(topic_id, namespace="google_export", timeout_seconds=1):
+        if line.startswith(": ping"):
+            continue
+        payload = json.loads(line.split("data: ", 1)[1])
+        google_events.append(payload)
+        if payload["event"] in job_events.TERMINAL_EVENTS:
+            break
+
+    assert [e["event"] for e in google_events] == ["job.created", "job.completed"]

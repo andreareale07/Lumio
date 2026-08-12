@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Landmark,
   LineChart,
+  Link2,
   PiggyBank,
   Receipt,
   Sparkles,
@@ -14,6 +15,8 @@ import {
   Wand2,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
+
+import { useAuth } from "../../app/providers/AuthProvider";
 
 const NAV_ITEMS = [
   { to: "/", label: "Panoramica", icon: LayoutDashboard },
@@ -35,14 +38,22 @@ const NAV_ITEMS = [
  * Milestone 09: aggiunte Investimenti e Market Data.
  * Milestone 09.5: aggiunta Tipi di transazione (mappatura configurabile).
  * Milestone 06.5 (audit retroattivo): aggiunta Categorie (gestione completa,
- * prima limitata alla creazione al volo dentro CategoryPicker). */
+ * prima limitata alla creazione al volo dentro CategoryPicker).
+ * Milestone 10: "Integrazioni" mostrata SOLO se `google_enabled` (isolamento
+ * reale, non un placeholder disabilitato — con GOOGLE_ENABLED=false questa
+ * voce non esiste affatto, ne' nel menu ne' come route). */
 export function Sidebar() {
+  const { user } = useAuth();
+  const items = user?.google_enabled
+    ? [...NAV_ITEMS, { to: "/settings/integrations", label: "Integrazioni", icon: Link2 }]
+    : NAV_ITEMS;
+
   return (
     <nav
       aria-label="Navigazione principale"
       className="hidden w-56 shrink-0 flex-col gap-1 border-r border-border bg-surface p-3 md:flex"
     >
-      {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+      {items.map(({ to, label, icon: Icon }) => (
         <NavLink
           key={to}
           to={to}

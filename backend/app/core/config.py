@@ -29,6 +29,18 @@ class Settings(BaseSettings):
     ai_test_timeout_seconds: int = 10
 
     google_enabled: bool = False
+    # Secret di ISTANZA (non di workspace): un solo OAuth client Google per
+    # l'intera installazione self-hosted, creato dall'operatore su Google
+    # Cloud Console. Letti solo se google_enabled=True (validati al primo
+    # uso da app/integrations/google/oauth.py, non a startup, per non
+    # rompere l'avvio quando l'integrazione resta disabilitata).
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = ""
+    # Browser key ristretta alla Picker API (diversa dal client OAuth sopra)
+    # per il widget Google Picker lato frontend (selezione cartella Drive).
+    google_picker_api_key: str = ""
+    google_export_job_timeout_seconds: int = 120
 
     # --- Import Engine (milestone 04) ---
     max_import_file_size_bytes: int = 10 * 1024 * 1024

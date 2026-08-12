@@ -26,6 +26,10 @@ class UserOut(BaseModel):
 
 class MeResponse(UserOut):
     workspace_id: uuid.UUID
+    # Da settings, non dal DB (milestone 10): permette al frontend di
+    # nascondere nav/pagina Google Sheets senza una request che fallisce
+    # quando l'istanza gira con GOOGLE_ENABLED=false.
+    google_enabled: bool
 
 
 class TokenResponse(BaseModel):

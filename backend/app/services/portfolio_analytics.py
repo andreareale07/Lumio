@@ -363,6 +363,76 @@ async def list_portfolio_snapshots(
     return list(result.scalars().all())
 
 
+@dataclass
+class PositionValuation:
+    asset_id: uuid.UUID
+    asset_label: str
+    quantity: Decimal
+    average_cost: Decimal
+    currency: str
+    cost_basis: Decimal
+    market_value: Decimal
+    unrealized_pl: Decimal
+    realized_pl: Decimal
+    has_market_data: bool
+
+
+async def list_position_valuations(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    account_ids: set[uuid.UUID] | None,
+    as_of: date,
+    currency: str,
+) -> list[PositionValuation]:
+    """P&L per SINGOLA posizione (milestone 10, report Google Sheets: a
+    differenza di `compute_valuation`, che e' solo l'aggregato, qui serve
+    rispondere a "quanto sto guadagnando/perdendo su quel titolo"). Stessa
+    fonte dati e stesso fallback a costo storico di `compute_valuation`,
+    solo a grana fine invece che sommata in un totale."""
+    query = select(Position).where(Position.workspace_id == workspace_id, Position.quantity != 0)
+    if account_ids is not None:
+        query = query.where(Position.financial_account_id.in_(account_ids))
+    positions = list((await db.execute(query)).scalars().all())
+    relevant = [p for p in positions if p.currency == currency]
+    if not relevant:
+        return []
+
+    asset_ids = {p.asset_id for p in relevant}
+    assets = {
+        a.id: a for a in (await db.execute(select(Asset).where(Asset.id.in_(asset_ids)))).scalars().all()
+    }
+
+    cents = Decimal("0.01")
+    results: list[PositionValuation] = []
+    for position in relevant:
+        cost_basis = position.quantity * position.average_cost
+        price_row = await _latest_price(db, workspace_id, position.asset_id, as_of)
+        if price_row is not None and price_row.currency == currency:
+            market_value = position.quantity * price_row.price
+            has_market_data = True
+        else:
+            market_value = cost_basis  # fallback onesto a costo storico
+            has_market_data = False
+        asset = assets.get(position.asset_id)
+        label = (asset.symbol or asset.name) if asset is not None else "—"
+        results.append(
+            PositionValuation(
+                asset_id=position.asset_id,
+                asset_label=label,
+                quantity=position.quantity,
+                average_cost=position.average_cost,
+                currency=currency,
+                cost_basis=cost_basis.quantize(cents),
+                market_value=market_value.quantize(cents),
+                unrealized_pl=(market_value - cost_basis).quantize(cents),
+                realized_pl=position.realized_pl.quantize(cents),
+                has_market_data=has_market_data,
+            )
+        )
+    results.sort(key=lambda p: p.market_value, reverse=True)
+    return results
+
+
 async def list_net_worth_snapshots(
     db: AsyncSession, workspace_id: uuid.UUID, date_from: date, date_to: date
 ) -> list[NetWorthSnapshot]:

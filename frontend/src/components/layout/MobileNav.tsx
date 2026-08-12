@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Landmark,
   LineChart,
+  Link2,
   MoreHorizontal,
   PiggyBank,
   Receipt,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
+import { useAuth } from "../../app/providers/AuthProvider";
 import { Drawer } from "../ui/Drawer";
 
 // Solo le 4 voci di uso piu' frequente stanno nella barra (SPEC_FE §9/§82:
@@ -44,6 +46,10 @@ const MORE_ITEMS = [
 
 export function MobileNav() {
   const [moreOpen, setMoreOpen] = useState(false);
+  const { user } = useAuth();
+  const moreItems = user?.google_enabled
+    ? [...MORE_ITEMS, { to: "/settings/integrations", label: "Integrazioni", icon: Link2 }]
+    : MORE_ITEMS;
 
   return (
     <>
@@ -78,7 +84,7 @@ export function MobileNav() {
 
       <Drawer open={moreOpen} onClose={() => setMoreOpen(false)} title="Altro">
         <div className="flex flex-col gap-1">
-          {MORE_ITEMS.map(({ to, label, icon: Icon }) => (
+          {moreItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}

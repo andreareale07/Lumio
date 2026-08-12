@@ -16,6 +16,10 @@ export interface User {
 
 export interface Me extends User {
   workspace_id: Uuid;
+  /** Milestone 10: se false, nessuna superficie Google in nessuna
+   * direzione (nav, pagina, endpoint) — l'istanza gira con
+   * GOOGLE_ENABLED=false, stato di default. */
+  google_enabled: boolean;
 }
 
 export interface TokenResponse {
@@ -615,6 +619,47 @@ export interface TransactionTypeMappingUpsertResult {
   source_type_raw: string;
   transaction_type: TransactionType;
   reapply: { updated: number; skipped: number };
+}
+
+// Google Sheets export (milestone 10) — integrazione opzionale e isolata
+// (SPEC §47/48/50/51/54): un'unica connessione per workspace, mai una
+// lista di profili come AIProfile/MarketDataProfile.
+
+export interface GoogleIntegration {
+  google_account_email: string;
+  spreadsheet_url: string;
+  /** null = il file vive nella root "Il mio Drive" (nessuna cartella scelta via Picker). */
+  drive_folder_name: string | null;
+  connected_at: IsoDateTime;
+  last_exported_at: IsoDateTime | null;
+}
+
+export interface ConnectUrlOut {
+  authorize_url: string;
+}
+
+/** Access token a vita breve per il widget Google Picker — mai il
+ * refresh_token, unica eccezione deliberata alla regola "mai token
+ * dall'API" (vedi backend GoogleIntegrationOut/PickerTokenOut). */
+export interface PickerToken {
+  access_token: string;
+  expires_in_seconds: number;
+}
+
+export interface SetDriveFolderRequest {
+  folder_id: string | null;
+  folder_name: string | null;
+}
+
+export interface GoogleExportRequest {
+  date_from: IsoDate;
+  date_to: IsoDate;
+  include_portfolio?: boolean | null;
+  include_charts?: boolean;
+}
+
+export interface GoogleExportTriggered {
+  job_id: string;
 }
 
 export interface Position {

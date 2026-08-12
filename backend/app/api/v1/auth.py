@@ -53,7 +53,11 @@ async def _build_token_response(db: AsyncSession, user: User) -> TokenResponse:
     access_token = create_access_token(user.id)
     return TokenResponse(
         access_token=access_token,
-        user=MeResponse(**UserOut.model_validate(user).model_dump(), workspace_id=workspace_id),
+        user=MeResponse(
+            **UserOut.model_validate(user).model_dump(),
+            workspace_id=workspace_id,
+            google_enabled=get_settings().google_enabled,
+        ),
     )
 
 
@@ -92,7 +96,11 @@ async def register(
 
     return TokenResponse(
         access_token=access_token,
-        user=MeResponse(**UserOut.model_validate(user).model_dump(), workspace_id=workspace.id),
+        user=MeResponse(
+            **UserOut.model_validate(user).model_dump(),
+            workspace_id=workspace.id,
+            google_enabled=get_settings().google_enabled,
+        ),
     )
 
 
@@ -157,4 +165,8 @@ async def me(
     workspace_id = await get_primary_workspace_id(db, user.id)
     if workspace_id is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No workspace found for user")
-    return MeResponse(**UserOut.model_validate(user).model_dump(), workspace_id=workspace_id)
+    return MeResponse(
+        **UserOut.model_validate(user).model_dump(),
+        workspace_id=workspace_id,
+        google_enabled=get_settings().google_enabled,
+    )

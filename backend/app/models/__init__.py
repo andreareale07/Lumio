@@ -7,6 +7,7 @@ from app.models.category import Category
 from app.models.classification import Classification
 from app.models.financial_account import FinancialAccount
 from app.models.financial_account_iban_history import FinancialAccountIbanHistory
+from app.models.google_integration import GoogleIntegration
 from app.models.import_ import Import
 from app.models.import_mapping import ImportMapping
 from app.models.investment_transaction import InvestmentTransaction
@@ -34,6 +35,7 @@ __all__ = [
     "Classification",
     "FinancialAccount",
     "FinancialAccountIbanHistory",
+    "GoogleIntegration",
     "Import",
     "ImportMapping",
     "InvestmentTransaction",

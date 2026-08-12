@@ -18,6 +18,7 @@ _pool: ArqRedis | None = None
 IMPORT_JOB_FUNCTION = "import_job"
 MARKET_DATA_REFRESH_FUNCTION = "refresh_market_data_for_workspace"
 SNAPSHOT_REBUILD_FUNCTION = "write_snapshot_for_workspace"
+GOOGLE_SHEETS_EXPORT_FUNCTION = "google_sheets_export_job"
 
 
 async def get_arq_pool() -> ArqRedis:
@@ -71,4 +72,24 @@ async def enqueue_snapshot_rebuild(workspace_id: uuid.UUID, user_id: uuid.UUID) 
     stesso principio/bugfix di `enqueue_market_data_refresh`."""
     pool = await get_arq_pool()
     job = await pool.enqueue_job(SNAPSHOT_REBUILD_FUNCTION, str(workspace_id), str(user_id))
+    return job.job_id if job is not None else ""
+
+
+async def enqueue_google_sheets_export(workspace_id: uuid.UUID, user_id: uuid.UUID, options: dict) -> str:
+    """Trigger manuale (`POST /integrations/google/export`, milestone 10).
+
+    NESSUN `_job_id` fisso — stesso bugfix di `enqueue_market_data_refresh`,
+    ripetuto qui per errore e trovato testando dal vivo (identico sintomo:
+    dopo il primo export riuscito, ogni "Esporta" successivo restituiva 202
+    ma non aggiornava piu' lo spreadsheet). Un `_job_id` fisso per workspace
+    NON e' innocuo nemmeno se il job precedente e' gia' concluso con
+    successo: arq considera "gia' esistente" un `_job_id` anche quando esiste
+    solo il RISULTATO di un'esecuzione passata ([arq/connections.py]
+    `enqueue_job`, `pipe.exists(job_key, result_key_prefix + job_id)`), che
+    resta in Redis per `keep_result` (default 1h) — non solo mentre e'
+    "running". Il doppio-click "mentre e' in corso" resta comunque gestito
+    a livello applicativo controllando lo stato in `job_runs` (vedi il
+    router), non serve l'idempotenza di arq per quello."""
+    pool = await get_arq_pool()
+    job = await pool.enqueue_job(GOOGLE_SHEETS_EXPORT_FUNCTION, str(workspace_id), str(user_id), options)
     return job.job_id if job is not None else ""

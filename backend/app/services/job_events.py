@@ -19,19 +19,26 @@ _STREAM_MAXLEN = 1000
 _BLOCK_MS = 15_000  # anche heartbeat: se non arriva nulla, si manda un ping SSE
 
 
-def _stream_key(import_id: uuid.UUID) -> str:
-    return f"lumio:jobs:import:{import_id}:events"
+def _stream_key(topic_id: uuid.UUID, namespace: str) -> str:
+    return f"lumio:jobs:{namespace}:{topic_id}:events"
 
 
-async def emit(import_id: uuid.UUID, event: str, **payload) -> None:
+async def emit(topic_id: uuid.UUID, event: str, *, namespace: str = "import", **payload) -> None:
     """Registra un evento SPEC §51 (`job.created`, `job.progress`, ...).
 
+    `namespace` distingue lo stream per tipo di job (default "import", per
+    non toccare i call site esistenti): milestone 10 lo usa anche per
+    `namespace="google_export"` con `topic_id=workspace_id` (un solo export
+    per workspace alla volta, stesso `_job_id` fisso dell'enqueue arq).
+
     Payload indicativo di SPEC §51: {job_id, type, stage, progress, message}.
-    Qui si aggiungono sempre `event` e `import_id`; il chiamante passa il
-    resto come kwargs. Mai contenuto finanziario nel payload (SPEC §55).
+    Qui si aggiungono sempre `event` e l'id del topic (chiave generica
+    `topic_id`, non piu' `import_id`: nessun consumer frontend legge questo
+    campo dal payload, lo conosce gia' dall'URL). Mai contenuto finanziario
+    nel payload (SPEC §55).
     """
-    key = _stream_key(import_id)
-    data = json.dumps({"event": event, "import_id": str(import_id), **payload})
+    key = _stream_key(topic_id, namespace)
+    data = json.dumps({"event": event, "topic_id": str(topic_id), **payload})
     await redis_client.xadd(key, {"data": data}, maxlen=_STREAM_MAXLEN, approximate=True)
     await redis_client.expire(key, get_settings().job_events_ttl_seconds)
 
@@ -44,16 +51,24 @@ def _format_sse(payload: dict) -> str:
     return f"event: {payload['event']}\ndata: {json.dumps(payload)}\n\n"
 
 
-async def stream(import_id: uuid.UUID) -> AsyncIterator[str]:
-    """Genera le righe SSE per un import: prima il replay di tutto cio' che
+async def stream(
+    topic_id: uuid.UUID, *, namespace: str = "import", timeout_seconds: int | None = None
+) -> AsyncIterator[str]:
+    """Genera le righe SSE per un job: prima il replay di tutto cio' che
     e' gia' stato emesso (chiude la race del job finito prima che il client
     si colleghi), poi eventi live via XREAD BLOCK con heartbeat, fino a un
     evento terminale o a un cap massimo di durata (nessuna connessione deve
     restare appesa se il worker muore senza emettere ne' completed ne'
     failed).
+
+    `timeout_seconds` di default resta quello dell'import (comportamento
+    invariato per il call site esistente); un nuovo `namespace` (es.
+    l'export Google Sheets) passa il proprio timeout esplicitamente.
     """
-    key = _stream_key(import_id)
-    deadline = time.monotonic() + get_settings().import_job_timeout_seconds + 60
+    key = _stream_key(topic_id, namespace)
+    if timeout_seconds is None:
+        timeout_seconds = get_settings().import_job_timeout_seconds
+    deadline = time.monotonic() + timeout_seconds + 60
 
     last_id = "0-0"
     for entry_id, fields in await redis_client.xrange(key, min="-", max="+"):

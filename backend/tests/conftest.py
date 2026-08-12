@@ -29,7 +29,8 @@ async def _clean_tables():
                 "imports, import_mappings, rules, classifications, ai_profiles, "
                 "assets, portfolios, portfolio_accounts, investment_transactions, positions, "
                 "market_data_profiles, asset_prices, portfolio_snapshots, net_worth_snapshots, "
-                "job_runs, transaction_type_mappings, financial_account_iban_history CASCADE"
+                "job_runs, transaction_type_mappings, financial_account_iban_history, "
+                "google_integrations CASCADE"
             )
         )
         # La policy INSERT su categories richiede workspace_id NOT NULL (per

@@ -15,9 +15,11 @@ import { ImportsPage } from "../../features/imports/ImportsPage";
 import { InvestmentsPage } from "../../features/portfolio/InvestmentsPage";
 import { RulesPage } from "../../features/rules/RulesPage";
 import { AISettingsPage } from "../../features/settings/ai/AISettingsPage";
+import { IntegrationsSettingsPage } from "../../features/settings/integrations/IntegrationsSettingsPage";
 import { MarketDataSettingsPage } from "../../features/settings/market-data/MarketDataSettingsPage";
 import { TransactionTypeMappingsPage } from "../../features/settings/transaction-types/TransactionTypeMappingsPage";
 import { TransactionsPage } from "../../features/transactions/TransactionsPage";
+import { useAuth } from "../providers/AuthProvider";
 import { RequireAuth } from "./RequireAuth";
 
 function Protected({ children }: { children: ReactNode }) {
@@ -26,6 +28,15 @@ function Protected({ children }: { children: ReactNode }) {
       <AppShell>{children}</AppShell>
     </RequireAuth>
   );
+}
+
+/** Milestone 10: isolamento reale anche lato route, non solo nel menu — un
+ * link diretto a `/settings/integrations` con `GOOGLE_ENABLED=false` non
+ * deve comunque raggiungere la pagina. */
+function RequireGoogleEnabled({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  if (!user?.google_enabled) return <Navigate to="/" replace />;
+  return children;
 }
 
 export function AppRouter() {
@@ -48,6 +59,16 @@ export function AppRouter() {
       <Route path="/settings/ai" element={<Protected><AISettingsPage /></Protected>} />
       <Route path="/settings/market-data" element={<Protected><MarketDataSettingsPage /></Protected>} />
       <Route path="/settings/transaction-types" element={<Protected><TransactionTypeMappingsPage /></Protected>} />
+      <Route
+        path="/settings/integrations"
+        element={
+          <Protected>
+            <RequireGoogleEnabled>
+              <IntegrationsSettingsPage />
+            </RequireGoogleEnabled>
+          </Protected>
+        }
+      />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

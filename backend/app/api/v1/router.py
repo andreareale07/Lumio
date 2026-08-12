@@ -9,6 +9,7 @@ from app.api.v1 import (
     categories,
     import_mappings,
     imports,
+    integrations_google,
     investment_transactions,
     portfolios,
     positions,
@@ -18,6 +19,7 @@ from app.api.v1 import (
     transaction_type_mappings,
     transactions,
 )
+from app.core.config import get_settings
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -36,3 +38,10 @@ api_router.include_router(assets.router)
 api_router.include_router(portfolios.router)
 api_router.include_router(investment_transactions.router)
 api_router.include_router(positions.router)
+
+# Milestone 10: isolamento reale, non solo un check a runtime (ROADMAP DoD
+# "con GOOGLE_ENABLED=false nessuna funzionalita' core e' impattata") — con
+# il flag disattivato questi endpoint non esistono affatto (404 generico),
+# non solo rifiutano la richiesta.
+if get_settings().google_enabled:
+    api_router.include_router(integrations_google.router)

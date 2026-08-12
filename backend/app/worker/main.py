@@ -3,6 +3,7 @@ from arq.connections import RedisSettings
 
 from app.core.config import get_settings
 from app.core.logging import setup_logging
+from app.worker.jobs.google_export_job import google_sheets_export_job
 from app.worker.jobs.import_job import import_job
 from app.worker.jobs.market_data import refresh_market_data_for_workspace, refresh_market_data_job
 from app.worker.jobs.snapshot import snapshot_job, write_snapshot_for_workspace
@@ -27,6 +28,7 @@ class WorkerSettings:
         refresh_market_data_for_workspace,
         snapshot_job,
         write_snapshot_for_workspace,
+        google_sheets_export_job,
     ]
     # Cron giornaliero (SPEC §38, DoD M09 "storico patrimonio via snapshot,
     # non ricalcolato da zero"): prima il refresh prezzi, un'ora dopo lo
