@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   Banknote,
+  FolderTree,
   LayoutDashboard,
   Landmark,
   LineChart,
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { to: "/net-worth", label: "Patrimonio", icon: Wallet },
   { to: "/investments", label: "Investimenti", icon: PiggyBank },
   { to: "/imports", label: "Import", icon: UploadCloud },
+  { to: "/settings/categories", label: "Categorie", icon: FolderTree },
   { to: "/settings/rules", label: "Regole", icon: Wand2 },
   { to: "/settings/ai", label: "AI", icon: Sparkles },
   { to: "/settings/market-data", label: "Market Data", icon: LineChart },
@@ -31,7 +33,9 @@ const NAV_ITEMS = [
 
 /** Milestone 08: aggiunte Panoramica/Spese/Entrate/Patrimonio (SPEC §41).
  * Milestone 09: aggiunte Investimenti e Market Data.
- * Milestone 09.5: aggiunta Tipi di transazione (mappatura configurabile). */
+ * Milestone 09.5: aggiunta Tipi di transazione (mappatura configurabile).
+ * Milestone 06.5 (audit retroattivo): aggiunta Categorie (gestione completa,
+ * prima limitata alla creazione al volo dentro CategoryPicker). */
 export function Sidebar() {
   return (
     <nav

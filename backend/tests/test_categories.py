@@ -68,6 +68,49 @@ async def test_cannot_modify_system_category(client):
     assert delete_response.status_code == 403
 
 
+async def test_cannot_delete_category_in_use_by_a_transaction(client):
+    token = await _register(client, "cat-in-use@example.com")
+
+    account = await client.post(
+        "/api/v1/accounts",
+        json={"name": "Conto", "account_type": "checking", "currency": "EUR"},
+        headers=_auth_headers(token),
+    )
+    account_id = account.json()["id"]
+
+    category = await client.post(
+        "/api/v1/categories",
+        json={"name": "Hobby", "code": "hobby"},
+        headers=_auth_headers(token),
+    )
+    category_id = category.json()["id"]
+
+    transaction = await client.post(
+        "/api/v1/transactions",
+        json={
+            "financial_account_id": account_id,
+            "transaction_date": "2026-01-01",
+            "amount": "-10.00",
+            "currency": "EUR",
+            "direction": "debit",
+            "description_raw": "Test",
+            "transaction_type": "expense",
+            "category_id": category_id,
+        },
+        headers=_auth_headers(token),
+    )
+    assert transaction.status_code == 201, transaction.text
+
+    delete_response = await client.delete(
+        f"/api/v1/categories/{category_id}", headers=_auth_headers(token)
+    )
+    assert delete_response.status_code == 409
+
+    # La categoria non deve essere stata cancellata nonostante il rollback avvenga dopo il flush del delete.
+    list_response = await client.get("/api/v1/categories", headers=_auth_headers(token))
+    assert category_id in {c["id"] for c in list_response.json()}
+
+
 async def test_user_a_cannot_modify_user_b_custom_category_via_api(client):
     token_a = await _register(client, "cat-a@example.com")
     token_b = await _register(client, "cat-b@example.com")

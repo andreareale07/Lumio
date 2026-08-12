@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ArrowLeftRight,
   Banknote,
+  FolderTree,
   LayoutDashboard,
   Landmark,
   LineChart,
@@ -34,6 +35,7 @@ const MORE_ITEMS = [
   { to: "/income", label: "Entrate", icon: Banknote },
   { to: "/net-worth", label: "Patrimonio", icon: Wallet },
   { to: "/investments", label: "Investimenti", icon: PiggyBank },
+  { to: "/settings/categories", label: "Categorie", icon: FolderTree },
   { to: "/settings/rules", label: "Regole", icon: Wand2 },
   { to: "/settings/ai", label: "AI", icon: Sparkles },
   { to: "/settings/market-data", label: "Market Data", icon: LineChart },

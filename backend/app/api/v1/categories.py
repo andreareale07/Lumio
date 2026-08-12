@@ -84,4 +84,16 @@ async def delete_category(
 ) -> None:
     category = await _get_writable_category_or_404(db, workspace_id, category_id)
     await db.delete(category)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        # category_id ha una FK semplice (non composita) verso categories,
+        # senza ondelete: cancellare una categoria gia' usata da transazioni
+        # o da una sotto-categoria violerebbe il vincolo. Meglio guidare
+        # l'utente verso la disattivazione (is_active=false, gia' supportata)
+        # che un 500 non gestito.
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Categoria in uso da transazioni o sotto-categorie: disattivala invece di eliminarla",
+        ) from exc

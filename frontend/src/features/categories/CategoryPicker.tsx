@@ -16,10 +16,10 @@ interface CategoryPickerProps extends Omit<SelectHTMLAttributes<HTMLSelectElemen
 
 /**
  * Select di categorie + scorciatoia "+ Nuova categoria" che apre un mini-form
- * (POST /categories, gia' esistente da M03). Non e' il tree management
- * completo di SPEC_FE §46 (reorder/nesting/edit) — solo la creazione al
- * volo dove serve (correzione transazione, creazione regola), scelta
- * confermata con l'utente per non allargare lo scope di questa slice.
+ * (POST /categories, gia' esistente da M03) per la creazione al volo dove
+ * serve (correzione transazione, creazione regola). La gestione completa
+ * (modifica/eliminazione/ordine, SPEC_FE §46) vive nella pagina dedicata
+ * `/settings/categories` (CategoriesSettingsPage).
  */
 export const CategoryPicker = forwardRef<HTMLSelectElement, CategoryPickerProps>(
   ({ label = "Categoria", error, includeEmptyOption = false, onChange, name, ...rest }, ref) => {

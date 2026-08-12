@@ -8,6 +8,7 @@ import { ExpensesPage } from "../../features/analytics/ExpensesPage";
 import { IncomePage } from "../../features/analytics/IncomePage";
 import { NetWorthPage } from "../../features/analytics/NetWorthPage";
 import { LoginPage } from "../../features/auth/LoginPage";
+import { CategoriesSettingsPage } from "../../features/categories/CategoriesSettingsPage";
 import { RegisterPage } from "../../features/auth/RegisterPage";
 import { DashboardPage } from "../../features/dashboard/DashboardPage";
 import { ImportsPage } from "../../features/imports/ImportsPage";
@@ -42,6 +43,7 @@ export function AppRouter() {
       <Route path="/accounts/:accountId" element={<Protected><AccountDetailPage /></Protected>} />
       <Route path="/transactions" element={<Protected><TransactionsPage /></Protected>} />
       <Route path="/imports" element={<Protected><ImportsPage /></Protected>} />
+      <Route path="/settings/categories" element={<Protected><CategoriesSettingsPage /></Protected>} />
       <Route path="/settings/rules" element={<Protected><RulesPage /></Protected>} />
       <Route path="/settings/ai" element={<Protected><AISettingsPage /></Protected>} />
       <Route path="/settings/market-data" element={<Protected><MarketDataSettingsPage /></Protected>} />

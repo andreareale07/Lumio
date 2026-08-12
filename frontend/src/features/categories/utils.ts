@@ -7,8 +7,8 @@ export interface CategoryOption {
 
 /** Etichetta gerarchica ("Alimentari › Supermercato") invece di un vero
  * albero navigabile — sufficiente per selezionare una categoria in un form
- * (correzione transazione, creazione regola); il tree management completo
- * (SPEC_FE §46) non è nello scope di questa slice. */
+ * (correzione transazione, creazione regola). Il tree management completo
+ * (SPEC_FE §46) vive nella pagina dedicata `/settings/categories`. */
 export function buildCategoryOptions(categories: Category[] | undefined): CategoryOption[] {
   if (!categories) return [];
   const byId = new Map(categories.map((c) => [c.id, c]));
