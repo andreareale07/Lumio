@@ -21,12 +21,15 @@ async def list_positions(
     db: AsyncSession = Depends(get_db),
     financial_account_id: uuid.UUID | None = None,
     asset_id: uuid.UUID | None = None,
+    only_open: bool = True,
 ) -> list[Position]:
     query = select(Position).where(Position.workspace_id == workspace_id)
     if financial_account_id is not None:
         query = query.where(Position.financial_account_id == financial_account_id)
     if asset_id is not None:
         query = query.where(Position.asset_id == asset_id)
+    if only_open:
+        query = query.where(Position.quantity != 0)
     result = await db.execute(query.order_by(Position.created_at))
     return list(result.scalars().all())
 

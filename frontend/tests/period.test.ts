@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { resolvePeriodPreset } from "../src/lib/period";
+import {
+  bucketStart,
+  migrateLegacyPeriodParams,
+  nextBucketStart,
+  periodForAnchor,
+  periodLabel,
+  resolvePeriodPreset,
+  shiftAnchor,
+  slidingWindow,
+} from "../src/lib/period";
 
 const TODAY = new Date(2026, 7, 15); // 15 agosto 2026 (mese 0-indexed)
 
@@ -57,5 +66,124 @@ describe("resolvePeriodPreset", () => {
 
   it("personalizzato non risolve un range: il chiamante decide", () => {
     expect(resolvePeriodPreset("custom", TODAY)).toBeNull();
+  });
+});
+
+describe("bucketStart", () => {
+  it("settimana parte da lunedi', non da domenica", () => {
+    const sunday = new Date(2026, 7, 16); // 16 agosto 2026 e' domenica
+    expect(bucketStart("week", sunday)).toEqual(new Date(2026, 7, 10)); // lunedi' 10 agosto
+  });
+
+  it("trimestre arrotonda al mese di inizio trimestre", () => {
+    expect(bucketStart("quarter", TODAY)).toEqual(new Date(2026, 6, 1)); // T3 = luglio-settembre
+  });
+
+  it("semestre riconosce la seconda meta' dell'anno", () => {
+    expect(bucketStart("semester", TODAY)).toEqual(new Date(2026, 6, 1)); // agosto -> S2 (lug-dic)
+    expect(bucketStart("semester", new Date(2026, 2, 1))).toEqual(new Date(2026, 0, 1)); // marzo -> S1
+  });
+});
+
+describe("nextBucketStart / shiftAnchor", () => {
+  it("mese: fine gennaio non causa overflow di giorno", () => {
+    const jan1 = new Date(2026, 0, 1);
+    expect(nextBucketStart("month", jan1)).toEqual(new Date(2026, 1, 1));
+  });
+
+  it("anno: trimestre Q4 avanza all'anno successivo", () => {
+    const q4 = new Date(2026, 9, 1);
+    expect(nextBucketStart("quarter", q4)).toEqual(new Date(2027, 0, 1));
+  });
+
+  it("semestre: H2 avanza a H1 dell'anno successivo", () => {
+    const h2 = new Date(2026, 6, 1);
+    expect(shiftAnchor("semester", h2, 1)).toEqual(new Date(2027, 0, 1));
+  });
+
+  it("settimana: indietro di 2 passi attraversa il cambio di mese", () => {
+    const firstMonday = new Date(2026, 7, 3); // lunedi' 3 agosto
+    expect(shiftAnchor("week", firstMonday, -2)).toEqual(new Date(2026, 6, 20)); // lunedi' 20 luglio
+  });
+});
+
+describe("periodForAnchor", () => {
+  it("mese: date_to e' l'ultimo giorno del mese, anche a febbraio bisestile", () => {
+    expect(periodForAnchor("month", new Date(2028, 1, 10))).toEqual({
+      date_from: "2028-02-01",
+      date_to: "2028-02-29",
+    });
+  });
+
+  it("semestre: H1 termina il 30 giugno", () => {
+    expect(periodForAnchor("semester", new Date(2026, 2, 1))).toEqual({
+      date_from: "2026-01-01",
+      date_to: "2026-06-30",
+    });
+  });
+
+  it("anno: date_to e' il 31 dicembre", () => {
+    expect(periodForAnchor("year", TODAY)).toEqual({ date_from: "2026-01-01", date_to: "2026-12-31" });
+  });
+});
+
+describe("slidingWindow", () => {
+  it("finestra di 6 mesi che termina nel bucket di anchor", () => {
+    expect(slidingWindow("month", TODAY, 6)).toEqual({ date_from: "2026-03-01", date_to: "2026-08-31" });
+  });
+
+  it("finestra di 1 unita' equivale al periodo puntuale", () => {
+    expect(slidingWindow("quarter", TODAY, 1)).toEqual(periodForAnchor("quarter", TODAY));
+  });
+});
+
+describe("periodLabel", () => {
+  it("mese in minuscolo, coerente con la convenzione italiana", () => {
+    expect(periodLabel("month", TODAY)).toBe("agosto 2026");
+  });
+
+  it("trimestre e semestre usano l'abbreviazione T/S", () => {
+    expect(periodLabel("quarter", TODAY)).toBe("T3 2026");
+    expect(periodLabel("semester", TODAY)).toBe("S2 2026");
+  });
+
+  it("anno e' solo il numero", () => {
+    expect(periodLabel("year", TODAY)).toBe("2026");
+  });
+});
+
+describe("migrateLegacyPeriodParams", () => {
+  it("nessun period legacy: nulla da migrare", () => {
+    expect(migrateLegacyPeriodParams(new URLSearchParams(), TODAY)).toBeNull();
+  });
+
+  it("this_month migra a granularita' mese sul mese corrente", () => {
+    expect(migrateLegacyPeriodParams(new URLSearchParams("period=this_month"), TODAY)).toEqual({
+      mode: "granular",
+      granularity: "month",
+      anchor: "2026-08-01",
+    });
+  });
+
+  it("last_month migra al mese precedente", () => {
+    expect(migrateLegacyPeriodParams(new URLSearchParams("period=last_month"), TODAY)).toEqual({
+      mode: "granular",
+      granularity: "month",
+      anchor: "2026-07-01",
+    });
+  });
+
+  it("last_3_months non ha equivalente granulare: migra a range personalizzato congelato", () => {
+    expect(migrateLegacyPeriodParams(new URLSearchParams("period=last_3_months"), TODAY)).toEqual({
+      mode: "custom",
+      from: "2026-05-15",
+      to: "2026-08-15",
+    });
+  });
+
+  it("custom con from/to presenti li riusa direttamente", () => {
+    expect(
+      migrateLegacyPeriodParams(new URLSearchParams("period=custom&from=2026-01-01&to=2026-01-31"), TODAY),
+    ).toEqual({ mode: "custom", from: "2026-01-01", to: "2026-01-31" });
   });
 });

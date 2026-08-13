@@ -16,7 +16,7 @@ export function BarComparisonChart({ data, currency }: { data: CashFlowBarPoint[
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+      <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid stroke={theme.border} vertical={false} />
         <XAxis dataKey="label" stroke={theme.textMuted} tickLine={false} axisLine={false} fontSize={12} />
         <YAxis
@@ -37,7 +37,7 @@ export function BarComparisonChart({ data, currency }: { data: CashFlowBarPoint[
           labelStyle={{ color: theme.textMuted }}
           formatter={(value) => formatMoney(Number(value), currency)}
         />
-        <Legend wrapperStyle={{ fontSize: 12, color: theme.textMuted }} />
+        <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: 12, color: theme.textMuted }} />
         <Bar dataKey="income" name="Entrate" fill={theme.success} radius={[4, 4, 0, 0]} />
         <Bar dataKey="expenses" name="Uscite" fill={theme.danger} radius={[4, 4, 0, 0]} />
       </BarChart>

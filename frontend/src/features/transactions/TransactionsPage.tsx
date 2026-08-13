@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
+import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
+import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { Select } from "../../components/ui/Select";
@@ -10,6 +12,7 @@ import { useAccounts } from "../accounts/api";
 import { useCategories } from "../categories/api";
 import { buildCategoryOptions, categoryLabel } from "../categories/utils";
 import { formatDate, formatSignedMoney } from "../../lib/format";
+import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { TRANSACTION_TYPES, type Transaction } from "../../types/api";
 import { useTransactions } from "./api";
 import { TRANSACTION_TYPE_LABELS } from "./labels";
@@ -25,6 +28,10 @@ export function TransactionsPage() {
   const accountId = searchParams.get("account") ?? "";
   const categoryId = searchParams.get("category") ?? "";
   const transactionType = searchParams.get("type") ?? "";
+  const { currentPeriod } = usePeriodNavigator({
+    granularities: ["day", "week", "month", "quarter", "semester", "year"],
+    allowAll: true,
+  });
 
   const { data: accounts } = useAccounts();
   const { data: categories } = useCategories();
@@ -35,10 +42,20 @@ export function TransactionsPage() {
     financial_account_id: accountId || undefined,
     category_id: categoryId || undefined,
     transaction_type: transactionType || undefined,
+    date_from: currentPeriod.date_from,
+    date_to: currentPeriod.date_to,
     limit: PAGE_SIZE,
     offset,
   };
   const { data: transactions, isLoading, isError, refetch } = useTransactions(filters);
+
+  // Un cambio di periodo e' pilotato dai controlli interni di
+  // PeriodNavigator, non da `updateFilter` sotto — senza questo reset un
+  // utente a pagina 2 di "maggio" che passa a "giugno" resterebbe su un
+  // offset sbagliato (nessuna riga, o righe del mese sbagliato).
+  useEffect(() => {
+    setOffset(0);
+  }, [currentPeriod.date_from, currentPeriod.date_to]);
 
   const updateFilter = (key: string, value: string) => {
     setOffset(0);
@@ -50,7 +67,10 @@ export function TransactionsPage() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
-      <h1 className="text-lg font-semibold text-text">Movimenti</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h1 className="text-lg font-semibold text-text">Movimenti</h1>
+        <PeriodNavigator granularities={["day", "week", "month", "quarter", "semester", "year"]} allowAll />
+      </div>
 
       <div className="flex flex-wrap gap-3">
         <Select
@@ -168,22 +188,22 @@ export function TransactionsPage() {
           </div>
 
           <div className="flex items-center justify-between">
-            <button
-              type="button"
+            <Button
+              variant="link"
+              size="sm"
               disabled={offset === 0}
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-              className="flex items-center gap-1 text-sm text-text-muted disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" /> Precedenti
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="link"
+              size="sm"
               disabled={transactions.length < PAGE_SIZE}
               onClick={() => setOffset(offset + PAGE_SIZE)}
-              className="flex items-center gap-1 text-sm text-text-muted disabled:opacity-40"
             >
               Successivi <ChevronRight className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         </>
       )}

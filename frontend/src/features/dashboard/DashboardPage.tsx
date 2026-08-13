@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { BarComparisonChart } from "../../components/charts/BarComparisonChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { DonutChart } from "../../components/charts/DonutChart";
-import { PeriodFilter } from "../../components/filters/PeriodFilter";
+import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { KpiCard } from "../../components/kpi/KpiCard";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -12,18 +12,20 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
 import { Skeleton, SkeletonRows } from "../../components/ui/Skeleton";
 import { formatDate, formatMoney, formatPercent, formatPeriodLabel, formatSignedMoney } from "../../lib/format";
-import { usePeriodFilter } from "../../lib/usePeriodFilter";
+import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useTransactions } from "../transactions/api";
 import { useAnalyticsByCategory, useAnalyticsCashFlow, useAnalyticsSummary } from "../analytics/api";
 import { formatBucketLabel, greetingForHour } from "../analytics/chartData";
 import { usePortfolioAllocation, usePortfolioValuation } from "../portfolio/api";
 
 export function DashboardPage() {
-  const { dateFrom, dateTo } = usePeriodFilter();
-  const period = { date_from: dateFrom, date_to: dateTo };
+  const { granularity, currentPeriod, trendWindow } = usePeriodNavigator({
+    granularities: ["month", "quarter", "year"],
+  });
+  const period = { date_from: currentPeriod.date_from, date_to: currentPeriod.date_to };
 
   const summary = useAnalyticsSummary(period);
-  const cashFlow = useAnalyticsCashFlow({ ...period, granularity: "month" });
+  const cashFlow = useAnalyticsCashFlow({ ...trendWindow, granularity });
   const byCategory = useAnalyticsByCategory({ ...period, direction: "expense" });
   const recentTransactions = useTransactions({ limit: 5 });
 
@@ -42,7 +44,7 @@ export function DashboardPage() {
           <h1 className="text-lg font-semibold text-text">{greetingForHour(new Date().getHours())}</h1>
           <p className="text-sm text-text-muted">Panoramica finanziaria</p>
         </div>
-        <PeriodFilter />
+        <PeriodNavigator granularities={["month", "quarter", "year"]} />
       </div>
 
       {summary.isError && (

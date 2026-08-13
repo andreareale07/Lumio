@@ -4,12 +4,12 @@ import type { ComponentType } from "react";
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { DonutChart } from "../../components/charts/DonutChart";
-import { PeriodFilter } from "../../components/filters/PeriodFilter";
+import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { formatMoney, formatPercent, formatPeriodLabel } from "../../lib/format";
-import { usePeriodFilter } from "../../lib/usePeriodFilter";
+import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import type { AnalyticsDirection } from "../../types/api";
 import { useAnalyticsByCategory, useAnalyticsByMerchant, useAnalyticsCashFlow, useAnalyticsSummary } from "./api";
 import { formatBucketLabel } from "./chartData";
@@ -25,12 +25,14 @@ interface BreakdownPageProps {
  * struttura — totale + variazione, andamento, categorie con drill-down per
  * merchant, top merchant — cambia solo `direction` e le etichette. */
 export function BreakdownPage({ direction, title, icon, emptyDescription }: BreakdownPageProps) {
-  const { dateFrom, dateTo } = usePeriodFilter();
-  const period = { date_from: dateFrom, date_to: dateTo };
+  const { granularity: navGranularity, currentPeriod, trendWindow } = usePeriodNavigator({
+    granularities: ["month", "quarter", "year"],
+  });
+  const period = { date_from: currentPeriod.date_from, date_to: currentPeriod.date_to };
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
 
   const summary = useAnalyticsSummary(period);
-  const cashFlow = useAnalyticsCashFlow({ ...period, granularity: "month" });
+  const cashFlow = useAnalyticsCashFlow({ ...trendWindow, granularity: navGranularity });
   const byCategory = useAnalyticsByCategory({ ...period, direction });
   const byMerchant = useAnalyticsByMerchant({ ...period, direction });
   const categoryMerchants = useAnalyticsByMerchant(
@@ -73,7 +75,7 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
             </div>
           )}
         </div>
-        <PeriodFilter />
+        <PeriodNavigator granularities={["month", "quarter", "year"]} />
       </div>
 
       {summary.isError && <ErrorState message="Dati non disponibili." onRetry={() => void summary.refetch()} />}

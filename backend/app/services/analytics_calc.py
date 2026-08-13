@@ -6,7 +6,7 @@ che chiama queste funzioni per la parte di calcolo.
 from datetime import date, timedelta
 from decimal import Decimal
 
-GRANULARITIES = ("day", "week", "month", "quarter", "year")
+GRANULARITIES = ("day", "week", "month", "quarter", "semester", "year")
 
 
 def previous_period(date_from: date, date_to: date) -> tuple[date, date]:
@@ -36,6 +36,8 @@ def _bucket_start(d: date, granularity: str) -> date:
     if granularity == "quarter":
         quarter_month = ((d.month - 1) // 3) * 3 + 1
         return d.replace(month=quarter_month, day=1)
+    if granularity == "semester":
+        return d.replace(month=1 if d.month <= 6 else 7, day=1)
     if granularity == "year":
         return d.replace(month=1, day=1)
     raise ValueError(f"Granularita' non supportata: {granularity}")
@@ -50,6 +52,8 @@ def _next_bucket(d: date, granularity: str) -> date:
         return _add_months(d, 1)
     if granularity == "quarter":
         return _add_months(d, 3)
+    if granularity == "semester":
+        return _add_months(d, 6)
     if granularity == "year":
         return date(d.year + 1, 1, 1)
     raise ValueError(f"Granularita' non supportata: {granularity}")

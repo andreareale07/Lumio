@@ -168,6 +168,44 @@ describe("InvestmentsPage", () => {
     expect(within(table).getByText("Trade Republic")).toBeInTheDocument();
   });
 
+  it("nasconde le posizioni chiuse di default e le mostra col toggle 'Mostra posizioni chiuse'", async () => {
+    const POSITION_CLOSED = {
+      ...POSITION_VWCE,
+      id: "pos-closed",
+      asset_id: "asset-2",
+      quantity: "0.0000000000",
+    };
+    const ASSET_CLOSED = { ...ASSET_VWCE, id: "asset-2", symbol: "CLOSED" };
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/positions")) {
+        const onlyOpen = !url.includes("only_open=false");
+        return jsonResponse(onlyOpen ? [POSITION_VWCE] : [POSITION_VWCE, POSITION_CLOSED]);
+      }
+      for (const analyticsPath of Object.keys(ANALYTICS_DEFAULTS)) {
+        if (url.includes(analyticsPath)) return jsonResponse(ANALYTICS_DEFAULTS[analyticsPath]);
+      }
+      if (url.includes("/portfolios")) return jsonResponse([]);
+      if (url.includes("/investment-transactions")) return jsonResponse([]);
+      if (url.includes("/accounts")) return jsonResponse([ACCOUNT_TR]);
+      if (url.includes("/assets")) return jsonResponse([ASSET_VWCE, ASSET_CLOSED]);
+      return jsonResponse([]);
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole("tab", { name: "Posizioni" }));
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("VWCE")).toBeInTheDocument();
+    expect(within(table).queryByText("CLOSED")).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Mostra posizioni chiuse"));
+
+    expect(await within(await screen.findByRole("table")).findByText("CLOSED")).toBeInTheDocument();
+  });
+
   it("mostra lo stato persistente dell'ultimo ricalcolo snapshot nel tab Performance", async () => {
     mockApiRoutes({
       // "/portfolios/snapshots/status" DEVE precedere "/portfolios" nelle

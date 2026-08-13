@@ -29,7 +29,7 @@ from decimal import Decimal
 from sqlalchemy import Date as SA_Date
 from sqlalchemy import DateTime as SA_DateTime
 from sqlalchemy import String as SA_String
-from sqlalchemy import bindparam, cast, func, or_, select, text
+from sqlalchemy import bindparam, case, cast, func, or_, select, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -241,6 +241,17 @@ async def _total_balance(
 def _bucket_expr(granularity: str):
     if granularity not in GRANULARITIES:
         raise ValueError(f"Granularita' non supportata: {granularity}")
+    if granularity == "semester":
+        # Postgres date_trunc() non conosce "semester" (unita' valide:
+        # day/week/month/quarter/year/decade/century/millennium) — H1/H2
+        # vanno costruiti a mano a partire dall'inizio dell'anno, mai un
+        # remainder sul mese (deve combaciare esattamente con
+        # analytics_calc._bucket_start/_next_bucket lato Python).
+        year_start = func.date_trunc("year", cast(Transaction.transaction_date, SA_DateTime))
+        return case(
+            (func.extract("month", Transaction.transaction_date) <= 6, year_start),
+            else_=year_start + text("interval '6 months'"),
+        )
     return func.date_trunc(granularity, cast(Transaction.transaction_date, SA_DateTime))
 
 

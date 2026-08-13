@@ -12,6 +12,7 @@ import httpx
 from app.marketdata.base import AssetRef, MarketDataProviderError, Quote
 
 _CHART_ENDPOINT = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+_SEARCH_ENDPOINT = "https://query1.finance.yahoo.com/v1/finance/search"
 _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; Lumio/1.0)"}
 _TIMEOUT = 10.0
 
@@ -20,11 +21,20 @@ class YahooProvider:
     provider = "yahoo"
 
     async def fetch_quote(self, asset: AssetRef) -> Quote | None:
-        if not asset.symbol:
-            return None
+        symbol = asset.symbol
+        if not symbol:
+            if not asset.isin:
+                return None
+            # L'endpoint "chart" NON risolve un ISIN diretto (verificato: un
+            # ISIN passato come {symbol} risponde "No data found, symbol may
+            # be delisted") — serve prima risolverlo a un ticker Yahoo reale
+            # via l'endpoint di ricerca (che l'ISIN lo accetta davvero).
+            symbol = await self._resolve_symbol_from_isin(asset.isin)
+            if symbol is None:
+                return None
         try:
             async with httpx.AsyncClient(timeout=_TIMEOUT, headers=_HEADERS) as client:
-                response = await client.get(_CHART_ENDPOINT.format(symbol=asset.symbol))
+                response = await client.get(_CHART_ENDPOINT.format(symbol=symbol))
                 response.raise_for_status()
         except httpx.HTTPError as exc:
             raise MarketDataProviderError(f"Yahoo Finance non raggiungibile: {exc}") from exc
@@ -52,6 +62,22 @@ class YahooProvider:
         )
         currency = meta.get("currency") or asset.currency
         return Quote(price=price, currency=currency, as_of=quote_date)
+
+    async def _resolve_symbol_from_isin(self, isin: str) -> str | None:
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT, headers=_HEADERS) as client:
+                response = await client.get(_SEARCH_ENDPOINT, params={"q": isin})
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise MarketDataProviderError(f"Yahoo Finance non raggiungibile: {exc}") from exc
+        try:
+            body = response.json()
+        except ValueError:
+            return None
+        quotes = body.get("quotes") or []
+        if not quotes:
+            return None
+        return quotes[0].get("symbol") or None
 
     async def test_connection(self) -> None:
         try:

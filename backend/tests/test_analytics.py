@@ -232,6 +232,46 @@ async def test_cash_flow_buckets_by_month(client):
     assert points["2026-09-01"]["expenses"] == "0"
 
 
+async def test_cash_flow_buckets_by_semester(client):
+    # Rework UX/design slice 1: Postgres non ha date_trunc('semester', ...)
+    # nativo (app/services/analytics.py:_bucket_expr costruisce un CASE a
+    # mano) — verifica end-to-end che il bucketing SQL combaci con
+    # generate_buckets lato Python (test_analytics_calc.py).
+    token = await _register(client, "cashflow-semester@example.com")
+    account_id = await _create_account(client, token)
+
+    await _create_transaction(
+        client, token, account_id, transaction_date="2026-02-10",
+        amount="1000.00", direction="credit", transaction_type="income",
+    )
+    await _create_transaction(
+        client, token, account_id, transaction_date="2026-08-15",
+        amount="300.00", direction="credit", transaction_type="income",
+    )
+
+    response = await client.get(
+        "/api/v1/analytics/cash-flow",
+        params={"date_from": "2026-01-01", "date_to": "2026-12-31", "granularity": "semester"},
+        headers=_auth_headers(token),
+    )
+    assert response.status_code == 200
+    points = {p["period"]: p for p in response.json()["points"]}
+    assert set(points) == {"2026-01-01", "2026-07-01"}
+    assert points["2026-01-01"]["income"] == "1000.00"
+    assert points["2026-07-01"]["income"] == "300.00"
+
+
+async def test_invalid_granularity_returns_400(client):
+    token = await _register(client, "invalid-granularity@example.com")
+
+    response = await client.get(
+        "/api/v1/analytics/cash-flow",
+        params={"granularity": "decade"},
+        headers=_auth_headers(token),
+    )
+    assert response.status_code == 400
+
+
 async def test_balance_history_last_point_matches_current_liquidity(client):
     token = await _register(client, "history@example.com")
     account_id = await _create_account(client, token)

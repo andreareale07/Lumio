@@ -6,14 +6,14 @@ import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { BarComparisonChart } from "../../components/charts/BarComparisonChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { DonutChart } from "../../components/charts/DonutChart";
-import { PeriodFilter } from "../../components/filters/PeriodFilter";
+import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
 import { Skeleton, SkeletonRows } from "../../components/ui/Skeleton";
 import { Tabs } from "../../components/ui/Tabs";
 import { formatDate, formatMoney, formatPeriodLabel, formatSignedMoney } from "../../lib/format";
-import { usePeriodFilter } from "../../lib/usePeriodFilter";
+import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import {
   useAnalyticsBalanceHistory,
   useAnalyticsBalances,
@@ -192,11 +192,14 @@ function AccountTransactionsTab({ accountId }: { accountId: string }) {
 }
 
 function AccountAnalyticsTab({ accountId, currency }: { accountId: string; currency: string }) {
-  const { dateFrom, dateTo } = usePeriodFilter();
-  const period = { date_from: dateFrom, date_to: dateTo, financial_account_id: accountId };
+  const { granularity: navGranularity, currentPeriod, trendWindow } = usePeriodNavigator({
+    granularities: ["month", "quarter", "year"],
+  });
+  const period = { date_from: currentPeriod.date_from, date_to: currentPeriod.date_to, financial_account_id: accountId };
+  const trendPeriod = { ...trendWindow, financial_account_id: accountId };
 
-  const history = useAnalyticsBalanceHistory({ ...period, granularity: "month" });
-  const cashFlow = useAnalyticsCashFlow({ ...period, granularity: "month" });
+  const history = useAnalyticsBalanceHistory({ ...trendPeriod, granularity: navGranularity });
+  const cashFlow = useAnalyticsCashFlow({ ...trendPeriod, granularity: navGranularity });
   const byCategory = useAnalyticsByCategory({ ...period, direction: "expense" });
 
   const historyGranularity = history.data?.granularity ?? "month";
@@ -216,7 +219,7 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
 
   return (
     <div className="flex flex-col gap-4">
-      <PeriodFilter />
+      <PeriodNavigator granularities={["month", "quarter", "year"]} />
 
       {history.isLoading && <Skeleton className="h-64 w-full" />}
       {history.data && (

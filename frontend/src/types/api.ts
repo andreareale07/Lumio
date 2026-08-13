@@ -300,7 +300,7 @@ export interface ApiErrorBody {
 // Analytics (milestone 08) — Decimal serializzati come stringa da Pydantic,
 // stesso motivo di `Transaction.amount` sopra.
 
-export const ANALYTICS_GRANULARITIES = ["day", "week", "month", "quarter", "year"] as const;
+export const ANALYTICS_GRANULARITIES = ["day", "week", "month", "quarter", "semester", "year"] as const;
 export type AnalyticsGranularity = (typeof ANALYTICS_GRANULARITIES)[number];
 
 export type AnalyticsDirection = "expense" | "income";

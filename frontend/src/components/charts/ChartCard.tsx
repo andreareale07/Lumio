@@ -43,7 +43,7 @@ export function ChartCard({
         emptyState
       ) : (
         <>
-          <div className="h-64 w-full">{children}</div>
+          <div className="h-64 w-full overflow-hidden">{children}</div>
           <table className="sr-only">
             <caption>{tableCaption}</caption>
             <thead>

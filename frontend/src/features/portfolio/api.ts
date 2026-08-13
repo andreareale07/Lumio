@@ -198,12 +198,14 @@ export const positionsKey = ["portfolio", "positions"] as const;
 export interface PositionFilters {
   financial_account_id?: string;
   asset_id?: string;
+  only_open?: boolean;
 }
 
 export function usePositions(filters: PositionFilters = {}) {
   const params = new URLSearchParams();
   if (filters.financial_account_id) params.set("financial_account_id", filters.financial_account_id);
   if (filters.asset_id) params.set("asset_id", filters.asset_id);
+  if (filters.only_open !== undefined) params.set("only_open", String(filters.only_open));
 
   return useQuery({
     queryKey: [...positionsKey, filters],

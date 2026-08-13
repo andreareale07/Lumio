@@ -226,8 +226,15 @@ async def test_fully_closed_position_shows_zero_not_scientific_notation(client):
         amount="479.69",
     )
 
-    positions = await client.get(
+    default_positions = await client.get(
         "/api/v1/positions", params={"financial_account_id": account_id}, headers=_auth_headers(token)
+    )
+    assert default_positions.json() == []  # rework UX/design: only_open=True di default nasconde le posizioni chiuse
+
+    positions = await client.get(
+        "/api/v1/positions",
+        params={"financial_account_id": account_id, "only_open": "false"},
+        headers=_auth_headers(token),
     )
     position = positions.json()[0]
     assert position["quantity"] == "0.0000000000"

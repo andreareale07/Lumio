@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { DonutChart } from "../../components/charts/DonutChart";
+import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -16,6 +17,7 @@ import { Select } from "../../components/ui/Select";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { Tabs } from "../../components/ui/Tabs";
 import { formatDate, formatMoney, formatPercent, formatSignedMoney } from "../../lib/format";
+import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useAccounts } from "../accounts/api";
 import { ACCOUNT_TYPE_LABELS } from "../accounts/labels";
 import type { InvestmentTransaction, Portfolio, Position } from "../../types/api";
@@ -49,13 +51,6 @@ const TABS = [
   { key: "performance", label: "Performance" },
   { key: "accounts", label: "Conti" },
 ];
-
-const PERFORMANCE_PERIODS = [
-  { key: "1m", label: "1M", days: 30 },
-  { key: "3m", label: "3M", days: 90 },
-  { key: "6m", label: "6M", days: 180 },
-  { key: "1y", label: "1Y", days: 365 },
-] as const;
 
 export function InvestmentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -283,12 +278,18 @@ function AllocationTab({ portfolioId }: { portfolioId: string | null }) {
 // --- Performance -------------------------------------------------------------
 
 function PerformanceTab({ portfolioId }: { portfolioId: string | null }) {
-  const [periodKey, setPeriodKey] = useState<(typeof PERFORMANCE_PERIODS)[number]["key"]>("1y");
-  const period = PERFORMANCE_PERIODS.find((p) => p.key === periodKey) ?? PERFORMANCE_PERIODS[3];
-  const dateTo = new Date().toISOString().slice(0, 10);
-  const dateFrom = new Date(Date.now() - period.days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { trendWindow } = usePeriodNavigator({ granularities: ["month", "quarter", "semester", "year"] });
 
-  const performance = usePortfolioPerformance({ portfolio_id: portfolioId ?? undefined, date_from: dateFrom, date_to: dateTo });
+  // L'endpoint /portfolios/analytics/performance non bucketizza (ritorna
+  // sempre la serie giornaliera grezza degli snapshot nel range, vedi
+  // `portfolio_analytics.py::list_portfolio_snapshots`) — la granularita'
+  // del navigator qui controlla solo l'AMPIEZZA della finestra navigabile
+  // (mese/trimestre/semestre/anno), non il bucketing dei punti sul grafico.
+  const performance = usePortfolioPerformance({
+    portfolio_id: portfolioId ?? undefined,
+    date_from: trendWindow.date_from,
+    date_to: trendWindow.date_to,
+  });
   const rebuildSnapshot = useTriggerSnapshotRebuild();
   const rebuildStatus = useSnapshotRebuildStatus();
 
@@ -319,20 +320,7 @@ function PerformanceTab({ portfolioId }: { portfolioId: string | null }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-1">
-          {PERFORMANCE_PERIODS.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => setPeriodKey(p.key)}
-              className={`rounded-lg px-2.5 py-1 text-sm font-medium ${
-                p.key === periodKey ? "bg-primary/10 text-primary" : "text-text-muted hover:bg-surface-hover"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <PeriodNavigator granularities={["month", "quarter", "semester", "year"]} />
         <Button variant="secondary" size="sm" loading={rebuildSnapshot.isPending} onClick={() => void onRebuildNow()}>
           <RefreshCw className="h-4 w-4" /> Ricalcola adesso
         </Button>
@@ -362,7 +350,8 @@ function PerformanceTab({ portfolioId }: { portfolioId: string | null }) {
 // --- Posizioni -----------------------------------------------------------
 
 function PositionsTab({ accountIdsInScope }: { accountIdsInScope: Set<string> | null }) {
-  const positions = usePositions();
+  const [showClosed, setShowClosed] = useState(false);
+  const positions = usePositions(showClosed ? { only_open: false } : {});
   const { data: accounts } = useAccounts();
   const { data: assets } = useAssets();
   const [assetFormOpen, setAssetFormOpen] = useState(false);
@@ -382,13 +371,24 @@ function PositionsTab({ accountIdsInScope }: { accountIdsInScope: Set<string> | 
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex justify-end gap-2">
-        <Button variant="secondary" size="sm" onClick={() => setAssetFormOpen(true)}>
-          <Plus className="h-4 w-4" /> Nuovo asset
-        </Button>
-        <Button size="sm" onClick={() => setEditingPosition(null)}>
-          <Plus className="h-4 w-4" /> Posizione iniziale
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label className="flex items-center gap-2 text-sm text-text-muted">
+          <input
+            type="checkbox"
+            checked={showClosed}
+            onChange={(e) => setShowClosed(e.target.checked)}
+            className="h-4 w-4 rounded border-border"
+          />
+          Mostra posizioni chiuse
+        </label>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setAssetFormOpen(true)}>
+            <Plus className="h-4 w-4" /> Nuovo asset
+          </Button>
+          <Button size="sm" onClick={() => setEditingPosition(null)}>
+            <Plus className="h-4 w-4" /> Posizione iniziale
+          </Button>
+        </div>
       </div>
 
       {scoped.length === 0 && (
@@ -558,14 +558,15 @@ function MovementsTab({ accountIdsInScope }: { accountIdsInScope: Set<string> | 
                         {formatSignedMoney(txn.amount, txn.currency)}
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => setToDelete(txn)}
                           aria-label="Elimina movimento"
-                          className="text-text-muted hover:text-danger"
+                          className="hover:text-danger"
                         >
                           <Trash2 className="h-4 w-4" />
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -588,13 +589,9 @@ function MovementsTab({ accountIdsInScope }: { accountIdsInScope: Set<string> | 
                     <span>{asset ? (asset.symbol ?? asset.name) : account?.name ?? "—"}</span>
                     <span>{formatDate(txn.trade_date)}</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setToDelete(txn)}
-                    className="self-end text-sm text-danger"
-                  >
+                  <Button variant="link" size="sm" onClick={() => setToDelete(txn)} className="self-end !text-danger">
                     Elimina
-                  </button>
+                  </Button>
                 </div>
               );
             })}
@@ -734,12 +731,12 @@ function PortfolioCard({
           {portfolio.description && <p className="text-sm text-text-muted">{portfolio.description}</p>}
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={onEdit} aria-label="Modifica portfolio" className="text-text-muted hover:text-text">
+          <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Modifica portfolio">
             <Pencil className="h-4 w-4" />
-          </button>
-          <button type="button" onClick={onDelete} aria-label="Elimina portfolio" className="text-text-muted hover:text-danger">
+          </Button>
+          <Button variant="ghost" size="icon" onClick={onDelete} aria-label="Elimina portfolio" className="hover:text-danger">
             <Trash2 className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
       </div>
 

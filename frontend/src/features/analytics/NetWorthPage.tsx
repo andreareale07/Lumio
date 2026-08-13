@@ -3,13 +3,13 @@ import { Link } from "react-router-dom";
 
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
-import { PeriodFilter } from "../../components/filters/PeriodFilter";
+import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { formatMoney, formatPeriodLabel } from "../../lib/format";
-import { usePeriodFilter } from "../../lib/usePeriodFilter";
+import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useAnalyticsBalanceHistory, useAnalyticsBalances, useAnalyticsSummary } from "./api";
 import { formatBucketLabel } from "./chartData";
 
@@ -23,12 +23,13 @@ import { formatBucketLabel } from "./chartData";
  * §31); lo storico del valore delle posizioni vive in Investimenti →
  * Performance, che legge dagli snapshot invece di ricalcolare al volo. */
 export function NetWorthPage() {
-  const { dateFrom, dateTo } = usePeriodFilter();
-  const period = { date_from: dateFrom, date_to: dateTo };
+  const { granularity: navGranularity, currentPeriod, trendWindow } = usePeriodNavigator({
+    granularities: ["month", "quarter", "year"],
+  });
 
-  const summary = useAnalyticsSummary(period);
+  const summary = useAnalyticsSummary({ date_from: currentPeriod.date_from, date_to: currentPeriod.date_to });
   const balances = useAnalyticsBalances();
-  const history = useAnalyticsBalanceHistory({ ...period, granularity: "month" });
+  const history = useAnalyticsBalanceHistory({ ...trendWindow, granularity: navGranularity });
 
   const currency = summary.data?.currency ?? "EUR";
   const granularity = history.data?.granularity ?? "month";
@@ -50,7 +51,7 @@ export function NetWorthPage() {
           )}
           <p className="text-sm text-text-muted">Liquidità disponibile. Il patrimonio totale è nel dettaglio sotto.</p>
         </div>
-        <PeriodFilter />
+        <PeriodNavigator granularities={["month", "quarter", "year"]} />
       </div>
 
       {summary.isError && <ErrorState message="Dati non disponibili." onRetry={() => void summary.refetch()} />}

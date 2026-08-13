@@ -1,8 +1,10 @@
 """Job schedulato (cron giornaliero) + trigger manuale per l'aggiornamento
 dei prezzi (SPEC §38). Per ogni workspace con un profilo `MarketDataProvider`
 attivo diverso da "manual" (che non fa mai fetch, SPEC "dati manuali"),
-scarica una quotazione per ogni asset con `symbol` impostato e la scrive in
-`asset_prices` (upsert sul giorno della quotazione).
+scarica una quotazione per ogni asset con `symbol` o `isin` impostato e la
+scrive in `asset_prices` (upsert sul giorno della quotazione) — la
+risoluzione ISIN→ticker, quando serve, e' responsabilita' del singolo
+provider (es. `YahooProvider._resolve_symbol_from_isin`), non di questo job.
 
 Un provider irraggiungibile o un singolo asset non risolvibile NON blocca
 l'aggiornamento degli altri workspace/asset: si passa al successivo (stesso
@@ -13,7 +15,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import async_session_factory
@@ -38,7 +40,7 @@ class RefreshSummary:
 
 def _refresh_message(summary: RefreshSummary) -> str:
     if summary.checked == 0:
-        return "Nessun asset da aggiornare (nessun provider attivo o nessun asset con simbolo)."
+        return "Nessun asset da aggiornare (nessun provider attivo o nessun asset con simbolo/ISIN)."
     return f"{summary.updated} prezzi aggiornati su {summary.checked} asset."
 
 
@@ -60,7 +62,10 @@ async def _refresh_workspace(db: AsyncSession, workspace_id: uuid.UUID) -> Refre
     provider = build_provider(profile)
     assets = (
         await db.execute(
-            select(Asset).where(Asset.workspace_id == workspace_id, Asset.symbol.is_not(None))
+            select(Asset).where(
+                Asset.workspace_id == workspace_id,
+                or_(Asset.symbol.is_not(None), Asset.isin.is_not(None)),
+            )
         )
     ).scalars().all()
 

@@ -13,9 +13,10 @@ interface LinkButtonProps extends LinkProps {
  * (navigazione reale, non un click handler) — per le Quick Actions
  * (SPEC_FE §19) e ogni altro punto in cui un'azione e' in realta' un link. */
 export function LinkButton({ variant = "primary", size = "md", className = "", children, ...rest }: LinkButtonProps) {
+  const sizeClasses = variant === "link" ? "" : buttonSizeClasses[size];
   return (
     <Link
-      className={`inline-flex items-center justify-center rounded-lg font-medium transition-colors ${buttonVariantClasses[variant]} ${buttonSizeClasses[size]} ${className}`}
+      className={`inline-flex items-center justify-center whitespace-nowrap rounded-lg font-medium transition-colors ${buttonVariantClasses[variant]} ${sizeClasses} ${className}`}
       {...rest}
     >
       {children}

@@ -12,6 +12,8 @@ export function formatBucketLabel(period: string, granularity: AnalyticsGranular
       return new Intl.DateTimeFormat("it-IT", { month: "short", year: "numeric" }).format(date);
     case "quarter":
       return `T${Math.floor(date.getMonth() / 3) + 1} ${date.getFullYear()}`;
+    case "semester":
+      return `S${date.getMonth() < 6 ? 1 : 2} ${date.getFullYear()}`;
     case "year":
       return String(date.getFullYear());
   }

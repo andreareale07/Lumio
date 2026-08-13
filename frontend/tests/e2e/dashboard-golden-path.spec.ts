@@ -49,10 +49,17 @@ test("import reale e KPI dashboard coerenti su piu' pagine", async ({ page }) =>
   await page.getByRole("button", { name: "Conferma e importa" }).click();
   await expect(page.getByText("Import completato")).toBeVisible({ timeout: 20_000 });
 
-  // --- Dashboard: periodo esteso a "Ultimi 3 mesi" per includere agosto ---
+  // --- Dashboard: intervallo personalizzato che copre agosto 2026 ---
+  // Rework UX/design slice 1: il vecchio preset "Ultimi 3 mesi" e' stato
+  // sostituito dal navigatore granularita'+ancora — si usa qui la modalita'
+  // "Intervallo personalizzato" con date esplicite (non un preset relativo
+  // a "oggi") per restare deterministico rispetto alle date fisse del CSV
+  // importato, indipendentemente da quando questo test viene eseguito.
   await page.goto("/");
-  await page.getByLabel("Periodo").selectOption("last_3_months");
-  await expect(page).toHaveURL(/period=last_3_months/);
+  await page.getByRole("button", { name: "Intervallo personalizzato" }).click();
+  await page.getByLabel("Dal", { exact: true }).fill("2026-07-01");
+  await page.getByLabel("Al", { exact: true }).fill("2026-09-30");
+  await expect(page).toHaveURL(/mode=custom/);
 
   // Tabella accessibile del grafico Entrate/Uscite (SPEC_FE §59): fonte
   // canonica per asserire i numeri senza ambiguita' con le KPI card, che
@@ -62,13 +69,24 @@ test("import reale e KPI dashboard coerenti su piu' pagine", async ({ page }) =>
   await expect(cashFlowTable).toContainText(/2\.?500,00\s*€/);
   await expect(cashFlowTable).toContainText(/45,30\s*€/);
 
+  // --- Navigazione avanti/indietro: stesso dato raggiungibile spostandosi
+  // di un mese alla volta, non solo con un range libero --- si parte da
+  // settembre 2026 (via URL, per non dipendere dalla data reale di
+  // esecuzione del test) e si torna indietro di un mese fino ad agosto.
+  await page.goto("/?mode=granular&granularity=month&anchor=2026-09-01");
+  await page.getByRole("button", { name: "Periodo precedente" }).click();
+  await expect(page).toHaveURL(/anchor=2026-08-01/);
+  await expect(cashFlowTable).toContainText(/2\.?500,00\s*€/);
+
   // --- Movimenti: stessa transazione visibile nella lista completa ---
   await page.goto("/transactions");
   await expect(page.getByText("Supermercato Lidl").first()).toBeVisible();
 
-  // --- Spese: stesso numero, pagina diversa ---
+  // --- Spese: stesso numero, pagina diversa, stesso intervallo personalizzato ---
   await page.goto("/expenses");
-  await page.getByLabel("Periodo").selectOption("last_3_months");
+  await page.getByRole("button", { name: "Intervallo personalizzato" }).click();
+  await page.getByLabel("Dal", { exact: true }).fill("2026-07-01");
+  await page.getByLabel("Al", { exact: true }).fill("2026-09-30");
   await expect(page.getByRole("heading", { name: "Spese" })).toBeVisible();
   await expect(page.getByText(/45,30\s*€/).first()).toBeVisible();
 });
