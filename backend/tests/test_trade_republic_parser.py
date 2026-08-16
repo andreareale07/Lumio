@@ -145,6 +145,27 @@ def test_transaction_type_mapping_covers_all_known_tipo_values():
     assert _transaction_type("Tipo Mai Visto", "credit") == "income"
 
 
+def test_transaction_type_mapping_recognizes_english_and_german_labels():
+    # Dizionario multilingua: l'app Trade Republic dell'utente potrebbe
+    # essere in inglese o tedesco, non solo in italiano — prima di questo
+    # fix ogni etichetta non italiana ricadeva nel fallback direzione-soltanto,
+    # perdendo la distinzione interessi/imposte/investimento/carta.
+    assert _transaction_type("Interest", "credit") == "interest"
+    assert _transaction_type("Zinsen", "credit") == "interest"
+    assert _transaction_type("Bonus", "credit") == "income"
+    assert _transaction_type("Prämie", "credit") == "income"
+    assert _transaction_type("Tax", "debit") == "tax"
+    assert _transaction_type("Taxes", "debit") == "tax"
+    assert _transaction_type("Steuern", "debit") == "tax"
+    assert _transaction_type("Trade", "debit") == "investment"
+    assert _transaction_type("Handel", "credit") == "investment"
+    assert _transaction_type("Card transaction", "debit") == "expense"
+    assert _transaction_type("Card transaction", "credit") == "refund"
+    assert _transaction_type("Kartentransaktion", "credit") == "refund"
+    # Maiuscole/spazi non contano: stessa normalizzazione dell'italiano.
+    assert _transaction_type("  INTEREST  ", "credit") == "interest"
+
+
 def test_default_transaction_type_method_matches_the_module_function():
     # Milestone 09.5: il metodo sul parser e' solo un punto di accesso
     # stabile a _transaction_type (usato da import_job.py e dal servizio

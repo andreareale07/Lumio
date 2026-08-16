@@ -49,6 +49,7 @@ from decimal import Decimal
 
 import pdfplumber
 
+from app.classification.transaction_type_labels import classify_label
 from app.parsers.base import ParsedStatement, TransferCounterparty
 from app.services.csv_import import ParsedRow
 
@@ -166,20 +167,27 @@ def _transaction_type(tipo: str, direction: str) -> str:
     (bug osservato su dati reali). `transfer` resta assegnabile solo
     manualmente dall'utente via UI/API, mai da un parser (SPEC §21, pairing
     tra le due transazioni gemelle rimandato).
+
+    Il riconoscimento dell'etichetta semantica passa da
+    `app.classification.transaction_type_labels.classify_label`, che copre
+    piu' lingue (italiano/inglese/tedesco) — l'app Trade Republic dell'utente
+    potrebbe non essere in italiano, e prima di questo modulo ogni etichetta
+    non italiana ricadeva silenziosamente nel fallback direzione-soltanto.
     """
-    normalized = tipo.lower()
-    if normalized == "interessi":
+    semantic_key = classify_label(tipo)
+    if semantic_key == "interest":
         return "interest"
-    if normalized == "premio":
+    if semantic_key == "bonus":
         return "income"
-    if normalized == "imposte":
+    if semantic_key == "tax":
         return "tax"
-    if normalized == "commercio":
+    if semantic_key == "trade":
         return "investment"
-    if normalized == "transazione con carta":
+    if semantic_key == "card_transaction":
         return "refund" if direction == "credit" else "expense"
-    # "bonifico" e qualunque TIPO non riconosciuto: fallback onesto sulla
-    # sola direzione, stesso principio del parser CSV.
+    # "bonifico"/"transfer"/"überweisung" e qualunque TIPO non riconosciuto
+    # in nessuna lingua nota: fallback onesto sulla sola direzione, stesso
+    # principio del parser CSV.
     return "income" if direction == "credit" else "expense"
 
 
