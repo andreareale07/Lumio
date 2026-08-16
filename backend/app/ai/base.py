@@ -25,6 +25,14 @@ class CategoryOption:
     id: uuid.UUID
     code: str
     name: str
+    # Rework prompt AI: gerarchia (per raggruppare per padre nel prompt),
+    # kind (per il filtro segno/tipo — vedi app/services/ai_classification.py)
+    # e hint opzionale (app/classification/taxonomy.py) per disambiguare le
+    # categorie il cui solo nome non basta a un LLM.
+    parent_code: str | None = None
+    parent_name: str | None = None
+    kind: str = "expense"
+    hint: str | None = None
 
 
 @dataclass(frozen=True)
@@ -35,6 +43,16 @@ class ClassifiableTransaction:
     amount: str
     currency: str
     direction: str
+    # Rework prompt AI: il modello vede ora anche COSA la banca dice che sia
+    # il movimento (utile per non riproporre l'inferenza gia' certa a monte
+    # — vedi la guardia negativa in ai_classification_job.py, che comunque
+    # impedisce a investimenti/trasferimenti/ecc. di arrivare fin qui),
+    # QUANDO (una spesa ricorrente il giorno 1 del mese e' quasi sempre un
+    # abbonamento/affitto) e CHI (la controparte di un bonifico, quando
+    # nota, e' spesso un segnale piu' forte della sola descrizione).
+    transaction_type: str = "expense"
+    transaction_date: str | None = None
+    counterparty_name: str | None = None
 
 
 @dataclass(frozen=True)

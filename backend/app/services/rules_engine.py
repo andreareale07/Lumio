@@ -54,29 +54,36 @@ def _field_value(row: MatchableRow, field: str) -> str | None:
     return row.description_normalized or row.description_raw
 
 
-def _matches(rule: RuleSpec, row: MatchableRow) -> bool:
-    if rule.operator == "merchant_equals":
+def matches(field: str, operator: str, value: str, row: MatchableRow) -> bool:
+    """Primitiva di matching pubblica, riusata sia dalle regole utente
+    (`evaluate` sotto) sia dal catalogo di pattern di sistema
+    (`app/classification/catalog.py` + `app/services/system_classification.py`,
+    livello 3 della pipeline di classificazione): due implementazioni
+    separate della stessa logica (case-insensitive, stessi 6 operatori)
+    divergerebbero silenziosamente nel tempo.
+    """
+    if operator == "merchant_equals":
         target = row.merchant
         if target is None:
             return False
-        return target.strip().lower() == rule.value.strip().lower()
+        return target.strip().lower() == value.strip().lower()
 
-    target = _field_value(row, rule.field)
+    target = _field_value(row, field)
     if target is None:
         return False
 
-    if rule.operator == "regex":
-        return re.search(rule.value, target, re.IGNORECASE) is not None
+    if operator == "regex":
+        return re.search(value, target, re.IGNORECASE) is not None
 
     target_lower = target.lower()
-    value_lower = rule.value.lower()
-    if rule.operator == "equals":
+    value_lower = value.lower()
+    if operator == "equals":
         return target_lower.strip() == value_lower.strip()
-    if rule.operator == "contains":
+    if operator == "contains":
         return value_lower in target_lower
-    if rule.operator == "starts_with":
+    if operator == "starts_with":
         return target_lower.startswith(value_lower)
-    if rule.operator == "ends_with":
+    if operator == "ends_with":
         return target_lower.endswith(value_lower)
     return False
 
@@ -87,6 +94,6 @@ def evaluate(rules: list[RuleSpec], row: MatchableRow) -> uuid.UUID | None:
     passa solo regole gia' filtrate per `is_active=True` e per workspace.
     """
     for rule in sort_rules(rules):
-        if _matches(rule, row):
+        if matches(rule.field, rule.operator, rule.value, row):
             return rule.category_id
     return None

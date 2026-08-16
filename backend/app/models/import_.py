@@ -136,3 +136,11 @@ class Import(Base):
     ai_classification_status: Mapped[str | None] = mapped_column(String, nullable=True)
     ai_transactions_total: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     ai_transactions_classified: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    # Popolato SOLO quando ai_classification_status='failed' (stesso ruolo di
+    # `error_message` sopra, ma per il job di classificazione AI separato —
+    # vedi worker/jobs/ai_classification_job.py). Gap UX reale scoperto
+    # testando un'interruzione del provider (container Ollama spento a meta'
+    # import): il job transitava correttamente a 'failed', ma l'utente non
+    # aveva modo di saperlo ne' perche' — l'indicatore di progresso "x/N"
+    # spariva silenziosamente dalla UI senza alcun messaggio.
+    ai_classification_error_message: Mapped[str | None] = mapped_column(String, nullable=True)

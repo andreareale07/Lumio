@@ -2,10 +2,15 @@ from httpx import AsyncClient
 
 from app.worker.jobs.import_job import import_job
 
+# "ACME GENERIC MERCHANT" e' volutamente fittizio: non deve matchare
+# nessuna regola/tipo/pattern di sistema (vedi
+# app/services/classification_pipeline.py), altrimenti questo test — che
+# vuole verificare che una riga SENZA match resti non classificata — non
+# testerebbe piu' nulla di significativo.
 CSV_SAMPLE = (
     "data,descrizione,importo\n"
     "2026-01-15,Pagamento NETFLIX.COM,-12.99\n"
-    "2026-01-16,Farmacia Centrale,-8.00\n"
+    "2026-01-16,Pagamento ACME GENERIC MERCHANT,-8.00\n"
 )
 
 
@@ -125,7 +130,7 @@ async def test_manual_creation_without_category_uses_matching_active_rule(client
 async def test_correcting_category_via_patch_logs_user_classification(client):
     token = await _register(client, "classif-correction@example.com")
     account_id = await _create_account(client, token)
-    wrong_category = await _category_id(client, token, "tempo_libero.ristoranti")
+    wrong_category = await _category_id(client, token, "bar_ristoranti.ristorante")
     right_category = await _category_id(client, token, "alimentari.supermercato")
 
     create_response = await client.post(
@@ -213,9 +218,9 @@ async def test_import_classifies_matching_transactions_via_rule(client):
     )
     rows = transactions.json()
     netflix_row = next(r for r in rows if "NETFLIX" in r["description_raw"])
-    pharmacy_row = next(r for r in rows if "Farmacia" in r["description_raw"])
+    generic_row = next(r for r in rows if "ACME GENERIC" in r["description_raw"])
     assert netflix_row["category_id"] == category_id
-    assert pharmacy_row["category_id"] is None
+    assert generic_row["category_id"] is None
 
     history = await client.get(
         f"/api/v1/transactions/{netflix_row['id']}/classifications", headers=_auth_headers(token)
@@ -225,7 +230,7 @@ async def test_import_classifies_matching_transactions_via_rule(client):
     assert entries[0]["method"] == "rule"
     assert entries[0]["category_id"] == category_id
 
-    pharmacy_history = await client.get(
-        f"/api/v1/transactions/{pharmacy_row['id']}/classifications", headers=_auth_headers(token)
+    generic_history = await client.get(
+        f"/api/v1/transactions/{generic_row['id']}/classifications", headers=_auth_headers(token)
     )
-    assert pharmacy_history.json() == []
+    assert generic_history.json() == []

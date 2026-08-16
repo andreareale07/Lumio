@@ -1,12 +1,18 @@
 """Provider AI cloud OpenAI (SPEC §27). L'utente fornisce la propria API
-key, mai richiesta per il funzionamento base dell'app. `response_format:
-json_object` forza l'output a JSON valido lato server, coerente con
-`app/ai/prompt.parse_response`.
+key, mai richiesta per il funzionamento base dell'app.
+
+Rework prompt AI: tenta prima `response_format: json_schema` (structured
+output nativo, vincola `category_code` a un enum dei code offerti — il
+modello non puo' proprio inventarne uno dove questo e' rispettato); su 400
+(modello/versione senza supporto) ripiega su `json_object`, che tutti i
+modelli chat OpenAI supportano. `parse_response` resta comunque l'unica
+difesa reale contro un code inventato quando lo schema non e' rispettato.
 """
 import httpx
 
 from app.ai.base import AIClassificationResult, AIProviderError, CategoryOption, ClassifiableTransaction
-from app.ai.prompt import build_prompt, parse_response
+from app.ai.http_retry import post_with_retry
+from app.ai.prompt import build_messages, parse_response, response_schema
 from app.core.config import get_settings
 
 _BASE_URL = "https://api.openai.com/v1"
@@ -33,18 +39,37 @@ class OpenAIClassifier:
         self, transaction: ClassifiableTransaction, categories: list[CategoryOption]
     ) -> AIClassificationResult | None:
         settings = get_settings()
-        prompt = build_prompt(transaction, categories)
+        bundle = build_messages(transaction, categories)
+        messages = [
+            {"role": "system", "content": bundle.system},
+            {"role": "user", "content": bundle.user},
+        ]
+        schema_response_format = {
+            "type": "json_schema",
+            "json_schema": {"name": "classificazione", "strict": True, "schema": response_schema(categories)},
+        }
         try:
             async with httpx.AsyncClient(timeout=settings.ai_classify_timeout_seconds) as client:
-                response = await client.post(
+                response = await post_with_retry(
+                    client,
                     f"{_BASE_URL}/chat/completions",
                     headers=self._headers(),
-                    json={
-                        "model": self.model,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "response_format": {"type": "json_object"},
-                    },
+                    json={"model": self.model, "messages": messages, "response_format": schema_response_format},
                 )
+                if response.status_code == 400:
+                    # Modello/versione senza supporto per json_schema
+                    # strutturato: fallback al formato libero, supportato
+                    # da tutti i modelli chat OpenAI.
+                    response = await post_with_retry(
+                        client,
+                        f"{_BASE_URL}/chat/completions",
+                        headers=self._headers(),
+                        json={
+                            "model": self.model,
+                            "messages": messages,
+                            "response_format": {"type": "json_object"},
+                        },
+                    )
                 response.raise_for_status()
         except httpx.HTTPError as exc:
             raise AIProviderError(f"OpenAI non raggiungibile o credenziali non valide: {exc}") from exc

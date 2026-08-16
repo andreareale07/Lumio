@@ -1,14 +1,18 @@
 """Provider AI locale (SPEC §26). Endpoint configurabile, nessun modello
 specifico assunto (SPEC: "l'applicazione non deve essere legata a Gemma").
-Usa `/api/generate` con `format: "json"` (Ollama forza l'output a JSON
-valido lato server quando supportato dal modello) invece di `/api/chat`:
-un solo prompt di testo e' sufficiente per questo caso d'uso, niente
-gestione di history conversazionale.
+Usa `/api/generate` (non `/api/chat`): un solo prompt di testo e' sufficiente
+per questo caso d'uso, niente gestione di history conversazionale — nessun
+ruolo system separato in questa API, `build_prompt` concatena system+user.
+
+Rework prompt AI: tenta `format: <JSON Schema>` (supportato da Ollama >=
+0.5, vincola `category_code` all'enum dei code offerti); su errore
+(versione precedente che non accetta uno schema completo in `format`)
+ripiega su `format: "json"`, sempre supportato.
 """
 import httpx
 
 from app.ai.base import AIClassificationResult, AIProviderError, CategoryOption, ClassifiableTransaction
-from app.ai.prompt import build_prompt, parse_response
+from app.ai.prompt import build_prompt, parse_response, response_schema
 from app.core.config import get_settings
 
 
@@ -28,8 +32,21 @@ class OllamaClassifier:
             async with httpx.AsyncClient(timeout=settings.ai_classify_timeout_seconds) as client:
                 response = await client.post(
                     f"{self.endpoint}/api/generate",
-                    json={"model": self.model, "prompt": prompt, "stream": False, "format": "json"},
+                    json={
+                        "model": self.model,
+                        "prompt": prompt,
+                        "stream": False,
+                        "format": response_schema(categories),
+                    },
                 )
+                if response.status_code == 400:
+                    # Versione di Ollama troppo vecchia per uno schema
+                    # completo in `format` (richiede >= 0.5): fallback al
+                    # semplice `format: "json"`.
+                    response = await client.post(
+                        f"{self.endpoint}/api/generate",
+                        json={"model": self.model, "prompt": prompt, "stream": False, "format": "json"},
+                    )
                 response.raise_for_status()
         except httpx.HTTPError as exc:
             raise AIProviderError(f"Ollama non raggiungibile: {exc}") from exc

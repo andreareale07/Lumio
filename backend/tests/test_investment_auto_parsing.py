@@ -104,6 +104,30 @@ async def test_import_derives_investment_transactions_and_positions_from_descrip
     lidl = next(t for t in transactions if t["description_raw"] == "Supermercato Lidl")
     assert lidl["transaction_type"] == "expense"
 
+    # Rework tassonomia/pipeline: le righe di trade vengono classificate
+    # come Investimenti dal livello 2 della pipeline (riconoscimento
+    # testuale via trade_parsing, indipendente da transaction_type — il
+    # canale CSV assegna sempre "expense" alle righe debit, MAI
+    # "investment", vedi csv_import.py:197). Prima di questo rework
+    # sarebbero rimaste category_id NULL e sarebbero finite all'AI, che
+    # potendo scegliere solo tra categorie di spesa le avrebbe classificate
+    # in modo insensato (bug reale riportato dall'utente su un PAC ETF).
+    categories = (await client.get("/api/v1/categories", headers=_auth_headers(token))).json()
+    category_by_id = {c["id"]: c["code"] for c in categories}
+    pac_rows = [t for t in transactions if t["description_raw"].startswith("Savings plan execution")]
+    assert len(pac_rows) == 2
+    for row in pac_rows:
+        assert row["category_id"] is not None
+        assert category_by_id[row["category_id"]] == "investimenti.versamento_pac"
+    buy_row = next(t for t in transactions if t["description_raw"].startswith("Buy trade"))
+    assert category_by_id[buy_row["category_id"]] == "investimenti.acquisto_titoli"
+
+    # Nessun profilo AI attivo in questo test: nessuna riga viene comunque
+    # accodata alla classificazione AI (Lidl resta semplicemente senza
+    # categoria, non "in attesa di AI").
+    detail_after = (await client.get(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))).json()
+    assert detail_after["ai_classification_status"] == "skipped"
+
 
 async def test_backfill_derives_movements_from_transactions_created_before_this_feature(client):
     """Simula transazioni 'investment' create manualmente (equivalente a un

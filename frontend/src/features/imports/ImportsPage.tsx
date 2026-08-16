@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileText, Plus, Trash2, UploadCloud } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -10,6 +11,7 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { useAccounts } from "../accounts/api";
 import { formatDateTime } from "../../lib/format";
+import { useTransactionReviewSummary } from "../transactions/api";
 import { importsKey, useImports } from "./api";
 import { AiClassificationProgress } from "./AiClassificationProgress";
 import { ImportDeleteDialog } from "./ImportDeleteDialog";
@@ -23,6 +25,21 @@ import {
   isActiveAiClassificationStatus,
 } from "./labels";
 import type { ImportRecord } from "../../types/api";
+
+/** SPEC §43 ("319 classificati, 8 da verificare"): riepilogo mostrato solo
+ * a import concluso (import + eventuale classificazione AI, entrambi non
+ * piu' attivi) — durante l'elaborazione i numeri cambierebbero ad ogni
+ * istante, un conteggio instabile sarebbe piu' fonte di confusione che
+ * di aiuto. Link diretto a Movimenti pre-filtrato su questo import. */
+function ImportReviewSummary({ importId }: { importId: string }) {
+  const { data: summary } = useTransactionReviewSummary({ import_id: importId });
+  if (!summary || summary.needs_review === 0) return null;
+  return (
+    <Link to={`/transactions?import=${importId}&review=1`} className="inline-flex w-fit">
+      <Badge tone="warning">⚠ {summary.needs_review} da verificare</Badge>
+    </Link>
+  );
+}
 
 export function ImportsPage() {
   const { data: imports, isLoading, isError, refetch } = useImports();
@@ -85,6 +102,23 @@ export function ImportsPage() {
                       total={importRecord.ai_transactions_total}
                       onSettled={() => queryClient.invalidateQueries({ queryKey: importsKey })}
                     />
+                  )}
+                  {/* Gap UX reale scoperto testando un'interruzione del
+                      provider AI (container spento a meta' import):
+                      l'indicatore di progresso spariva silenziosamente non
+                      appena lo stato non era piu' pending/running, senza
+                      lasciare traccia del perche' fosse fallito. */}
+                  {!isLive &&
+                    importRecord.ai_classification_status === "failed" &&
+                    importRecord.ai_classification_error_message && (
+                      <p className="text-sm text-danger">
+                        Classificazione AI non riuscita: {importRecord.ai_classification_error_message}
+                      </p>
+                    )}
+                  {!isLive && !showAiProgress && (
+                    <div className="mt-1">
+                      <ImportReviewSummary importId={importRecord.id} />
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2">

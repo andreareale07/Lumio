@@ -1,18 +1,25 @@
 """Provider AI cloud Anthropic (SPEC §27). Stesso principio di
 `OpenAIClassifier`: chiave fornita dall'utente, mai richiesta per il
-funzionamento base. La Messages API non supporta un `response_format`
-strutturato generico come OpenAI: ci si affida al prompt ("rispondi SOLO con
-JSON") + `parse_response`, che estrae comunque il primo blocco `{...}`
-dalla risposta anche se il modello aggiunge testo attorno.
+funzionamento base.
+
+Rework prompt AI: la Messages API non ha un `response_format` strutturato
+generico come OpenAI, ma supporta tool-use forzato (`tool_choice`) — usato
+qui per ottenere un JSON strutturato direttamente come `input` del tool,
+senza bisogno di estrarlo per regex da testo libero. Se il modello non
+produce un blocco `tool_use` (versione/modello senza supporto, o un
+comportamento inatteso), si ripiega sull'estrazione testuale via
+`parse_response`, stesso percorso robusto degli altri provider.
 """
 import httpx
 
 from app.ai.base import AIClassificationResult, AIProviderError, CategoryOption, ClassifiableTransaction
-from app.ai.prompt import build_prompt, parse_response
+from app.ai.http_retry import post_with_retry
+from app.ai.prompt import build_messages, parse_payload, parse_response, response_schema
 from app.core.config import get_settings
 
 _BASE_URL = "https://api.anthropic.com/v1"
 _ANTHROPIC_VERSION = "2023-06-01"
+_TOOL_NAME = "classifica_transazione"
 
 
 class AnthropicClassifier:
@@ -32,16 +39,25 @@ class AnthropicClassifier:
         self, transaction: ClassifiableTransaction, categories: list[CategoryOption]
     ) -> AIClassificationResult | None:
         settings = get_settings()
-        prompt = build_prompt(transaction, categories)
+        bundle = build_messages(transaction, categories)
+        tool = {
+            "name": _TOOL_NAME,
+            "description": "Classifica la transazione in una delle categorie offerte.",
+            "input_schema": response_schema(categories),
+        }
         try:
             async with httpx.AsyncClient(timeout=settings.ai_classify_timeout_seconds) as client:
-                response = await client.post(
+                response = await post_with_retry(
+                    client,
                     f"{_BASE_URL}/messages",
                     headers=self._headers(),
                     json={
                         "model": self.model,
                         "max_tokens": 300,
-                        "messages": [{"role": "user", "content": prompt}],
+                        "system": bundle.system,
+                        "messages": [{"role": "user", "content": bundle.user}],
+                        "tools": [tool],
+                        "tool_choice": {"type": "tool", "name": _TOOL_NAME},
                     },
                 )
                 response.raise_for_status()
@@ -49,11 +65,22 @@ class AnthropicClassifier:
             raise AIProviderError(f"Anthropic non raggiungibile o credenziali non valide: {exc}") from exc
 
         body = response.json()
-        try:
-            raw_text = body["content"][0]["text"]
-        except (KeyError, IndexError) as exc:
-            raise AIProviderError(f"risposta Anthropic inattesa: {body}") from exc
-        return parse_response(raw_text, categories)
+        content = body.get("content", [])
+        tool_use = next(
+            (block for block in content if isinstance(block, dict) and block.get("type") == "tool_use"), None
+        )
+        if tool_use is not None:
+            return parse_payload(tool_use.get("input", {}), categories)
+
+        # Fallback: nessun blocco tool_use nella risposta (modello/versione
+        # senza supporto per tool forzato) — stesso percorso robusto degli
+        # altri provider, estrazione JSON da testo libero.
+        text_block = next(
+            (block for block in content if isinstance(block, dict) and block.get("type") == "text"), None
+        )
+        if text_block is None:
+            raise AIProviderError(f"risposta Anthropic senza contenuto utile: {body}")
+        return parse_response(text_block["text"], categories)
 
     async def test_connection(self) -> None:
         settings = get_settings()

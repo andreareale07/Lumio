@@ -145,6 +145,21 @@ async def test_transfer_to_own_iban_recognized_transfer_to_third_party_stays_exp
     assert by_description["Outgoing transfer for Luca Bianchi (IT99Z9999999999999999999999)"] == "expense"
     assert by_description["Incoming transfer for Mario Rossi (IT31U0760116700001099179999)"] == "transfer"
 
+    # Rework pipeline: la controparte (nome/IBAN) e' ora persistita, non
+    # piu' scartata subito dopo il check is_internal_transfer — e diventa
+    # il merchant, con priorita' sull'estrazione generica (che su questo
+    # formato di descrizione produrrebbe solo un frammento di frase
+    # troncato, "Outgoing Transfer For Luca", non il vero nome).
+    by_row = {t["description_raw"]: t for t in transactions.json()}
+    outgoing = by_row["Outgoing transfer for Luca Bianchi (IT99Z9999999999999999999999)"]
+    incoming = by_row["Incoming transfer for Mario Rossi (IT31U0760116700001099179999)"]
+    assert outgoing["counterparty_name"] == "Luca Bianchi"
+    assert outgoing["counterparty_iban"] == "IT99Z9999999999999999999999"
+    assert outgoing["merchant"] == "Luca Bianchi"
+    assert incoming["counterparty_name"] == "Mario Rossi"
+    assert incoming["counterparty_iban"] == "IT31U0760116700001099179999"
+    assert incoming["merchant"] == "Mario Rossi"
+
 
 async def test_pdf_upload_dedup_same_as_csv(client):
     token = await _register(client, "pdfimp-dedup@example.com")

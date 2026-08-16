@@ -60,6 +60,7 @@ class ImportOut(BaseModel):
     ai_classification_status: str | None
     ai_transactions_total: int
     ai_transactions_classified: int
+    ai_classification_error_message: str | None
 
     model_config = {"from_attributes": True}
 

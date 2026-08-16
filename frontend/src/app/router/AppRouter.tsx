@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "../../components/layout/AppShell";
 import { AccountDetailPage } from "../../features/accounts/AccountDetailPage";
 import { AccountsPage } from "../../features/accounts/AccountsPage";
+import { ActivityPage } from "../../features/activity/ActivityPage";
 import { ExpensesPage } from "../../features/analytics/ExpensesPage";
 import { IncomePage } from "../../features/analytics/IncomePage";
 import { NetWorthPage } from "../../features/analytics/NetWorthPage";
@@ -55,6 +56,7 @@ export function AppRouter() {
       <Route path="/accounts/:accountId" element={<Protected><AccountDetailPage /></Protected>} />
       <Route path="/transactions" element={<Protected><TransactionsPage /></Protected>} />
       <Route path="/imports" element={<Protected><ImportsPage /></Protected>} />
+      <Route path="/activity" element={<Protected><ActivityPage /></Protected>} />
       <Route path="/settings/categories" element={<Protected><CategoriesSettingsPage /></Protected>} />
       <Route path="/settings/rules" element={<Protected><RulesPage /></Protected>} />
       <Route path="/settings/ai" element={<Protected><AISettingsPage /></Protected>} />

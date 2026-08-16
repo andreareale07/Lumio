@@ -5,12 +5,50 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 
+from app.classification.taxonomy import TAXONOMY
 from app.core.config import get_settings
 from app.core.redis import redis_client
 from app.db.base import async_session_factory, engine
-from app.db.seed_data import SYSTEM_CATEGORIES
 from app.main import app
 from app.worker import queue as arq_queue
+
+# Radici e figli separati una volta sola a import-time: la FK di
+# `categories.parent_id` su se stessa impone due passate (i genitori devono
+# gia' esistere quando si inseriscono i figli), indipendentemente da come si
+# esegue l'INSERT.
+_ROOTS = [c for c in TAXONOMY if c.parent_code is None]
+_CHILDREN = [c for c in TAXONOMY if c.parent_code is not None]
+_ROOT_ID_BY_CODE = {c.code: c.id for c in _ROOTS}
+
+
+def _bulk_insert_sql(rows: list, *, parent_ids: list[str] | None) -> tuple[str, dict]:
+    """Una singola INSERT multi-riga (un solo round-trip) invece di una
+    INSERT per categoria: con ~180 righe di tassonomia, farla girare in un
+    fixture `autouse` (quindi prima di OGNI test della suite) con una await
+    per riga renderebbe l'intera suite percettibilmente piu' lenta. I
+    parametri sono named e indicizzati per riga (`:id_0`, `:id_1`, ...)
+    perche' SQLAlchemy `text()` non supporta liste di tuple posizionali.
+
+    `parent_ids`: None per le radici (parent_id sempre NULL), altrimenti una
+    lista parallela a `rows` con l'id del padre di ciascuna riga.
+    """
+    values_sql = []
+    params: dict = {}
+    for i, cat in enumerate(rows):
+        parent_expr = f":parent_id_{i}" if parent_ids is not None else "NULL"
+        values_sql.append(f"(:id_{i}, NULL, {parent_expr}, :name_{i}, :code_{i}, :kind_{i}, true, :sort_order_{i})")
+        params[f"id_{i}"] = uuid.UUID(cat.id)
+        params[f"name_{i}"] = cat.name
+        params[f"code_{i}"] = cat.code
+        params[f"kind_{i}"] = cat.kind
+        params[f"sort_order_{i}"] = cat.sort_order
+        if parent_ids is not None:
+            params[f"parent_id_{i}"] = uuid.UUID(parent_ids[i])
+    sql = (
+        "INSERT INTO categories (id, workspace_id, parent_id, name, code, kind, is_system, sort_order) "
+        "VALUES " + ", ".join(values_sql)
+    )
+    return sql, params
 
 
 @pytest.fixture(autouse=True)
@@ -20,7 +58,9 @@ async def _clean_tables():
     # troncare `workspaces` con CASCADE svuota anche `categories` per intero
     # (ha una FK su workspace_id), comprese le system category seedate dalla
     # migration — non e' possibile troncare solo le righe workspace-scoped,
-    # quindi le si reinserisce subito dopo con lo stesso seed della migration.
+    # quindi le si reinserisce subito dopo con la tassonomia viva
+    # (app/classification/taxonomy.py, stessa fonte usata dalla migration
+    # 0022 di produzione).
     async with async_session_factory() as session:
         await session.execute(
             text(
@@ -40,22 +80,20 @@ async def _clean_tables():
         # db/postgres-init/01-create-app-role.sh) e' BYPASSRLS: stesso
         # meccanismo usato in produzione dalle funzioni SECURITY DEFINER,
         # qui applicato al reseed di dati che sono comunque immutabili per
-        # l'app stessa.
+        # l'app stessa. I trigger `enforce_category_kind`/
+        # `check_category_code_not_shadowing_system` (migration 0021)
+        # restano attivi durante questo INSERT: e' voluto, verificano che il
+        # seed stesso sia internamente coerente (kind ereditato, nessun code
+        # duplicato) tanto quanto lo farebbero su un INSERT applicativo.
         await session.execute(text("SET ROLE lumio_rls_helper"))
-        for cat in SYSTEM_CATEGORIES:
-            await session.execute(
-                text(
-                    "INSERT INTO categories (id, workspace_id, parent_id, name, code, is_system, sort_order) "
-                    "VALUES (:id, NULL, :parent_id, :name, :code, true, :sort_order)"
-                ),
-                {
-                    "id": uuid.UUID(cat["id"]),
-                    "parent_id": uuid.UUID(cat["parent_id"]) if cat["parent_id"] else None,
-                    "name": cat["name"],
-                    "code": cat["code"],
-                    "sort_order": cat["sort_order"],
-                },
-            )
+
+        roots_sql, roots_params = _bulk_insert_sql(_ROOTS, parent_ids=None)
+        await session.execute(text(roots_sql), roots_params)
+
+        child_parent_ids = [_ROOT_ID_BY_CODE[c.parent_code] for c in _CHILDREN]
+        children_sql, children_params = _bulk_insert_sql(_CHILDREN, parent_ids=child_parent_ids)
+        await session.execute(text(children_sql), children_params)
+
         await session.execute(text("RESET ROLE"))
         await session.commit()
     yield

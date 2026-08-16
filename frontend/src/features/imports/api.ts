@@ -116,7 +116,10 @@ export interface ImportProgressEvent {
   transactions_imported?: number;
 }
 
-async function streamSse(
+/** Esportata anche per altre feature con un proprio stream SSE (es.
+ * activity, reclassificazione): stessa ragione (fetch()+ReadableStream, non
+ * EventSource) documentata sopra, nessun motivo di duplicare il parsing. */
+export async function streamSse(
   path: string,
   onEvent: (event: ImportProgressEvent) => void,
   signal: AbortSignal,

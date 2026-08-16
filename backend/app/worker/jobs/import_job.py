@@ -45,11 +45,15 @@ from app.services import job_events
 from app.services.ai_profile_service import get_active_profile
 from app.services.asset_matching import get_or_create_asset_by_isin
 from app.services.audit_log_service import log_event
+from app.services.classification_loader import load_pipeline_context
+from app.services.classification_pipeline import ClassifiableRow, classify_deterministic
+from app.services.confidence import needs_review as score_needs_review
 from app.services.csv_import import MappingConfig, ParsedRow, parse_rows
 from app.services.import_paths import original_file_path
+from app.services.merchant_extraction import extract_merchant
 from app.services.position_service import recompute_position
-from app.services.rule_loader import load_active_rule_specs
-from app.services.rules_engine import Probe, evaluate
+from app.services.system_classification import is_ai_eligible
+from app.services.system_settings_service import get_setting_value
 from app.services.trade_parsing import ParsedTrade, parse_trade_description
 from app.services.transaction_type_mapping_service import resolve_transaction_type
 from app.services.transfer_recognition import is_internal_transfer
@@ -57,6 +61,8 @@ from app.storage import get_storage
 from app.worker.queue import enqueue_classify_import_job
 
 logger = logging.getLogger("lumio.worker.import_job")
+
+_NEEDS_REVIEW_THRESHOLD_KEY = "classification.needs_review_threshold"
 
 
 async def import_job(ctx, import_id: str, created_by_user_id: str) -> None:
@@ -205,11 +211,21 @@ async def _process_pdf(import_uuid: uuid.UUID, user_uuid: uuid.UUID) -> None:
     # sempre forzare un comportamento diverso se questa euristica sbaglia.
     # Capability opzionale del parser (None per un parser che non la
     # supporta, o per una riga che non e' un bonifico riconoscibile).
+    # Rework pipeline: la controparte (nome/IBAN) viene ora PERSISTITA sulla
+    # riga invece di essere scartata dopo il solo check di
+    # is_internal_transfer — per un bonifico e' spesso l'unico segnale
+    # utile di "chi" (diventa il merchant quando la descrizione da sola non
+    # produce nulla, vedi sotto) e rende `reapply_internal_transfer_
+    # detection` indipendente dal dover ri-parsare la descrizione col
+    # parser originale.
     async with rls_session(user_uuid) as db:
         for row in result.rows:
             counterparty = parser.extract_transfer_counterparty(row.description_raw)
-            if counterparty is not None and await is_internal_transfer(db, workspace_id, counterparty):
-                row.transaction_type = "transfer"
+            if counterparty is not None:
+                row.counterparty_name = counterparty.name
+                row.counterparty_iban = counterparty.iban
+                if await is_internal_transfer(db, workspace_id, counterparty):
+                    row.transaction_type = "transfer"
 
     # Milestone 09.5: il default del parser (gia' in row.transaction_type)
     # resta il fallback — qui si sovrascrive solo se l'utente ha salvato un
@@ -242,23 +258,29 @@ async def _insert_transactions_and_complete(
         if import_row is None or import_row.status != "parsing":
             return
 
-        # Rules Engine (milestone 06, SPEC §23) valutato qui, inline: e'
-        # locale e rapido. La classificazione AI (milestone 07, SPEC §28:
-        # Rules -> AI) NON avviene piu' qui — bug reale scoperto sui dati
-        # veri dell'utente: il timeout del job di import e' un budget
-        # cumulativo su TUTTO il job (arq `job_timeout`), non per singola
-        # chiamata AI, quindi un import con molte righe non classificate
-        # dalle regole poteva essere cancellato a meta' solo per il tempo
-        # totale speso a interrogare il provider in sequenza. Le righe non
-        # classificate dalle regole vengono lasciate `category_id IS NULL`
-        # qui e classificate DOPO, da un job separato con un proprio timeout
-        # (vedi ai_classification_job.py, accodato in fondo a questa
-        # funzione) — l'import stesso non aspetta piu' l'AI per completarsi.
-        active_rules = await load_active_rule_specs(db, workspace_id)
+        # Pipeline di classificazione deterministica (regole utente -> tipo
+        # transazione, vedi app/services/classification_pipeline.py),
+        # valutata qui, inline: e' locale e rapida. La classificazione AI
+        # (SPEC §28: Rules -> AI) NON avviene piu' qui — bug reale scoperto
+        # sui dati veri dell'utente: il timeout del job di import e' un
+        # budget cumulativo su TUTTO il job (arq `job_timeout`), non per
+        # singola chiamata AI, quindi un import con molte righe non
+        # classificate deterministicamente poteva essere cancellato a meta'
+        # solo per il tempo totale speso a interrogare il provider in
+        # sequenza. Le righe non classificate qui vengono lasciate
+        # `category_id IS NULL` e classificate DOPO, da un job separato con
+        # un proprio timeout (vedi ai_classification_job.py, accodato in
+        # fondo a questa funzione) — l'import stesso non aspetta piu' l'AI
+        # per completarsi.
+        pipeline_ctx = await load_pipeline_context(db, workspace_id)
         active_ai_profile = await get_active_profile(db, workspace_id)
+        needs_review_threshold = float(await get_setting_value(_NEEDS_REVIEW_THRESHOLD_KEY, 0.6))
 
         transactions: list[Transaction] = []
         matched_categories: dict[int, uuid.UUID] = {}
+        matched_methods: dict[int, str] = {}
+        matched_scores: dict[int, Decimal] = {}
+        matched_explanations: dict[int, str | None] = {}
         # Milestone 09c: se la DESCRIZIONE matcha il formato Trade Republic
         # per i movimenti "Commercio" (verificato sui dati reali dell'utente,
         # vedi docstring di trade_parsing.py), si deriva automaticamente un
@@ -266,12 +288,28 @@ async def _insert_transactions_and_complete(
         # solo sul testo della descrizione.
         parsed_trades: dict[int, ParsedTrade] = {}
         for index, row in enumerate(rows):
-            probe = Probe(
+            # Rework pipeline: merchant risvegliato (colonna esistente dalla
+            # milestone 03, mai valorizzata finora). La controparte di un
+            # bonifico (se riconosciuta) VINCE sempre sull'estrazione
+            # generica, non il contrario: `extract_merchant` su una
+            # descrizione tipo "Outgoing transfer for Luca Bianchi
+            # (IT99...)" produce un frammento di frase troncato
+            # ("Outgoing Transfer For Luca", i primi 4 token), perche'
+            # non riconosce quel formato come rumore da scartare — mentre
+            # `counterparty_name` viene da un match strutturato preciso
+            # (nome+IBAN tra parentesi) ed e' sempre piu' affidabile quando
+            # disponibile. `extract_merchant` resta il fallback per tutto
+            # cio' che non e' un bonifico riconosciuto.
+            row.merchant = row.counterparty_name or extract_merchant(row.description_raw)
+
+            classifiable_row = ClassifiableRow(
                 description_raw=row.description_raw,
                 description_normalized=row.description_normalized,
-                merchant=None,
+                merchant=row.merchant,
+                transaction_type=row.transaction_type,
             )
-            matched_category_id = evaluate(active_rules, probe)
+            outcome = classify_deterministic(pipeline_ctx, classifiable_row)
+            matched_category_id = outcome.category_id if outcome is not None else None
 
             transaction = Transaction(
                 workspace_id=workspace_id,
@@ -281,6 +319,9 @@ async def _insert_transactions_and_complete(
                 value_date=row.value_date,
                 description_raw=row.description_raw,
                 description_normalized=row.description_normalized,
+                merchant=row.merchant,
+                counterparty_name=row.counterparty_name,
+                counterparty_iban=row.counterparty_iban,
                 reference=row.reference,
                 amount=row.amount,
                 currency=row.currency,
@@ -292,8 +333,12 @@ async def _insert_transactions_and_complete(
             )
             db.add(transaction)
             transactions.append(transaction)
-            if matched_category_id is not None:
-                matched_categories[index] = matched_category_id
+            if outcome is not None:
+                matched_categories[index] = outcome.category_id
+                matched_methods[index] = outcome.method
+                matched_scores[index] = outcome.score
+                matched_explanations[index] = outcome.explanation
+                transaction.needs_review = score_needs_review(outcome.score, needs_review_threshold)
 
             parsed_trade = parse_trade_description(row.description_raw)
             if parsed_trade is not None:
@@ -309,9 +354,10 @@ async def _insert_transactions_and_complete(
                 db.add(
                     Classification(
                         transaction_id=transactions[index].id,
-                        method="rule",
+                        method=matched_methods[index],
                         category_id=category_id,
-                        score=Decimal("1.00"),
+                        score=matched_scores[index],
+                        explanation=matched_explanations[index],
                     )
                 )
             # Milestone 09c: un InvestmentTransaction per ogni riga
@@ -357,14 +403,23 @@ async def _insert_transactions_and_complete(
             import_row.period_end = max(dates)
         import_row.completed_at = datetime.now(UTC)
 
-        # Righe non classificate dalle regole: se un profilo AI e' attivo,
-        # restano da classificare in background (vedi commento sopra); se
-        # non c'e' nessuna riga da classificare o nessuna AI attiva, non c'e'
-        # nulla da accodare.
-        unclassified_count = len(transactions) - len(matched_categories)
-        should_enqueue_ai_job = active_ai_profile is not None and unclassified_count > 0
+        # Righe non classificate deterministicamente E ammesse all'AI (vedi
+        # system_classification.is_ai_eligible): un investimento/
+        # trasferimento/dividendo/interesse/tassa/commissione rimasto senza
+        # categoria (es. quella attesa e' stata disattivata dall'utente) non
+        # va comunque all'AI — la guardia negativa in
+        # ai_classification_job.py lo escluderebbe comunque dalla query, ma
+        # l'indicatore "x/N" mostrato in UI deve gia' riflettere solo cio'
+        # che il job classifichera' davvero, non un conteggio piu' ampio che
+        # includerebbe righe mai destinate all'AI.
+        unclassified_ai_eligible_count = sum(
+            1
+            for index in range(len(transactions))
+            if index not in matched_categories and is_ai_eligible(rows[index].transaction_type)
+        )
+        should_enqueue_ai_job = active_ai_profile is not None and unclassified_ai_eligible_count > 0
         import_row.ai_classification_status = "pending" if should_enqueue_ai_job else "skipped"
-        import_row.ai_transactions_total = unclassified_count if should_enqueue_ai_job else 0
+        import_row.ai_transactions_total = unclassified_ai_eligible_count if should_enqueue_ai_job else 0
 
         await log_event(
             db,

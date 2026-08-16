@@ -9,6 +9,7 @@ from app.worker.jobs.google_export_job import google_sheets_export_job
 from app.worker.jobs.import_job import import_job
 from app.worker.jobs.job_health_job import expire_stale_jobs_job
 from app.worker.jobs.market_data import refresh_market_data_for_workspace, refresh_market_data_job
+from app.worker.jobs.reclassification_job import reclassify_workspace_job
 from app.worker.jobs.snapshot import snapshot_job, write_snapshot_for_workspace
 
 setup_logging()
@@ -41,6 +42,12 @@ class WorkerSettings:
         write_snapshot_for_workspace,
         google_sheets_export_job,
         expire_stale_jobs_job,
+        # Timeout proprio (puo' scorrere l'intero storico di un workspace),
+        # stesso principio di classify_import_transactions_job sopra.
+        arq_func(
+            reclassify_workspace_job,
+            timeout=_settings.reclassification_job_timeout_seconds,
+        ),
     ]
     # Cron giornaliero (SPEC §38, DoD M09 "storico patrimonio via snapshot,
     # non ricalcolato da zero"): prima il refresh prezzi, un'ora dopo lo

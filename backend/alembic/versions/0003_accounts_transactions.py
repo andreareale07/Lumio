@@ -47,7 +47,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-from app.db.seed_data import BANKS, SYSTEM_CATEGORIES
+from app.db.seed_data import BANKS, SYSTEM_CATEGORIES_V1
 
 # revision identifiers, used by Alembic.
 revision: str = "0003_accounts_transactions"
@@ -265,7 +265,7 @@ def upgrade() -> None:
                 "is_system": True,
                 "sort_order": cat["sort_order"],
             }
-            for cat in SYSTEM_CATEGORIES
+            for cat in SYSTEM_CATEGORIES_V1
         ],
     )
 

@@ -89,6 +89,8 @@ export interface Transaction {
   description_raw: string;
   description_normalized: string | null;
   merchant: string | null;
+  counterparty_name: string | null;
+  counterparty_iban: string | null;
   reference: string | null;
   amount: string; // Decimal serializzato come stringa da Pydantic
   currency: string;
@@ -96,8 +98,15 @@ export interface Transaction {
   transaction_type: TransactionType;
   balance_after: string | null;
   status: "pending" | "confirmed";
+  needs_review: boolean;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
+}
+
+export interface TransactionReviewSummary {
+  total: number;
+  classified: number;
+  needs_review: number;
 }
 
 export const CLASSIFICATION_METHODS = ["rule", "ai", "user", "manual", "system"] as const;
@@ -275,6 +284,7 @@ export interface ImportRecord {
   ai_classification_status: AiClassificationStatus | null;
   ai_transactions_total: number;
   ai_transactions_classified: number;
+  ai_classification_error_message: string | null;
 }
 
 export type AiClassificationStatus = "pending" | "running" | "completed" | "failed" | "skipped";

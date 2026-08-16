@@ -3,6 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -97,6 +98,17 @@ class Transaction(Base):
     description_raw: Mapped[str] = mapped_column(String, nullable=False)
     description_normalized: Mapped[str | None] = mapped_column(String, nullable=True)
     merchant: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Popolati SOLO per il canale PDF quando la descrizione matcha il
+    # formato "Outgoing/Incoming transfer for {nome} ({iban})" (capability
+    # opzionale del parser, vedi trade_parsing/transfer_recognition) — nome
+    # e IBAN della controparte del bonifico, oggi estratti a runtime e poi
+    # scartati subito dopo il check is_internal_transfer. Persistiti (rework
+    # pipeline classificazione) perche' per un bonifico la controparte E' il
+    # merchant quando la descrizione da sola non produce nulla, e rende
+    # `reapply_internal_transfer_detection` indipendente dal dover ri-parsare
+    # la descrizione col parser originale.
+    counterparty_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    counterparty_iban: Mapped[str | None] = mapped_column(String, nullable=True)
     reference: Mapped[str | None] = mapped_column(String, nullable=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
@@ -113,6 +125,14 @@ class Transaction(Base):
     source_type_raw: Mapped[str | None] = mapped_column(String, nullable=True)
     balance_after: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'confirmed'"))
+    # Due soli scrittori (SPEC §43, "8 da verificare"): la pipeline di
+    # classificazione la alza quando lo score della Classification appena
+    # scritta e' sotto `classification.needs_review_threshold`
+    # (system_settings — vedi app/services/confidence.py), MAI calcolata a
+    # runtime da una query; `update_transaction` la azzera non appena
+    # l'utente corregge la categoria a mano (una correzione manuale chiude
+    # sempre la review, indipendentemente da cosa l'aveva sollevata).
+    needs_review: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

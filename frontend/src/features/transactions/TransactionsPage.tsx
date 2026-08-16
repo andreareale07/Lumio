@@ -3,6 +3,7 @@ import { ArrowLeftRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
+import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
@@ -14,7 +15,7 @@ import { buildCategoryOptions, categoryLabel } from "../categories/utils";
 import { formatDate, formatSignedMoney } from "../../lib/format";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { TRANSACTION_TYPES, type Transaction } from "../../types/api";
-import { useTransactions } from "./api";
+import { useTransactionReviewSummary, useTransactions } from "./api";
 import { TRANSACTION_TYPE_LABELS } from "./labels";
 import { TransactionDetailDrawer } from "./TransactionDetailDrawer";
 
@@ -28,6 +29,8 @@ export function TransactionsPage() {
   const accountId = searchParams.get("account") ?? "";
   const categoryId = searchParams.get("category") ?? "";
   const transactionType = searchParams.get("type") ?? "";
+  const importId = searchParams.get("import") ?? "";
+  const reviewOnly = searchParams.get("review") === "1";
   const { currentPeriod } = usePeriodNavigator({
     granularities: ["day", "week", "month", "quarter", "semester", "year"],
     allowAll: true,
@@ -38,16 +41,34 @@ export function TransactionsPage() {
   const categoryOptions = buildCategoryOptions(categories);
   const accountsById = useMemo(() => new Map((accounts ?? []).map((a) => [a.id, a])), [accounts]);
 
+  // "Da verificare"/un import specifico sono viste mirate: l'utente vuole
+  // vedere TUTTE le righe che rispondono a quel criterio, non solo quelle
+  // che ricadono ANCHE nel periodo attualmente selezionato (bug reale: il
+  // badge conta le righe da verificare senza vincolo di periodo — vedi
+  // sotto — ma la lista applicava comunque il periodo corrente, risultando
+  // vuota ogni volta che le righe segnalate erano di un mese diverso).
+  const bypassPeriodFilter = reviewOnly || !!importId;
   const filters = {
     financial_account_id: accountId || undefined,
     category_id: categoryId || undefined,
     transaction_type: transactionType || undefined,
-    date_from: currentPeriod.date_from,
-    date_to: currentPeriod.date_to,
+    date_from: bypassPeriodFilter ? undefined : currentPeriod.date_from,
+    date_to: bypassPeriodFilter ? undefined : currentPeriod.date_to,
+    import_id: importId || undefined,
+    needs_review: reviewOnly ? true : undefined,
     limit: PAGE_SIZE,
     offset,
   };
   const { data: transactions, isLoading, isError, refetch } = useTransactions(filters);
+  // Il conteggio "da verificare" resta scoped allo stesso import/conto del
+  // filtro attivo (se presenti), ma NON al periodo/tipo/categoria — deve
+  // restare stabile mentre l'utente affina gli altri filtri, altrimenti il
+  // numero sul badge cambierebbe ad ogni click perdendo di significato come
+  // "quante ne restano da guardare in totale".
+  const { data: reviewSummary } = useTransactionReviewSummary({
+    financial_account_id: accountId || undefined,
+    import_id: importId || undefined,
+  });
 
   // Un cambio di periodo e' pilotato dai controlli interni di
   // PeriodNavigator, non da `updateFilter` sotto — senza questo reset un
@@ -112,6 +133,18 @@ export function TransactionsPage() {
             </option>
           ))}
         </Select>
+        {!!reviewSummary?.needs_review && (
+          <button
+            type="button"
+            onClick={() => updateFilter("review", reviewOnly ? "" : "1")}
+            aria-pressed={reviewOnly}
+            className={`inline-flex ${reviewOnly ? "" : "opacity-80 hover:opacity-100"}`}
+          >
+            <Badge tone={reviewOnly ? "warning" : "neutral"}>
+              ⚠ {reviewSummary.needs_review} da verificare
+            </Badge>
+          </button>
+        )}
       </div>
 
       {isLoading && <SkeletonRows rows={6} />}
@@ -154,7 +187,12 @@ export function TransactionsPage() {
                     <td className="px-3 py-2 text-text-muted">
                       {accountsById.get(transaction.financial_account_id)?.name ?? "—"}
                     </td>
-                    <td className="px-3 py-2 text-text-muted">{categoryLabel(categories, transaction.category_id)}</td>
+                    <td className="px-3 py-2 text-text-muted">
+                      <span className="inline-flex items-center gap-1.5">
+                        {categoryLabel(categories, transaction.category_id)}
+                        {transaction.needs_review && <Badge tone="warning">da verificare</Badge>}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-text-muted">{TRANSACTION_TYPE_LABELS[transaction.transaction_type]}</td>
                     <td className="font-numeric px-3 py-2 text-right text-text">
                       {formatSignedMoney(transaction.amount, transaction.currency)}
@@ -180,7 +218,10 @@ export function TransactionsPage() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm text-text-muted">
-                  <span>{categoryLabel(categories, transaction.category_id)}</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    {categoryLabel(categories, transaction.category_id)}
+                    {transaction.needs_review && <Badge tone="warning">da verificare</Badge>}
+                  </span>
                   <span>{formatDate(transaction.transaction_date)}</span>
                 </div>
               </button>

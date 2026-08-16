@@ -3,11 +3,19 @@ endpoint"). Copre self-hosted come vLLM/LM Studio/text-generation-webui che
 espongono l'API `/chat/completions` di OpenAI. `api_key` e' opzionale (molti
 setup locali non ne richiedono una) — se assente, nessun header
 Authorization viene inviato invece di mandarne uno vuoto/finto.
+
+Rework prompt AI: system+user come messaggi separati (formato standard
+OpenAI-compatible, supportato da tutti i backend elencati sopra) — ma
+NESSUN tentativo di structured output/JSON Schema: un endpoint arbitrario
+non da' garanzie su quali estensioni supporti, meglio restare sul
+formato-prompt robusto (`parse_response` estrae comunque il JSON da testo
+libero) che rischiare una richiesta che il server non sa interpretare.
 """
 import httpx
 
 from app.ai.base import AIClassificationResult, AIProviderError, CategoryOption, ClassifiableTransaction
-from app.ai.prompt import build_prompt, parse_response
+from app.ai.http_retry import post_with_retry
+from app.ai.prompt import build_messages, parse_response
 from app.core.config import get_settings
 
 
@@ -26,13 +34,18 @@ class CustomClassifier:
         self, transaction: ClassifiableTransaction, categories: list[CategoryOption]
     ) -> AIClassificationResult | None:
         settings = get_settings()
-        prompt = build_prompt(transaction, categories)
+        bundle = build_messages(transaction, categories)
+        messages = [
+            {"role": "system", "content": bundle.system},
+            {"role": "user", "content": bundle.user},
+        ]
         try:
             async with httpx.AsyncClient(timeout=settings.ai_classify_timeout_seconds) as client:
-                response = await client.post(
+                response = await post_with_retry(
+                    client,
                     f"{self.endpoint}/chat/completions",
                     headers=self._headers(),
-                    json={"model": self.model, "messages": [{"role": "user", "content": prompt}]},
+                    json={"model": self.model, "messages": messages},
                 )
                 response.raise_for_status()
         except httpx.HTTPError as exc:

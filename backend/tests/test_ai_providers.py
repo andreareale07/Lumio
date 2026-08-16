@@ -58,6 +58,40 @@ async def test_ollama_test_connection_checks_tags_endpoint(httpx_mock):
     await classifier.test_connection()
 
 
+async def test_ollama_classify_sends_json_schema_in_format(httpx_mock):
+    # Rework prompt AI: tenta prima un JSON Schema completo in `format`
+    # (Ollama >= 0.5), non il semplice "json" di prima.
+    httpx_mock.add_response(
+        url="http://ollama.local:11434/api/generate",
+        json={"response": '{"category_code": "groceries", "confidence": 0.7}'},
+    )
+    classifier = OllamaClassifier(endpoint="http://ollama.local:11434", model="gemma3:4b")
+    await classifier.classify(_TRANSACTION, [_CATEGORY])
+    request = httpx_mock.get_requests()[0]
+    import json as _json
+
+    body = _json.loads(request.content)
+    assert isinstance(body["format"], dict)
+    assert body["format"]["properties"]["category_code"]["enum"] == ["groceries", None]
+
+
+async def test_ollama_classify_falls_back_to_json_string_format_on_400(httpx_mock):
+    httpx_mock.add_response(url="http://ollama.local:11434/api/generate", status_code=400)
+    httpx_mock.add_response(
+        url="http://ollama.local:11434/api/generate",
+        json={"response": '{"category_code": "groceries", "confidence": 0.7}'},
+    )
+    classifier = OllamaClassifier(endpoint="http://ollama.local:11434", model="gemma3:4b")
+    result = await classifier.classify(_TRANSACTION, [_CATEGORY])
+    assert result is not None
+    assert result.category_id == _CATEGORY.id
+    requests = httpx_mock.get_requests()
+    assert len(requests) == 2
+    import json as _json
+
+    assert _json.loads(requests[1].content)["format"] == "json"
+
+
 async def test_openai_classify_sends_bearer_auth(httpx_mock):
     httpx_mock.add_response(
         url="https://api.openai.com/v1/chat/completions",
@@ -77,7 +111,78 @@ async def test_openai_invalid_key_raises_provider_error(httpx_mock):
         await classifier.classify(_TRANSACTION, [_CATEGORY])
 
 
-async def test_anthropic_classify_parses_content_block(httpx_mock):
+async def test_openai_classify_sends_json_schema_response_format(httpx_mock):
+    httpx_mock.add_response(
+        url="https://api.openai.com/v1/chat/completions",
+        json={"choices": [{"message": {"content": '{"category_code": "groceries", "confidence": 0.9}'}}]},
+    )
+    classifier = OpenAIClassifier(api_key="sk-test", model="gpt-4o-mini")
+    await classifier.classify(_TRANSACTION, [_CATEGORY])
+    request = httpx_mock.get_requests()[0]
+    import json as _json
+
+    body = _json.loads(request.content)
+    assert body["response_format"]["type"] == "json_schema"
+    assert body["response_format"]["json_schema"]["schema"]["properties"]["category_code"]["enum"] == [
+        "groceries",
+        None,
+    ]
+    # System e user separati (rework prompt AI), non piu' un unico messaggio.
+    assert body["messages"][0]["role"] == "system"
+    assert body["messages"][1]["role"] == "user"
+
+
+async def test_openai_classify_falls_back_to_json_object_on_400(httpx_mock):
+    httpx_mock.add_response(url="https://api.openai.com/v1/chat/completions", status_code=400)
+    httpx_mock.add_response(
+        url="https://api.openai.com/v1/chat/completions",
+        json={"choices": [{"message": {"content": '{"category_code": "groceries", "confidence": 0.9}'}}]},
+    )
+    classifier = OpenAIClassifier(api_key="sk-test", model="gpt-4o-mini")
+    result = await classifier.classify(_TRANSACTION, [_CATEGORY])
+    assert result is not None
+    assert result.category_id == _CATEGORY.id
+    requests = httpx_mock.get_requests()
+    assert len(requests) == 2
+    import json as _json
+
+    assert _json.loads(requests[1].content)["response_format"] == {"type": "json_object"}
+
+
+async def test_anthropic_classify_parses_tool_use_block(httpx_mock):
+    # Percorso principale (rework prompt AI): il modello risponde col tool
+    # forzato, l'input e' gia' un dict strutturato, nessuna estrazione JSON
+    # da testo necessaria.
+    httpx_mock.add_response(
+        url="https://api.anthropic.com/v1/messages",
+        json={
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "classifica_transazione",
+                    "input": {"category_code": "groceries", "confidence": 0.5, "reason": "supermercato"},
+                }
+            ]
+        },
+        match_headers={"x-api-key": "sk-ant-test"},
+    )
+    classifier = AnthropicClassifier(api_key="sk-ant-test", model="claude-3-5-haiku-20241022")
+    result = await classifier.classify(_TRANSACTION, [_CATEGORY])
+    assert result is not None
+    assert result.category_id == _CATEGORY.id
+
+    request = httpx_mock.get_requests()[0]
+    import json as _json
+
+    body = _json.loads(request.content)
+    assert body["tool_choice"] == {"type": "tool", "name": "classifica_transazione"}
+    assert body["tools"][0]["input_schema"]["properties"]["category_code"]["enum"] == ["groceries", None]
+    assert "system" in body  # system separato dal messaggio utente
+
+
+async def test_anthropic_classify_falls_back_to_text_when_no_tool_use_block(httpx_mock):
+    # Modello/versione senza supporto per tool forzato: solo un blocco di
+    # testo libero — stesso percorso robusto degli altri provider.
     httpx_mock.add_response(
         url="https://api.anthropic.com/v1/messages",
         json={"content": [{"type": "text", "text": '{"category_code": "groceries", "confidence": 0.5}'}]},
@@ -87,6 +192,17 @@ async def test_anthropic_classify_parses_content_block(httpx_mock):
     result = await classifier.classify(_TRANSACTION, [_CATEGORY])
     assert result is not None
     assert result.category_id == _CATEGORY.id
+
+
+async def test_anthropic_classify_raises_when_no_usable_content(httpx_mock):
+    httpx_mock.add_response(
+        url="https://api.anthropic.com/v1/messages",
+        json={"content": []},
+        match_headers={"x-api-key": "sk-ant-test"},
+    )
+    classifier = AnthropicClassifier(api_key="sk-ant-test", model="claude-3-5-haiku-20241022")
+    with pytest.raises(AIProviderError):
+        await classifier.classify(_TRANSACTION, [_CATEGORY])
 
 
 async def test_custom_classify_without_api_key_sends_no_auth_header(httpx_mock):

@@ -37,7 +37,20 @@ _CAT_ALIMENTARI = "124e2b3d-02d0-4a8b-9c5e-8b6e83bb2550"
 _CAT_TEMPO_LIBERO = "fee4bffb-85f7-4ad1-bbfc-37c911978e30"
 _CAT_ABBONAMENTI = "9d1ce192-c4f4-48b2-9d38-9e7412014e56"
 
-SYSTEM_CATEGORIES = [
+# CONGELATO (rework tassonomia categorie, vedi app/classification/taxonomy.py):
+# questo e' l'elenco esatto che la migration 0003_accounts_transactions gia'
+# applicata inserisce con `op.bulk_insert`. Alembic non ri-esegue le
+# migration gia' applicate, ma legge SEMPRE il modulo Python corrente per
+# costruirle: se questa lista venisse estesa o modificata in place,
+# `alembic upgrade head` su un DB VUOTO (nuova installazione, ambiente di
+# test da zero) rieseguirebbe 0003 con la lista nuova, inserendo li' la
+# tassonomia completa — che poi la migration dedicata (0021/0022) tenterebbe
+# di reinserire una seconda volta, con `parent_id` incoerenti perche' 0003 e
+# 0021/0022 userebbero versioni diverse della stessa struttura ad albero.
+# Il nome _V1 rende esplicito che e' storia, non manutenibile: nessuna nuova
+# categoria va aggiunta qui, la tassonomia viva e' in
+# app/classification/taxonomy.py (derivata in SYSTEM_CATEGORIES piu' sotto).
+SYSTEM_CATEGORIES_V1 = [
     {"id": _CAT_CASA, "parent_id": None, "name": "Casa", "code": "casa", "sort_order": 10},
     {"id": "dd65a3f5-0537-4d61-869c-5a7b1c04b9e5", "parent_id": _CAT_CASA, "name": "Affitto", "code": "casa.affitto", "sort_order": 11},
     {"id": "73cda961-a3b1-430c-81fb-03c0642cc842", "parent_id": _CAT_CASA, "name": "Bollette", "code": "casa.bollette", "sort_order": 12},
@@ -53,3 +66,9 @@ SYSTEM_CATEGORIES = [
     {"id": "a8493dbc-1dc0-4875-bd1e-d7e36a220cbf", "parent_id": _CAT_ABBONAMENTI, "name": "Streaming", "code": "abbonamenti.streaming", "sort_order": 41},
     {"id": "fc21248e-72b0-4e21-9733-e6b008b8b91e", "parent_id": _CAT_ABBONAMENTI, "name": "Software", "code": "abbonamenti.software", "sort_order": 42},
 ]
+
+# Alias temporaneo (rimosso quando la migration 0022 introduce la tassonomia
+# viva derivata da app/classification/taxonomy.py): tutto cio' che oggi
+# referenzia SYSTEM_CATEGORIES continua a vedere l'elenco V1 finche' quel
+# passo non sposta il reseed di test sulla tassonomia nuova.
+SYSTEM_CATEGORIES = SYSTEM_CATEGORIES_V1

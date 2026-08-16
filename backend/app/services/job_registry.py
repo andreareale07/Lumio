@@ -243,6 +243,31 @@ JOB_DESCRIPTORS: list[JobDescriptor] = [
             ),
         ],
     ),
+    JobDescriptor(
+        kind="reclassification",
+        category="triggered",
+        name="Riclassificazione",
+        description=(
+            "Riapplica la pipeline di classificazione (regole, sistema, opzionalmente AI) alle "
+            "transazioni gia' importate — innescato dall'utente dopo un aggiornamento della "
+            "tassonomia. Non tocca mai le correzioni manuali."
+        ),
+        parameters=[
+            JobParameterSpec(
+                label="Soglia di stallo",
+                unit="secondi",
+                editable=True,
+                setting_key="job_health.reclassification.stale_after_seconds",
+            ),
+            JobParameterSpec(
+                label="Timeout massimo esecuzione",
+                unit="secondi",
+                editable=False,
+                settings_attr="reclassification_job_timeout_seconds",
+                readonly_reason=_READONLY_TIMEOUT_REASON,
+            ),
+        ],
+    ),
 ]
 
 

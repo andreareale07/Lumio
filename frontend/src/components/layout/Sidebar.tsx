@@ -1,4 +1,5 @@
 import {
+  Activity,
   ArrowLeftRight,
   Banknote,
   FolderTree,
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { to: "/net-worth", label: "Patrimonio", icon: Wallet },
   { to: "/investments", label: "Investimenti", icon: PiggyBank },
   { to: "/imports", label: "Import", icon: UploadCloud },
+  { to: "/activity", label: "Attività", icon: Activity },
   { to: "/settings/categories", label: "Categorie", icon: FolderTree },
   { to: "/settings/rules", label: "Regole", icon: Wand2 },
   { to: "/settings/ai", label: "AI", icon: Sparkles },

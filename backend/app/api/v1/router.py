@@ -2,11 +2,13 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     accounts,
+    activity,
     analytics,
     assets,
     auth,
     banks,
     categories,
+    classification,
     import_mappings,
     imports,
     integrations_google,
@@ -42,6 +44,8 @@ api_router.include_router(investment_transactions.router)
 api_router.include_router(positions.router)
 api_router.include_router(system_settings.router)
 api_router.include_router(jobs.router)
+api_router.include_router(classification.router)
+api_router.include_router(activity.router)
 
 # Milestone 10: isolamento reale, non solo un check a runtime (ROADMAP DoD
 # "con GOOGLE_ENABLED=false nessuna funzionalita' core e' impattata") — con

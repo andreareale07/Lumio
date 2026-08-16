@@ -33,16 +33,18 @@ async def _set_setting(key: str, value) -> None:
         await session.commit()
 
 
-async def test_list_jobs_returns_six_jobs_in_two_categories(client):
+async def test_list_jobs_returns_seven_jobs_in_two_categories(client):
     token, _, _ = await _register(client, "jobs-list@example.com")
     response = await client.get("/api/v1/jobs", headers=_auth_headers(token))
     assert response.status_code == 200
     jobs = response.json()
-    assert len(jobs) == 6
+    assert len(jobs) == 7
 
     by_kind = {j["kind"]: j for j in jobs}
     scheduled = {"market_data_refresh", "snapshot_rebuild", "stale_job_reaper"}
-    triggered = {"import", "ai_classification", "google_sheets_export"}
+    # "reclassification" (rework pipeline di classificazione): nuovo job
+    # triggerabile manualmente, stesso principio di import/ai_classification.
+    triggered = {"import", "ai_classification", "google_sheets_export", "reclassification"}
     assert {k for k, j in by_kind.items() if j["category"] == "scheduled"} == scheduled
     assert {k for k, j in by_kind.items() if j["category"] == "triggered"} == triggered
 

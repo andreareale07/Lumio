@@ -48,6 +48,8 @@ class TransactionOut(BaseModel):
     description_raw: str
     description_normalized: str | None
     merchant: str | None
+    counterparty_name: str | None
+    counterparty_iban: str | None
     reference: str | None
     amount: Decimal
     currency: str
@@ -55,10 +57,17 @@ class TransactionOut(BaseModel):
     transaction_type: str
     balance_after: Decimal | None
     status: str
+    needs_review: bool
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class TransactionReviewSummaryOut(BaseModel):
+    total: int
+    classified: int
+    needs_review: int
 
 
 class ClassificationOut(BaseModel):

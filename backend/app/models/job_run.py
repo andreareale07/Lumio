@@ -11,7 +11,7 @@ from app.db.base import Base
 # terzo provider, un export schedulato) significa solo aggiungere il suo
 # nome qui e al CHECK della migration — la tabella/servizio (vedi
 # app/services/job_run_tracker.py) sono gia' generici.
-JOB_KINDS = ("market_data_refresh", "snapshot_rebuild", "google_sheets_export")
+JOB_KINDS = ("market_data_refresh", "snapshot_rebuild", "google_sheets_export", "reclassification")
 JOB_RUN_STATUSES = ("running", "success", "failed")
 
 

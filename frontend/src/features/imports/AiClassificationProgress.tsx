@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 
+import { useEtaEstimate } from "../../lib/eta";
 import { streamAiClassificationEvents, type AiClassificationProgressEvent } from "./api";
 
 /** Indicatore live "x/N" per la classificazione AI disaccoppiata dal job di
@@ -42,10 +43,13 @@ export function AiClassificationProgress({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importId]);
 
+  const eta = useEtaEstimate(processed, total);
+
   return (
     <span className="flex items-center gap-1.5 text-sm text-text-muted">
       <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
       Classificazione AI: {processed}/{total}
+      {eta && ` — ${eta.label}`}
     </span>
   );
 }

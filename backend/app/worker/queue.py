@@ -20,6 +20,7 @@ CLASSIFY_IMPORT_TRANSACTIONS_FUNCTION = "classify_import_transactions_job"
 MARKET_DATA_REFRESH_FUNCTION = "refresh_market_data_for_workspace"
 SNAPSHOT_REBUILD_FUNCTION = "write_snapshot_for_workspace"
 GOOGLE_SHEETS_EXPORT_FUNCTION = "google_sheets_export_job"
+RECLASSIFICATION_FUNCTION = "reclassify_workspace_job"
 
 
 async def get_arq_pool() -> ArqRedis:
@@ -89,6 +90,25 @@ async def enqueue_snapshot_rebuild(workspace_id: uuid.UUID, user_id: uuid.UUID) 
     stesso principio/bugfix di `enqueue_market_data_refresh`."""
     pool = await get_arq_pool()
     job = await pool.enqueue_job(SNAPSHOT_REBUILD_FUNCTION, str(workspace_id), str(user_id))
+    return job.job_id if job is not None else ""
+
+
+async def enqueue_reclassification(workspace_id: uuid.UUID, user_id: uuid.UUID, scope: str, run_ai: bool) -> str:
+    """Trigger manuale (`POST /classification/reclassify`, rework pipeline).
+
+    NESSUN `_job_id` fisso sul workspace — stesso bugfix gia' documentato
+    due volte sopra (`enqueue_market_data_refresh`,
+    `enqueue_google_sheets_export`): arq considera "gia' esistente" un
+    `_job_id` anche quando esiste solo il RISULTATO di un'esecuzione
+    passata, che resta in Redis per `keep_result` (default 1h) — con un id
+    fisso, ogni riclassificazione dopo la prima riuscita verrebbe
+    silenziosamente ignorata da arq per un'ora, mentre l'endpoint
+    continuerebbe a rispondere 202. Il doppio-click "mentre e' in corso"
+    resta gestito a livello applicativo controllando lo stato in
+    `job_runs` (vedi il router), non serve l'idempotenza di arq per quello.
+    """
+    pool = await get_arq_pool()
+    job = await pool.enqueue_job(RECLASSIFICATION_FUNCTION, str(workspace_id), str(user_id), scope, run_ai)
     return job.job_id if job is not None else ""
 
 

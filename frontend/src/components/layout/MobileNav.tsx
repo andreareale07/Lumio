@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Activity,
   ArrowLeftRight,
   Banknote,
   FolderTree,
@@ -33,6 +34,7 @@ const PRIMARY_ITEMS = [
 ];
 
 const MORE_ITEMS = [
+  { to: "/activity", label: "Attività", icon: Activity },
   { to: "/expenses", label: "Spese", icon: Receipt },
   { to: "/income", label: "Entrate", icon: Banknote },
   { to: "/net-worth", label: "Patrimonio", icon: Wallet },

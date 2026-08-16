@@ -107,6 +107,14 @@ class ParsedRow(BaseModel):
     source_type_raw: str | None = None
     reference: str | None
     balance_after: Decimal | None
+    # Popolati DOPO il parsing, in import_job.py (non qui: l'estrazione
+    # merchant e il riconoscimento controparte sono concetti della pipeline
+    # di classificazione, non del parsing del formato file). Default None
+    # cosi' i chiamanti esistenti che costruiscono ParsedRow senza questi
+    # campi (test, altri parser) restano validi.
+    merchant: str | None = None
+    counterparty_name: str | None = None
+    counterparty_iban: str | None = None
 
 
 def _normalize_amount(raw: str, config: MappingConfig) -> Decimal:

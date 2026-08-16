@@ -3,12 +3,13 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_current_workspace_id
 from app.db.session import get_db
+from app.models.category import Category
 from app.models.classification import Classification
 from app.models.financial_account import FinancialAccount
 from app.models.transaction import Transaction
@@ -17,13 +18,30 @@ from app.schemas.transactions import (
     ClassificationOut,
     TransactionCreate,
     TransactionOut,
+    TransactionReviewSummaryOut,
     TransactionUpdate,
 )
 from app.services.audit_log_service import log_event
+from app.services.confidence import needs_review as score_needs_review
 from app.services.rule_loader import load_active_rule_specs
 from app.services.rules_engine import Probe, evaluate
+from app.services.system_settings_service import get_setting_value
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+_NEEDS_REVIEW_THRESHOLD_KEY = "classification.needs_review_threshold"
+
+
+def _is_pending_review(transaction: type[Transaction] = Transaction):
+    """SPEC §43 ("319 classificati, 8 da verificare"): "da verificare" copre
+    sia le transazioni classificate ma incerte (`needs_review=True`) sia
+    quelle mai classificate (`category_id IS NULL`, es. rimaste indietro
+    perche' il job AI e' stato interrotto) — entrambe meritano un secondo
+    sguardo dell'utente, anche se per motivi diversi. Unica definizione,
+    condivisa tra il filtro della lista e il conteggio di riepilogo: usarne
+    due diverse (bug reale) fa si' che il badge mostri un numero che la
+    lista filtrata non trova mai."""
+    return or_(transaction.needs_review.is_(True), transaction.category_id.is_(None))
 
 
 async def _get_transaction_or_404(
@@ -78,12 +96,23 @@ async def create_transaction(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid category_id") from exc
 
     if classification_method is not None:
+        score = Decimal("1.00") if classification_method == "rule" else None
+        # 'manual' (l'utente ha scelto la categoria alla creazione): mai da
+        # verificare, non ha senso segnalare come incerta una scelta
+        # dell'utente stesso. 'rule': punteggio fisso 1.00, sotto qualunque
+        # soglia sensata, ma il confronto resta esplicito per coerenza con
+        # gli altri scrittori.
+        transaction.needs_review = (
+            False
+            if classification_method == "manual"
+            else score_needs_review(score, float(await get_setting_value(_NEEDS_REVIEW_THRESHOLD_KEY, 0.6)))
+        )
         db.add(
             Classification(
                 transaction_id=transaction.id,
                 method=classification_method,
                 category_id=transaction.category_id,
-                score=Decimal("1.00") if classification_method == "rule" else None,
+                score=score,
             )
         )
 
@@ -100,14 +129,31 @@ async def list_transactions(
     transaction_type: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    needs_review: bool | None = None,
+    import_id: uuid.UUID | None = None,
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[Transaction]:
     query = select(Transaction).where(Transaction.workspace_id == workspace_id)
     if financial_account_id is not None:
         query = query.where(Transaction.financial_account_id == financial_account_id)
+    if needs_review is True:
+        query = query.where(_is_pending_review())
+    elif needs_review is False:
+        query = query.where(~_is_pending_review())
+    if import_id is not None:
+        query = query.where(Transaction.import_id == import_id)
     if category_id is not None:
-        query = query.where(Transaction.category_id == category_id)
+        # Match padre-O-figlio, non solo esatto: `category_id` qui e' spesso
+        # un group_id riaccorpato (come in analytics.by_merchant, stesso
+        # pattern) — puo' essere una categoria padre, e le transazioni sono
+        # taggate con la SOTTOCATEGORIA figlia, non col padre stesso. Senza
+        # questo, un link "vedi le transazioni di Trasporti" da una futura
+        # pagina di dettaglio KPI restituirebbe sempre una lista vuota (bug
+        # gia' risolto in by_merchant, qui replicato).
+        query = query.outerjoin(Category, Transaction.category_id == Category.id).where(
+            or_(Transaction.category_id == category_id, Category.parent_id == category_id)
+        )
     if transaction_type is not None:
         query = query.where(Transaction.transaction_type == transaction_type)
     if date_from is not None:
@@ -118,6 +164,34 @@ async def list_transactions(
     query = query.order_by(Transaction.transaction_date.desc()).limit(limit).offset(offset)
     result = await db.execute(query)
     return list(result.scalars().all())
+
+
+@router.get("/review-summary", response_model=TransactionReviewSummaryOut)
+async def get_transaction_review_summary(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+    financial_account_id: uuid.UUID | None = None,
+    import_id: uuid.UUID | None = None,
+) -> TransactionReviewSummaryOut:
+    """SPEC §43 ("319 classificati, 8 da verificare"): 'risolta' = ha una
+    categoria assegnata E non e' `needs_review` — 'da verificare' e' il
+    complemento (include sia le incerte sia le mai classificate, entrambe
+    meritano un secondo sguardo dell'utente, per motivi diversi). Nessuna
+    riga trasferita al client solo per contare: aggregazione lato DB."""
+    base_query = select(Transaction).where(Transaction.workspace_id == workspace_id)
+    if financial_account_id is not None:
+        base_query = base_query.where(Transaction.financial_account_id == financial_account_id)
+    if import_id is not None:
+        base_query = base_query.where(Transaction.import_id == import_id)
+
+    total_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
+    total = total_result.scalar_one()
+
+    pending_query = base_query.where(_is_pending_review())
+    pending_result = await db.execute(select(func.count()).select_from(pending_query.subquery()))
+    pending = pending_result.scalar_one()
+
+    return TransactionReviewSummaryOut(total=total, classified=total - pending, needs_review=pending)
 
 
 @router.get("/{transaction_id}", response_model=TransactionOut)
@@ -147,6 +221,11 @@ async def update_transaction(
         setattr(transaction, field, value)
 
     if category_corrected:
+        # Una correzione manuale chiude SEMPRE la review, incondizionatamente
+        # (non un confronto con la soglia: l'utente ha gia' deciso, non c'e'
+        # altro da verificare) — indipendentemente da cosa l'aveva sollevata
+        # in precedenza (AI incerta, o una riga poi reclassificata).
+        transaction.needs_review = False
         db.add(
             Classification(
                 transaction_id=transaction.id,
