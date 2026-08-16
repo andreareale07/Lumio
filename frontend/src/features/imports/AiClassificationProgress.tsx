@@ -13,10 +13,17 @@ import { streamAiClassificationEvents, type AiClassificationProgressEvent } from
 export function AiClassificationProgress({
   importId,
   total,
+  startedAt,
   onSettled,
 }: {
   importId: string;
   total: number;
+  /** Istante da cui stimare la velocita' "media da inizio" (vedi
+   * `useEtaEstimate`) — l'import stesso e' gia' 'completed' quando questo
+   * componente e' montato, quindi `completed_at` dell'import e' il punto di
+   * partenza piu' vicino che abbiamo alla classificazione AI vera e propria
+   * (nessun timestamp dedicato persistito per quella fase). */
+  startedAt: string | null;
   onSettled: () => void;
 }) {
   const [processed, setProcessed] = useState(0);
@@ -43,7 +50,7 @@ export function AiClassificationProgress({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importId]);
 
-  const eta = useEtaEstimate(processed, total);
+  const eta = useEtaEstimate(processed, total, startedAt);
 
   return (
     <span className="flex items-center gap-1.5 text-sm text-text-muted">

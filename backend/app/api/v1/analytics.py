@@ -148,12 +148,13 @@ async def get_cash_flow(
     granularity: str = "month",
     currency: str | None = None,
     financial_account_id: uuid.UUID | None = None,
+    category_id: uuid.UUID | None = None,
 ) -> CashFlowOut:
     date_from, date_to = _resolve_period(date_from, date_to)
     granularity = _validate_granularity(granularity)
     resolved_currency = await analytics_service.resolve_currency(db, workspace_id, currency)
     points = await analytics_service.cash_flow(
-        db, workspace_id, resolved_currency, granularity, date_from, date_to, financial_account_id
+        db, workspace_id, resolved_currency, granularity, date_from, date_to, financial_account_id, category_id
     )
     return CashFlowOut(
         currency=resolved_currency,

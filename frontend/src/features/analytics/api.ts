@@ -22,6 +22,7 @@ export interface PeriodFilters {
 
 export interface GranularityFilters extends PeriodFilters {
   granularity?: AnalyticsGranularity;
+  category_id?: string;
 }
 
 export interface BreakdownFilters extends PeriodFilters {
@@ -60,18 +61,20 @@ export function useAnalyticsBalanceHistory(filters: GranularityFilters) {
   });
 }
 
-export function useAnalyticsCashFlow(filters: GranularityFilters) {
+export function useAnalyticsCashFlow(filters: GranularityFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: cashFlowKey(filters),
     queryFn: () => api.get<AnalyticsCashFlow>(`/analytics/cash-flow${buildQueryString(filters)}`),
+    enabled: options.enabled ?? true,
   });
 }
 
-export function useAnalyticsByCategory(filters: BreakdownFilters) {
+export function useAnalyticsByCategory(filters: BreakdownFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: byCategoryKey(filters),
     queryFn: () =>
       api.get<AnalyticsCategoryBreakdown>(`/analytics/by-category${buildQueryString(filters)}`),
+    enabled: options.enabled ?? true,
   });
 }
 

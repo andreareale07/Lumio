@@ -4,12 +4,15 @@ import type { ComponentType } from "react";
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { DonutChart } from "../../components/charts/DonutChart";
+import { DrillDownDrawer } from "../../components/charts/DrillDownDrawer";
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { formatMoney, formatPercent, formatPeriodLabel } from "../../lib/format";
+import { previousPeriod } from "../../lib/period";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
+import { useTransactions } from "../transactions/api";
 import type { AnalyticsDirection } from "../../types/api";
 import { useAnalyticsByCategory, useAnalyticsByMerchant, useAnalyticsCashFlow, useAnalyticsSummary } from "./api";
 import { formatBucketLabel } from "./chartData";
@@ -29,15 +32,31 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
     granularities: ["month", "quarter", "year"],
   });
   const period = { date_from: currentPeriod.date_from, date_to: currentPeriod.date_to };
-  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
+  const previousRange = previousPeriod(period.date_from, period.date_to);
+  const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null);
 
   const summary = useAnalyticsSummary(period);
   const cashFlow = useAnalyticsCashFlow({ ...trendWindow, granularity: navGranularity });
   const byCategory = useAnalyticsByCategory({ ...period, direction });
   const byMerchant = useAnalyticsByMerchant({ ...period, direction });
-  const categoryMerchants = useAnalyticsByMerchant(
-    { ...period, direction, category_id: expandedCategoryId ?? undefined },
-    { enabled: !!expandedCategoryId },
+
+  // Dati del drawer di drill-down (SPEC_FE §30): fetch solo quando una
+  // categoria e' selezionata, tutti scoperti da `selectedCategory.id`.
+  const drawerCashFlow = useAnalyticsCashFlow(
+    { ...trendWindow, granularity: navGranularity, category_id: selectedCategory?.id },
+    { enabled: !!selectedCategory },
+  );
+  const drawerMerchants = useAnalyticsByMerchant(
+    { ...period, direction, category_id: selectedCategory?.id },
+    { enabled: !!selectedCategory },
+  );
+  const drawerPreviousCategory = useAnalyticsByCategory(
+    { ...previousRange, direction },
+    { enabled: !!selectedCategory },
+  );
+  const drawerTransactions = useTransactions(
+    { category_id: selectedCategory?.id, date_from: period.date_from, date_to: period.date_to, limit: 5 },
+    { enabled: !!selectedCategory },
   );
 
   const currency = summary.data?.currency ?? "EUR";
@@ -56,6 +75,22 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
     label: formatBucketLabel(p.period, granularity),
     value: Number(direction === "expense" ? p.expenses : p.income),
   }));
+
+  // Contenuto del drawer di drill-down per la categoria selezionata — un
+  // solo posto che assembla i dati da 4 hook diversi nella forma richiesta
+  // dal DrillDownDrawer generico (rework dashboard interattivo).
+  const drawerGranularity = drawerCashFlow.data?.granularity ?? "month";
+  const drawerTrendPoints = (drawerCashFlow.data?.points ?? []).map((p) => ({
+    period: p.period,
+    label: formatBucketLabel(p.period, drawerGranularity),
+    value: Number(direction === "expense" ? p.expenses : p.income),
+  }));
+  const currentCategoryTotal = byCategory.data?.items.find((i) => i.category_id === selectedCategory?.id)?.total;
+  const previousCategoryTotal = drawerPreviousCategory.data?.items.find(
+    (i) => i.category_id === selectedCategory?.id,
+  )?.total;
+  const isDrawerLoading =
+    drawerCashFlow.isLoading || drawerMerchants.isLoading || drawerPreviousCategory.isLoading || drawerTransactions.isLoading;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
@@ -111,7 +146,12 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
         >
           <DonutChart
             currency={currency}
-            data={byCategory.data.items.map((item) => ({ label: item.name, value: Number(item.total) }))}
+            data={byCategory.data.items.map((item) => ({
+              key: item.category_id ?? undefined,
+              label: item.name,
+              value: Number(item.total),
+            }))}
+            onSliceClick={(slice) => slice.key && setSelectedCategory({ id: slice.key, name: slice.label })}
           />
         </ChartCard>
       )}
@@ -120,7 +160,6 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
         <ul className="flex flex-col gap-1">
           {byCategory.data.items.map((item) => {
             const categoryId = item.category_id;
-            const isExpanded = categoryId !== null && expandedCategoryId === categoryId;
             return (
               <li key={categoryId ?? item.name} className="rounded-lg border border-border">
                 {categoryId === null ? (
@@ -131,33 +170,12 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setExpandedCategoryId(isExpanded ? null : categoryId)}
-                    aria-expanded={isExpanded}
+                    onClick={() => setSelectedCategory({ id: categoryId, name: item.name })}
                     className="flex w-full items-center justify-between p-3 text-left text-sm hover:bg-surface-hover"
                   >
                     <span className="text-text">{item.name}</span>
                     <span className="font-numeric text-text-muted">{formatMoney(item.total, currency)}</span>
                   </button>
-                )}
-                {isExpanded && (
-                  <div className="border-t border-border p-3">
-                    {categoryMerchants.isLoading && <Skeleton className="h-16 w-full" />}
-                    {categoryMerchants.data && categoryMerchants.data.items.length === 0 && (
-                      <p className="text-sm text-text-muted">Nessun merchant per questa categoria.</p>
-                    )}
-                    {categoryMerchants.data && categoryMerchants.data.items.length > 0 && (
-                      <ul className="flex flex-col gap-1">
-                        {categoryMerchants.data.items.map((merchant) => (
-                          <li key={merchant.merchant} className="flex items-center justify-between text-sm">
-                            <span className="text-text-muted">{merchant.merchant}</span>
-                            <span className="font-numeric text-text-muted">
-                              {formatMoney(merchant.total, currency)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
                 )}
               </li>
             );
@@ -179,6 +197,38 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
           </ul>
         </div>
       )}
+
+      <DrillDownDrawer
+        open={!!selectedCategory}
+        onClose={() => setSelectedCategory(null)}
+        title={selectedCategory?.name ?? ""}
+        currency={currency}
+        isLoading={isDrawerLoading}
+        comparison={
+          currentCategoryTotal !== undefined
+            ? {
+                current: Number(currentCategoryTotal),
+                previous: Number(previousCategoryTotal ?? 0),
+                higherIsGood: direction === "income",
+              }
+            : undefined
+        }
+        trend={drawerTrendPoints}
+        breakdownTitle="Top merchant"
+        breakdown={(drawerMerchants.data?.items ?? []).map((m) => ({
+          key: m.merchant ?? "senza-merchant",
+          label: m.merchant ?? "Senza merchant",
+          value: Number(m.total),
+        }))}
+        transactions={(drawerTransactions.data ?? []).map((t) => ({
+          id: t.id,
+          label: t.merchant ?? t.description_raw,
+          date: t.transaction_date,
+          amount: t.amount,
+          currency: t.currency,
+        }))}
+        viewAllHref={selectedCategory ? `/transactions?category=${selectedCategory.id}` : undefined}
+      />
     </div>
   );
 }

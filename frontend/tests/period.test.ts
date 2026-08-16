@@ -6,6 +6,7 @@ import {
   nextBucketStart,
   periodForAnchor,
   periodLabel,
+  previousPeriod,
   resolvePeriodPreset,
   shiftAnchor,
   slidingWindow,
@@ -185,5 +186,39 @@ describe("migrateLegacyPeriodParams", () => {
     expect(
       migrateLegacyPeriodParams(new URLSearchParams("period=custom&from=2026-01-01&to=2026-01-31"), TODAY),
     ).toEqual({ mode: "custom", from: "2026-01-01", to: "2026-01-31" });
+  });
+});
+
+describe("previousPeriod", () => {
+  // Speculare a `previous_period` in backend/app/services/analytics_calc.py
+  // (drill-down del cruscotto: confronto per una singola categoria, dove
+  // il backend non calcola gia' un valore "previous_*" come per il summary).
+  it("un mese intero -> il mese precedente, stessa durata", () => {
+    expect(previousPeriod("2026-08-01", "2026-08-31")).toEqual({
+      date_from: "2026-07-01",
+      date_to: "2026-07-31",
+    });
+  });
+
+  it("un solo giorno -> il giorno immediatamente precedente", () => {
+    expect(previousPeriod("2026-08-15", "2026-08-15")).toEqual({
+      date_from: "2026-08-14",
+      date_to: "2026-08-14",
+    });
+  });
+
+  it("range arbitrario di N giorni -> gli N giorni immediatamente precedenti", () => {
+    // 10 giorni (1-10 agosto compresi) -> i 10 giorni precedenti (22-31 luglio)
+    expect(previousPeriod("2026-08-01", "2026-08-10")).toEqual({
+      date_from: "2026-07-22",
+      date_to: "2026-07-31",
+    });
+  });
+
+  it("attraversa il cambio d'anno", () => {
+    expect(previousPeriod("2026-01-01", "2026-01-31")).toEqual({
+      date_from: "2025-12-01",
+      date_to: "2025-12-31",
+    });
   });
 });

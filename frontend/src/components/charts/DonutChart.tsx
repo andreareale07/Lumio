@@ -6,10 +6,25 @@ import { useChartTheme } from "./chartTheme";
 export interface DonutSlice {
   label: string;
   value: number;
+  /** Chiave stabile per il drill-down (es. category_id) — non la stessa
+   * `label` mostrata, che puo' ripetersi o cambiare senza cambiare
+   * identita' (rework dashboard interattivo, click-to-drill-down). */
+  key?: string;
 }
 
-/** Donut spese/entrate per categoria o merchant (SPEC §45, SPEC_FE §16). */
-export function DonutChart({ data, currency }: { data: DonutSlice[]; currency: string }) {
+/** Donut spese/entrate per categoria o merchant (SPEC §45, SPEC_FE §16).
+ * `onSliceClick` opzionale (rework dashboard interattivo, SPEC_FE §68): non
+ * ogni chiamante ha un drill-down significativo per ogni fetta (es. "Senza
+ * categoria" non porta da nessuna parte). */
+export function DonutChart({
+  data,
+  currency,
+  onSliceClick,
+}: {
+  data: DonutSlice[];
+  currency: string;
+  onSliceClick?: (slice: DonutSlice) => void;
+}) {
   const theme = useChartTheme();
 
   return (
@@ -23,6 +38,8 @@ export function DonutChart({ data, currency }: { data: DonutSlice[]; currency: s
           outerRadius="90%"
           paddingAngle={2}
           stroke="none"
+          onClick={onSliceClick ? (entry) => onSliceClick(entry as unknown as DonutSlice) : undefined}
+          style={onSliceClick ? { cursor: "pointer" } : undefined}
         >
           {data.map((slice, i) => (
             <Cell key={slice.label} fill={theme.categorical[i % theme.categorical.length]} />

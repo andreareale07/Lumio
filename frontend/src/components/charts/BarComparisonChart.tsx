@@ -10,8 +10,18 @@ export interface CashFlowBarPoint {
   expenses: number;
 }
 
-/** Entrate vs uscite per periodo (SPEC §45, SPEC_FE §15). */
-export function BarComparisonChart({ data, currency }: { data: CashFlowBarPoint[]; currency: string }) {
+/** Entrate vs uscite per periodo (SPEC §45, SPEC_FE §15). `onBarClick`
+ * opzionale (rework dashboard interattivo, SPEC_FE §68): drill-down sul
+ * singolo bucket temporale cliccato. */
+export function BarComparisonChart({
+  data,
+  currency,
+  onBarClick,
+}: {
+  data: CashFlowBarPoint[];
+  currency: string;
+  onBarClick?: (point: CashFlowBarPoint) => void;
+}) {
   const theme = useChartTheme();
 
   return (
@@ -38,8 +48,22 @@ export function BarComparisonChart({ data, currency }: { data: CashFlowBarPoint[
           formatter={(value) => formatMoney(Number(value), currency)}
         />
         <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: 12, color: theme.textMuted }} />
-        <Bar dataKey="income" name="Entrate" fill={theme.success} radius={[4, 4, 0, 0]} />
-        <Bar dataKey="expenses" name="Uscite" fill={theme.danger} radius={[4, 4, 0, 0]} />
+        <Bar
+          dataKey="income"
+          name="Entrate"
+          fill={theme.success}
+          radius={[4, 4, 0, 0]}
+          onClick={onBarClick ? (point) => onBarClick(point as unknown as CashFlowBarPoint) : undefined}
+          style={onBarClick ? { cursor: "pointer" } : undefined}
+        />
+        <Bar
+          dataKey="expenses"
+          name="Uscite"
+          fill={theme.danger}
+          radius={[4, 4, 0, 0]}
+          onClick={onBarClick ? (point) => onBarClick(point as unknown as CashFlowBarPoint) : undefined}
+          style={onBarClick ? { cursor: "pointer" } : undefined}
+        />
       </BarChart>
     </ResponsiveContainer>
   );

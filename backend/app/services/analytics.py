@@ -351,6 +351,7 @@ async def cash_flow(
     date_from: date,
     date_to: date,
     financial_account_id: uuid.UUID | None = None,
+    category_id: uuid.UUID | None = None,
 ) -> list[dict]:
     bucket_expr = _bucket_expr(granularity)
     query = (
@@ -370,6 +371,14 @@ async def cash_flow(
     )
     if financial_account_id is not None:
         query = query.where(Transaction.financial_account_id == financial_account_id)
+    if category_id is not None:
+        # Match padre-O-figlio, stesso pattern gia' usato in `by_merchant`
+        # (il drill-down per il trend di una categoria del cruscotto: il
+        # `category_id` qui e' spesso un group_id riaccorpato, le
+        # transazioni sono taggate con la sottocategoria figlia).
+        query = query.outerjoin(Category, Transaction.category_id == Category.id).where(
+            or_(Transaction.category_id == category_id, Category.parent_id == category_id)
+        )
 
     rows = (await db.execute(query)).all()
     by_bucket = {r.bucket.date(): (Decimal(r.income), Decimal(r.expenses)) for r in rows}

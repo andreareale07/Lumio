@@ -84,6 +84,22 @@ function addDays(d: Date, days: number): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + days);
 }
 
+/** Periodo immediatamente precedente, della stessa durata — speculare a
+ * `previous_period` in `backend/app/services/analytics_calc.py` (usata li'
+ * per "vs periodo precedente" di KPI/Cash Flow). Qui serve per lo stesso
+ * confronto ma per UNA categoria (drill-down del cruscotto), dove non c'e'
+ * un campo `previous_*` gia' calcolato dal backend come per il summary
+ * generale — due chiamate a `by-category` con questo range, non un nuovo
+ * endpoint. */
+export function previousPeriod(dateFrom: string, dateTo: string): Period {
+  const from = new Date(`${dateFrom}T00:00:00`);
+  const to = new Date(`${dateTo}T00:00:00`);
+  const lengthDays = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+  const prevTo = addDays(from, -1);
+  const prevFrom = addDays(prevTo, -(lengthDays - 1));
+  return { date_from: toIsoDate(prevFrom), date_to: toIsoDate(prevTo) };
+}
+
 const GRANULARITY_MONTHS: Partial<Record<Granularity, number>> = {
   month: 1,
   quarter: 3,

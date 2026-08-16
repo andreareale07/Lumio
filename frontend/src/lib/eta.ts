@@ -28,8 +28,23 @@ interface EtaTrackerState {
 /** Hook con stato persistente tra i render (via ref, non useState: non deve
  * causare un re-render suo — è già `processed` a farlo scattare). Chiamare
  * ad ogni render con lo stato di progresso corrente; ritorna la stima
- * aggiornata o `null` finché non c'è ancora un campione realistico. */
-export function useEtaEstimate(processed: number | null, total: number | null): EtaEstimate | null {
+ * aggiornata o `null` finché non c'è ancora nessun dato utile.
+ *
+ * `startedAtIso`, se noto, da' una stima "media da inizio" (processate
+ * finora / tempo trascorso dall'avvio REALE del job) disponibile SUBITO,
+ * anche prima che arrivi un solo evento live realistico — utile perche'
+ * l'EMA da sola resta `null` finche' non osserva un intervallo vero tra due
+ * eventi, il che su un job lento (secondi per riga) puo' voler dire restare
+ * senza stima per un bel po' dopo aver aperto la pagina. Usata SOLO come
+ * fallback finche' l'EMA non ha ancora un valore: una volta che arrivano
+ * eventi live reali, l'EMA la sostituisce perche' piu' reattiva a un
+ * rallentamento/accelerazione in corso (la media-da-inizio si aggiorna
+ * lentissimamente su un job che ha gia' accumulato molte ore). */
+export function useEtaEstimate(
+  processed: number | null,
+  total: number | null,
+  startedAtIso?: string | null,
+): EtaEstimate | null {
   const stateRef = useRef<EtaTrackerState>({ lastProcessed: null, lastTimestampMs: null, emaMsPerItem: null });
 
   if (processed == null || total == null || total <= 0 || processed >= total) {
@@ -58,11 +73,23 @@ export function useEtaEstimate(processed: number | null, total: number | null): 
     state.lastTimestampMs = now;
   }
 
-  if (state.emaMsPerItem == null) return null;
-
   const remainingItems = total - processed;
-  const remainingSeconds = (remainingItems * state.emaMsPerItem) / 1000;
-  return { remainingSeconds, label: formatRemaining(remainingSeconds) };
+
+  if (state.emaMsPerItem != null) {
+    const remainingSeconds = (remainingItems * state.emaMsPerItem) / 1000;
+    return { remainingSeconds, label: formatRemaining(remainingSeconds) };
+  }
+
+  if (startedAtIso && processed > 0) {
+    const elapsedMs = now - new Date(startedAtIso).getTime();
+    if (elapsedMs > 0) {
+      const avgMsPerItem = elapsedMs / processed;
+      const remainingSeconds = (remainingItems * avgMsPerItem) / 1000;
+      return { remainingSeconds, label: formatRemaining(remainingSeconds) };
+    }
+  }
+
+  return null;
 }
 
 function formatRemaining(seconds: number): string {

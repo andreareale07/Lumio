@@ -100,6 +100,7 @@ export function ImportsPage() {
                     <AiClassificationProgress
                       importId={importRecord.id}
                       total={importRecord.ai_transactions_total}
+                      startedAt={importRecord.completed_at}
                       onSettled={() => queryClient.invalidateQueries({ queryKey: importsKey })}
                     />
                   )}

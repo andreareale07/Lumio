@@ -261,6 +261,38 @@ async def test_cash_flow_buckets_by_semester(client):
     assert points["2026-07-01"]["income"] == "300.00"
 
 
+async def test_cash_flow_filters_by_category_matching_parent_or_child(client):
+    # Drill-down del cruscotto (rework dashboard interattivo): il trend di
+    # una categoria deve trovare le transazioni sulla categoria stessa E su
+    # una sua sottocategoria, stesso pattern gia' verificato per by_merchant.
+    token = await _register(client, "cashflow-category@example.com")
+    account_id = await _create_account(client, token)
+    alimentari = await _category_id(client, token, "alimentari")
+    supermercato = await _category_id(client, token, "alimentari.supermercato")
+    trasporti = await _category_id(client, token, "trasporti")
+
+    await _create_transaction(
+        client, token, account_id, transaction_date="2026-08-15",
+        amount="-50.00", category_id=supermercato,
+    )
+    await _create_transaction(
+        client, token, account_id, transaction_date="2026-08-16",
+        amount="-30.00", category_id=trasporti,
+    )
+
+    response = await client.get(
+        "/api/v1/analytics/cash-flow",
+        params={
+            "date_from": "2026-08-01", "date_to": "2026-08-31", "granularity": "month",
+            "category_id": alimentari,
+        },
+        headers=_auth_headers(token),
+    )
+    assert response.status_code == 200
+    points = response.json()["points"]
+    assert points[0]["expenses"] == "50.00"
+
+
 async def test_invalid_granularity_returns_400(client):
     token = await _register(client, "invalid-granularity@example.com")
 
