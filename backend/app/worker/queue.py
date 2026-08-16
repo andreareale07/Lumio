@@ -16,6 +16,7 @@ from app.core.config import get_settings
 _pool: ArqRedis | None = None
 
 IMPORT_JOB_FUNCTION = "import_job"
+CLASSIFY_IMPORT_TRANSACTIONS_FUNCTION = "classify_import_transactions_job"
 MARKET_DATA_REFRESH_FUNCTION = "refresh_market_data_for_workspace"
 SNAPSHOT_REBUILD_FUNCTION = "write_snapshot_for_workspace"
 GOOGLE_SHEETS_EXPORT_FUNCTION = "google_sheets_export_job"
@@ -43,6 +44,22 @@ async def enqueue_import_job(import_id: uuid.UUID, created_by_user_id: uuid.UUID
         _job_id=f"import:{import_id}",
     )
     job_id = job.job_id if job is not None else f"import:{import_id}"
+    return job_id
+
+
+async def enqueue_classify_import_job(import_id: uuid.UUID, created_by_user_id: uuid.UUID) -> str:
+    """Accoda la classificazione AI disaccoppiata (vedi
+    ai_classification_job.py) — stesso principio di `_job_id` fisso di
+    `enqueue_import_job`: un solo job di classificazione per import, mai
+    duplicato da un retry o da un doppio trigger."""
+    pool = await get_arq_pool()
+    job = await pool.enqueue_job(
+        CLASSIFY_IMPORT_TRANSACTIONS_FUNCTION,
+        str(import_id),
+        str(created_by_user_id),
+        _job_id=f"ai_classification:{import_id}",
+    )
+    job_id = job.job_id if job is not None else f"ai_classification:{import_id}"
     return job_id
 
 

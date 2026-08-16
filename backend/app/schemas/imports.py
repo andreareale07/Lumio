@@ -54,6 +54,12 @@ class ImportOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
+    # Classificazione AI disaccoppiata dal job di import (rework UX/design):
+    # None finche' l'import non e' 'completed', poi pending/running/
+    # completed/failed/skipped — vedi ai_classification_job.py.
+    ai_classification_status: str | None
+    ai_transactions_total: int
+    ai_transactions_classified: int
 
     model_config = {"from_attributes": True}
 
@@ -97,3 +103,18 @@ class ImportDuplicateError(BaseModel):
     detail: str
     existing_import_id: uuid.UUID
     existing_status: str
+
+
+class ImportTransactionsCountOut(BaseModel):
+    transactions_count: int
+
+
+class ImportDeleteResult(BaseModel):
+    deleted_transactions_count: int
+
+
+class ImportFileContent(BaseModel):
+    columns: list[str] = Field(default_factory=list)
+    rows: list[list[str]] = Field(default_factory=list)
+    truncated: bool
+    total_rows: int

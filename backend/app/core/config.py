@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     max_import_file_size_bytes: int = 10 * 1024 * 1024
     import_job_timeout_seconds: int = 300
     job_events_ttl_seconds: int = 86400
+    # Classificazione AI disaccoppiata dal job di import (rework UX/design):
+    # budget proprio, molto piu' ampio di import_job_timeout_seconds — deve
+    # coprire N chiamate sequenziali al provider (~ai_classify_timeout_seconds
+    # ciascuna), non solo una singola chiamata.
+    ai_classification_job_timeout_seconds: int = 1800
 
     # --- Trade Republic Parser / import PDF (milestone 05) ---
     # Limite piu' stretto del job_timeout generale (SPEC §53): l'apertura di

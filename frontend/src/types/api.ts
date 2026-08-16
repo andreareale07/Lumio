@@ -272,7 +272,12 @@ export interface ImportRecord {
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
   completed_at: IsoDateTime | null;
+  ai_classification_status: AiClassificationStatus | null;
+  ai_transactions_total: number;
+  ai_transactions_classified: number;
 }
+
+export type AiClassificationStatus = "pending" | "running" | "completed" | "failed" | "skipped";
 
 export interface ImportPreview {
   columns: string[];

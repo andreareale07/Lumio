@@ -40,6 +40,10 @@ IMPORT_STATUSES = (
 # Milestone 05: secondo canale oltre al CSV di M04. Default 'csv' per le
 # righe gia' esistenti (nessun backfill esplicito necessario).
 FILE_TYPES = ("csv", "pdf")
+# Classificazione AI disaccoppiata dal job di import (vedi migration 0019):
+# None = import ancora in corso o creato prima di questa feature; "skipped"
+# = nessuna AI attiva o nessuna transazione da classificare dopo le regole.
+AI_CLASSIFICATION_STATUSES = ("pending", "running", "completed", "failed", "skipped")
 
 
 class Import(Base):
@@ -53,6 +57,12 @@ class Import(Base):
         CheckConstraint(
             "file_type IN (" + ", ".join(f"'{t}'" for t in FILE_TYPES) + ")",
             name="ck_imports_file_type",
+        ),
+        CheckConstraint(
+            "ai_classification_status IN ("
+            + ", ".join(f"'{s}'" for s in AI_CLASSIFICATION_STATUSES)
+            + ") OR ai_classification_status IS NULL",
+            name="ck_imports_ai_classification_status",
         ),
         # Stesso pattern di `transactions` -> `financial_accounts` (M03):
         # garanzia DB reale, non solo applicativa/RLS, che il conto
@@ -123,3 +133,6 @@ class Import(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ai_classification_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    ai_transactions_total: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    ai_transactions_classified: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))

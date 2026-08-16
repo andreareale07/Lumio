@@ -33,8 +33,6 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from app.ai.base import AIClassificationResult, ClassifiableTransaction
-from app.ai.registry import build_classifier
 from app.core.config import get_settings
 from app.db.rls import rls_session
 from app.models.bank_parser import BankParser as BankParserRow
@@ -44,11 +42,9 @@ from app.models.investment_transaction import InvestmentTransaction
 from app.models.transaction import Transaction
 from app.parsers import get_parser
 from app.services import job_events
-from app.services.ai_classification import classify_transaction, load_category_options
 from app.services.ai_profile_service import get_active_profile
 from app.services.asset_matching import get_or_create_asset_by_isin
 from app.services.audit_log_service import log_event
-from app.services.confidence import compute_ai_confidence
 from app.services.csv_import import MappingConfig, ParsedRow, parse_rows
 from app.services.import_paths import original_file_path
 from app.services.position_service import recompute_position
@@ -58,6 +54,7 @@ from app.services.trade_parsing import ParsedTrade, parse_trade_description
 from app.services.transaction_type_mapping_service import resolve_transaction_type
 from app.services.transfer_recognition import is_internal_transfer
 from app.storage import get_storage
+from app.worker.queue import enqueue_classify_import_job
 
 logger = logging.getLogger("lumio.worker.import_job")
 
@@ -88,8 +85,22 @@ async def import_job(ctx, import_id: str, created_by_user_id: str) -> None:
             await _process_pdf(import_uuid, user_uuid)
         else:
             await _process_csv(import_uuid, user_uuid)
-    except Exception:
-        logger.exception("import %s failed", import_id)
+    except (Exception, asyncio.CancelledError) as exc:
+        # Bug reale scoperto su dati veri (import PDF con molte righe da
+        # classificare via AI locale, ~14s a chiamata): il budget totale del
+        # job (import_job_timeout_seconds, arq `job_timeout`) puo' esaurirsi
+        # per il CUMULO delle chiamate, anche se ciascuna singola chiamata
+        # resta sotto il proprio timeout (ai_classify_timeout_seconds). Arq
+        # a quel punto CANCELLA il task — e da Python 3.8 in poi
+        # `asyncio.CancelledError` eredita da BaseException, NON da
+        # Exception: un `except Exception:` (com'era prima) lo lascia
+        # passare senza eseguire nessuna pulizia, lasciando la riga import
+        # bloccata per sempre nello stato intermedio in cui si trovava
+        # (mai "failed", nessun bottone di eliminazione utilizzabile perche'
+        # la guardia di DELETE /imports/{id} blocca proprio gli stati non
+        # terminali). Va quindi catturata esplicitamente qui.
+        is_cancelled = isinstance(exc, asyncio.CancelledError)
+        logger.exception("import %s failed%s", import_id, " (cancellato per timeout)" if is_cancelled else "")
         async with rls_session(user_uuid) as db:
             import_row = await db.get(Import, import_uuid)
             if import_row is not None:
@@ -97,15 +108,25 @@ async def import_job(ctx, import_id: str, created_by_user_id: str) -> None:
                 # Mai contenuto finanziario nel messaggio (SPEC §55): solo
                 # una descrizione generica, il dettaglio tecnico resta nei
                 # log applicativi (via logger.exception sopra).
-                import_row.error_message = "Impossibile completare l'import: errore durante l'elaborazione del file"
+                import_row.error_message = (
+                    "Impossibile completare l'import: tempo massimo di elaborazione superato"
+                    if is_cancelled
+                    else "Impossibile completare l'import: errore durante l'elaborazione del file"
+                )
                 await db.commit()
         await job_events.emit(
             import_uuid, "job.failed", message="Impossibile completare l'import"
         )
-        # Non ri-solleva: la gestione dell'errore e' gia' completa (stato
-        # persistito + evento emesso). Un retry automatico di arq su un
-        # errore di parsing deterministico sarebbe un no-op comunque, per
-        # via della guardia sullo stato sopra.
+        if is_cancelled:
+            # MAI assorbire una cancellazione reale: arq deve continuare a
+            # vedere il timeout come tale (per le sue metriche/log propri) —
+            # qui si e' solo garantito che la pulizia applicativa avvenga
+            # PRIMA che la cancellazione risalga, non che venga ignorata.
+            raise
+        # Per un errore "normale" (non cancellazione) non si ri-solleva: la
+        # gestione e' gia' completa (stato persistito + evento emesso). Un
+        # retry automatico di arq su un errore di parsing deterministico
+        # sarebbe un no-op comunque, per via della guardia sullo stato sopra.
 
 
 async def _process_csv(import_uuid: uuid.UUID, user_uuid: uuid.UUID) -> None:
@@ -221,23 +242,23 @@ async def _insert_transactions_and_complete(
         if import_row is None or import_row.status != "parsing":
             return
 
-        # Rules Engine (milestone 06, SPEC §23) valutato prima di qualsiasi
-        # AI (milestone 07, SPEC §28: Rules -> AI) — nessun parser popola
-        # ancora `merchant`, quindi entrambi matchano solo su description
-        # qui, ma i motori restano invariati quando un parser lo popolera'.
-        # Le chiamate AI restano sequenziali dentro la stessa transazione
-        # DB gia' usata per le regole: accettabile alla scala di un import
-        # personale (decine/centinaia di righe), non pensato per volumi
-        # enterprise — un provider lento allunga la durata del job ma non
-        # blocca richieste HTTP (gia' async via worker, SPEC §51).
+        # Rules Engine (milestone 06, SPEC §23) valutato qui, inline: e'
+        # locale e rapido. La classificazione AI (milestone 07, SPEC §28:
+        # Rules -> AI) NON avviene piu' qui — bug reale scoperto sui dati
+        # veri dell'utente: il timeout del job di import e' un budget
+        # cumulativo su TUTTO il job (arq `job_timeout`), non per singola
+        # chiamata AI, quindi un import con molte righe non classificate
+        # dalle regole poteva essere cancellato a meta' solo per il tempo
+        # totale speso a interrogare il provider in sequenza. Le righe non
+        # classificate dalle regole vengono lasciate `category_id IS NULL`
+        # qui e classificate DOPO, da un job separato con un proprio timeout
+        # (vedi ai_classification_job.py, accodato in fondo a questa
+        # funzione) — l'import stesso non aspetta piu' l'AI per completarsi.
         active_rules = await load_active_rule_specs(db, workspace_id)
         active_ai_profile = await get_active_profile(db, workspace_id)
-        ai_classifier = build_classifier(active_ai_profile)
-        ai_categories = await load_category_options(db, workspace_id) if active_ai_profile is not None else []
 
         transactions: list[Transaction] = []
         matched_categories: dict[int, uuid.UUID] = {}
-        ai_results: dict[int, AIClassificationResult] = {}
         # Milestone 09c: se la DESCRIZIONE matcha il formato Trade Republic
         # per i movimenti "Commercio" (verificato sui dati reali dell'utente,
         # vedi docstring di trade_parsing.py), si deriva automaticamente un
@@ -251,22 +272,6 @@ async def _insert_transactions_and_complete(
                 merchant=None,
             )
             matched_category_id = evaluate(active_rules, probe)
-            if matched_category_id is None and ai_categories:
-                ai_result = await classify_transaction(
-                    ai_classifier,
-                    ai_categories,
-                    ClassifiableTransaction(
-                        description_raw=row.description_raw,
-                        description_normalized=row.description_normalized,
-                        merchant=None,
-                        amount=str(row.amount),
-                        currency=row.currency,
-                        direction=row.direction,
-                    ),
-                )
-                if ai_result is not None:
-                    matched_category_id = ai_result.category_id
-                    ai_results[index] = ai_result
 
             transaction = Transaction(
                 workspace_id=workspace_id,
@@ -287,14 +292,14 @@ async def _insert_transactions_and_complete(
             )
             db.add(transaction)
             transactions.append(transaction)
-            if matched_category_id is not None and index not in ai_results:
+            if matched_category_id is not None:
                 matched_categories[index] = matched_category_id
 
             parsed_trade = parse_trade_description(row.description_raw)
             if parsed_trade is not None:
                 parsed_trades[index] = parsed_trade
 
-        if matched_categories or ai_results or parsed_trades:
+        if matched_categories or parsed_trades:
             # Serve un flush per ottenere gli id (server-generated) delle
             # transazioni appena aggiunte, prima di poterli referenziare da
             # `classifications.transaction_id` — un solo commit resta alla
@@ -309,19 +314,6 @@ async def _insert_transactions_and_complete(
                         score=Decimal("1.00"),
                     )
                 )
-            for index, ai_result in ai_results.items():
-                db.add(
-                    Classification(
-                        transaction_id=transactions[index].id,
-                        method="ai",
-                        provider=active_ai_profile.provider,
-                        model=active_ai_profile.model,
-                        category_id=ai_result.category_id,
-                        score=compute_ai_confidence(ai_result.raw_confidence, has_merchant=False),
-                        explanation=ai_result.explanation,
-                    )
-                )
-
             # Milestone 09c: un InvestmentTransaction per ogni riga
             # riconosciuta, collegata alla transazione bancaria via
             # `transaction_id` (link opzionale, qui popolato perche' e'
@@ -364,6 +356,16 @@ async def _insert_transactions_and_complete(
             import_row.period_start = min(dates)
             import_row.period_end = max(dates)
         import_row.completed_at = datetime.now(UTC)
+
+        # Righe non classificate dalle regole: se un profilo AI e' attivo,
+        # restano da classificare in background (vedi commento sopra); se
+        # non c'e' nessuna riga da classificare o nessuna AI attiva, non c'e'
+        # nulla da accodare.
+        unclassified_count = len(transactions) - len(matched_categories)
+        should_enqueue_ai_job = active_ai_profile is not None and unclassified_count > 0
+        import_row.ai_classification_status = "pending" if should_enqueue_ai_job else "skipped"
+        import_row.ai_transactions_total = unclassified_count if should_enqueue_ai_job else 0
+
         await log_event(
             db,
             workspace_id,
@@ -382,3 +384,6 @@ async def _insert_transactions_and_complete(
         progress=100,
         transactions_imported=len(rows),
     )
+
+    if should_enqueue_ai_job:
+        await enqueue_classify_import_job(import_uuid, user_uuid)

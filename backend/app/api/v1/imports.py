@@ -1,11 +1,13 @@
 import csv
 import hashlib
 import io
+import logging
 import uuid
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,21 +19,29 @@ from app.models.bank_parser import BankParser as BankParserRow
 from app.models.financial_account import FinancialAccount
 from app.models.import_ import Import
 from app.models.import_mapping import ImportMapping
+from app.models.investment_transaction import InvestmentTransaction
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.parsers import detect_parser
 from app.schemas.imports import (
     ImportConfirmRequest,
+    ImportDeleteResult,
+    ImportFileContent,
     ImportMappingOut,
     ImportOut,
     ImportPreview,
+    ImportTransactionsCountOut,
     ImportUploadResponse,
 )
 from app.services import job_events, upload_validation
 from app.services.audit_log_service import log_event
 from app.services.csv_import import MappingConfig, detect_mapping
-from app.services.import_paths import original_file_path
+from app.services.import_paths import import_dir_prefix, original_file_path
+from app.services.position_service import recompute_position
 from app.storage import get_storage
 from app.worker.queue import enqueue_import_job
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 
@@ -54,12 +64,47 @@ async def _assert_account_in_workspace(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid financial_account_id")
 
 
-def _extract_sample(text: str, mapping: MappingConfig, max_rows: int = 5) -> tuple[list[str], list[list[str]]]:
+def _extract_sample(
+    text: str, mapping: MappingConfig, max_rows: int | None = 5
+) -> tuple[list[str], list[list[str]]]:
     lines = text.splitlines()[mapping.skip_rows :]
     rows = list(csv.reader(io.StringIO("\n".join(lines)), delimiter=mapping.delimiter))
     if not rows:
         return [], []
+    if max_rows is None:
+        return rows[0], rows[1:]
     return rows[0], rows[1 : 1 + max_rows]
+
+
+async def _abort_job_best_effort(job_id: str | None) -> None:
+    """Ferma un job arq ancora IN CODA (mai uno gia' in esecuzione — arq non
+    ha un meccanismo di interruzione per quelli, vedi commento su
+    `delete_import` sotto). Chiamata da `cancel_import`/`delete_import` per il
+    job di import (`import_row.job_id`) e da `delete_import` per il job di
+    classificazione AI disaccoppiato (id fisso `ai_classification:{id}`,
+    vedi `enqueue_classify_import_job`) quando ancora 'pending'."""
+    if not job_id:
+        return
+    try:
+        from arq.jobs import Job
+
+        from app.worker.queue import get_arq_pool
+
+        pool = await get_arq_pool()
+        # timeout esplicito (mai None): senza, arq resta in attesa "per
+        # sempre" di una conferma di risultato (vedi Job.abort docstring)
+        # se nessun worker sta davvero eseguendo la coda in quel momento —
+        # scoperto da un test reale che si bloccava indefinitamente. E'
+        # comunque un'operazione best-effort: non ci serve la conferma, solo
+        # segnalare l'abort e proseguire.
+        await Job(job_id, pool).abort(timeout=1.0)
+    except Exception:
+        # Best-effort: la vera rete di sicurezza e' il controllo dello stato
+        # ('queued'/'pending') fatto dal job stesso appena parte, vedi
+        # import_job.py e ai_classification_job.py — se l'abort arq non
+        # funziona, il job comunque non processa nulla trovando lo stato
+        # cambiato (cancelled, o la riga import sparita).
+        pass
 
 
 def _referenced_columns(mapping: MappingConfig) -> list[str]:
@@ -374,10 +419,23 @@ async def confirm_import(
     # sono gia' stati risolti e salvati all'upload — si passa direttamente
     # all'accodamento del job.
 
-    job_id = await enqueue_import_job(import_row.id, import_row.created_by_user_id)
+    # Bug reale scoperto con un E2E su Docker reale (worker piu' rapido del
+    # previsto): l'ordine "enqueue prima, poi commit di status='queued'"
+    # apriva una finestra di corsa in cui il worker poteva dequeuare il job
+    # e leggere ancora status='uploaded' dal DB (commit non ancora visibile),
+    # facendolo abortire per sempre con "status=uploaded (non 'queued'),
+    # skip" — l'import restava bloccato a 'queued' senza che nessuno lo
+    # riprocessasse mai. Fix: il job_id e' deterministico
+    # (f"import:{import_id}", vedi enqueue_import_job) quindi si puo'
+    # calcolare e COMMITTARE lo stato PRIMA di accodare davvero il job su
+    # Redis, eliminando la finestra di corsa alla radice invece di
+    # restringerla soltanto.
+    job_id = f"import:{import_row.id}"
     import_row.job_id = job_id
     import_row.status = "queued"
     await db.commit()
+
+    await enqueue_import_job(import_row.id, import_row.created_by_user_id)
 
     await job_events.emit(
         import_row.id,
@@ -403,25 +461,226 @@ async def cancel_import(
             status.HTTP_409_CONFLICT, f"Import in stato '{import_row.status}', non annullabile"
         )
 
-    if import_row.job_id:
-        try:
-            from arq.jobs import Job
-
-            from app.worker.queue import get_arq_pool
-
-            pool = await get_arq_pool()
-            await Job(import_row.job_id, pool).abort()
-        except Exception:
-            # Best-effort: la vera rete di sicurezza e' il controllo dello
-            # stato ('queued') fatto dal job stesso appena parte (vedi
-            # app/worker/jobs/import_csv.py) — se l'abort arq non funziona,
-            # il job comunque non processa nulla trovando status=cancelled.
-            pass
+    await _abort_job_best_effort(import_row.job_id)
 
     import_row.status = "cancelled"
     await db.commit()
     await job_events.emit(import_row.id, "job.cancelled", message="Import annullato dall'utente")
     return import_row
+
+
+@router.get("/{import_id}/transactions-count", response_model=ImportTransactionsCountOut)
+async def get_import_transactions_count(
+    import_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> ImportTransactionsCountOut:
+    """Conteggio LIVE (non il contatore congelato `transactions_imported`,
+    che non rifletterebbe eventuali eliminazioni singole successive via
+    `DELETE /transactions/{id}`) — usato dal dialog di conferma eliminazione
+    per mostrare l'impatto reale prima che l'utente confermi."""
+    await _get_import_or_404(db, workspace_id, import_id)
+    result = await db.execute(
+        select(func.count())
+        .select_from(Transaction)
+        .where(Transaction.workspace_id == workspace_id, Transaction.import_id == import_id)
+    )
+    return ImportTransactionsCountOut(transactions_count=result.scalar_one())
+
+
+@router.delete("/{import_id}", response_model=ImportDeleteResult)
+async def delete_import(
+    import_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> ImportDeleteResult:
+    """Eliminazione, con comportamento diverso per stato (deciso con
+    l'utente dopo aver verificato cosa arq puo' davvero garantire):
+    - uploaded/queued: nessuna transazione esiste ancora (il job non ha
+      ancora scritto nulla) — si tenta di fermare il job in coda
+      (`_abort_job_best_effort`, stesso meccanismo di `cancel_import`) e si
+      procede subito con l'eliminazione.
+    - processing/parsing: il job e' REALMENTE in esecuzione e arq non ha
+      un modo affidabile di interromperlo a meta' (solo i job ancora in
+      coda si possono abortire) — eliminare qui rischierebbe una corsa con
+      scritture del worker ancora in corso. Rifiutato esplicitamente (409),
+      mai un bottone silenziosamente assente: l'utente deve capire perche'
+      deve aspettare.
+    - completed/failed/cancelled: il job (se mai partito) e' certamente
+      terminato — si cancellano le transazioni collegate e la riga import.
+
+    Stesso principio si applica al job di classificazione AI disaccoppiato
+    (`ai_classification_status`, vedi ai_classification_job.py), che scrive
+    su QUESTE STESSE transazioni dopo che l'import e' gia' 'completed': se e'
+    'running' e' REALMENTE in esecuzione (stessa impossibilita' di
+    interromperlo a meta') — rifiutato con 409, mai una corsa silenziosa tra
+    la sua scrittura e la DELETE. Se e' 'pending' (ancora in coda, non ha
+    ancora toccato nulla) si tenta l'abort best-effort e si procede.
+    """
+    import_row = await _get_import_or_404(db, workspace_id, import_id)
+
+    if import_row.status in ("processing", "parsing"):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Import in elaborazione: attendi il completamento prima di poterlo eliminare",
+        )
+    if import_row.ai_classification_status == "running":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Classificazione AI in corso: attendi il completamento prima di poterlo eliminare",
+        )
+
+    if import_row.status in ("uploaded", "queued"):
+        await _abort_job_best_effort(import_row.job_id)
+    if import_row.ai_classification_status == "pending":
+        await _abort_job_best_effort(f"ai_classification:{import_row.id}")
+
+    # Scoperto su dati reali (import PDF Trade Republic con
+    # investment_transactions collegate via transaction_id, M09.5c): cancellare
+    # a ritroso, MAI allargare i vincoli — le righe dipendenti vanno rimosse
+    # (o scollegate, se non devono sparire) PRIMA della riga padre, cosi'
+    # nessuna delete successiva viola mai un vincolo.
+    #
+    # `source_type_raw` distingue le due categorie (mai popolato da un
+    # inserimento manuale, vedi commento su InvestmentTransactionCreate):
+    # - auto-creato dal parser durante l'import (source_type_raw NOT NULL):
+    #   e' conseguenza dell'import stesso — si cancella per intero, poi si
+    #   ricalcola la posizione (asset, conto) coinvolta, stesso servizio
+    #   usato da DELETE /investment-transactions/{id}.
+    # - inserito/collegato a mano dall'utente (source_type_raw NULL): resta
+    #   dato reale dell'utente, NON creato da questo import — si scollega
+    #   solo il riferimento alla transazione in via di cancellazione, la riga
+    #   stessa non si tocca.
+    linked_result = await db.execute(
+        select(InvestmentTransaction).where(
+            InvestmentTransaction.workspace_id == workspace_id,
+            InvestmentTransaction.transaction_id.in_(
+                select(Transaction.id).where(
+                    Transaction.workspace_id == workspace_id, Transaction.import_id == import_id
+                )
+            ),
+        )
+    )
+    linked_investment_transactions = list(linked_result.scalars().all())
+
+    positions_to_recompute: set[tuple[uuid.UUID, uuid.UUID, str]] = set()
+    for investment_txn in linked_investment_transactions:
+        if investment_txn.source_type_raw is not None:
+            if investment_txn.asset_id is not None:
+                positions_to_recompute.add(
+                    (investment_txn.financial_account_id, investment_txn.asset_id, investment_txn.currency)
+                )
+            await db.delete(investment_txn)
+        else:
+            investment_txn.transaction_id = None
+    await db.flush()
+
+    for account_id, asset_id, currency in positions_to_recompute:
+        await recompute_position(db, workspace_id, account_id, asset_id, currency)
+
+    delete_result = await db.execute(
+        delete(Transaction).where(
+            Transaction.workspace_id == workspace_id, Transaction.import_id == import_id
+        )
+    )
+    deleted_count = delete_result.rowcount
+
+    await log_event(
+        db,
+        workspace_id,
+        user.id,
+        "IMPORT_DELETED",
+        entity_type="import",
+        entity_id=import_row.id,
+        metadata={"deleted_transactions_count": deleted_count},
+    )
+    file_type = import_row.file_type
+    await db.delete(import_row)
+    await db.commit()
+
+    # I dati finanziari nel DB sono la parte critica e sono gia' stati
+    # eliminati con successo a questo punto — la rimozione del file su
+    # storage e' un'operazione best-effort separata, MAI dentro la stessa
+    # transazione DB (un filesystem non e' transazionale con Postgres: se il
+    # commit sopra fallisse dopo aver gia' cancellato il file, resterebbe uno
+    # stato inconsistente irreversibile; nel caso peggiore qui si lascia solo
+    # un file orfano su disco, innocuo e pulibile a posteriori).
+    try:
+        get_storage().delete_prefix(import_dir_prefix(workspace_id, import_row.id))
+    except Exception:
+        logger.warning(
+            "delete_import: impossibile rimuovere il file (%s) per import %s",
+            file_type,
+            import_row.id,
+            exc_info=True,
+        )
+
+    return ImportDeleteResult(deleted_transactions_count=deleted_count)
+
+
+@router.get("/{import_id}/file")
+async def get_import_file(
+    import_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Bytes grezzi del file originale (PDF o CSV) — SOLO lettura,
+    disponibile per qualunque stato (a differenza di DELETE, che e'
+    distruttivo): il file esiste dal momento dell'upload e non si sposta
+    finche' la riga import non viene eliminata."""
+    import_row = await _get_import_or_404(db, workspace_id, import_id)
+    path = original_file_path(workspace_id, import_row.id, import_row.file_type)
+    try:
+        raw_bytes = get_storage().read(path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "File originale non trovato su storage") from exc
+
+    media_type = "application/pdf" if import_row.file_type == "pdf" else "text/csv"
+    ascii_fallback = import_row.filename.encode("ascii", errors="replace").decode("ascii")
+    return Response(
+        content=raw_bytes,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": (
+                f'inline; filename="{ascii_fallback}"; filename*=UTF-8\'\'{quote(import_row.filename)}'
+            ),
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+@router.get("/{import_id}/file-content", response_model=ImportFileContent)
+async def get_import_file_content(
+    import_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> ImportFileContent:
+    """Contenuto del CSV originale come tabella completa (non un campione
+    come /preview, che serve invece a scegliere la mappatura prima della
+    conferma) — pensato per il viewer, con un tetto di sicurezza sulla UI
+    (`MAX_VIEWER_ROWS`), non sull'import: il file resta scaricabile per
+    intero via /file indipendentemente da questo limite."""
+    import_row = await _get_import_or_404(db, workspace_id, import_id)
+    if import_row.file_type != "csv":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "file-content disponibile solo per import CSV")
+
+    raw_bytes = get_storage().read(original_file_path(workspace_id, import_row.id, "csv"))
+    mapping = (
+        MappingConfig(**import_row.mapping_config)
+        if import_row.mapping_config
+        else detect_mapping(raw_bytes.decode("utf-8-sig", errors="replace"))
+    )
+    text = raw_bytes.decode(mapping.encoding, errors="replace")
+    header, all_rows = _extract_sample(text, mapping, max_rows=None)
+
+    MAX_VIEWER_ROWS = 2000
+    return ImportFileContent(
+        columns=header,
+        rows=all_rows[:MAX_VIEWER_ROWS],
+        truncated=len(all_rows) > MAX_VIEWER_ROWS,
+        total_rows=len(all_rows),
+    )
 
 
 @router.get("/{import_id}/events")
@@ -438,6 +697,27 @@ async def stream_import_events(
     import_row = await _get_import_or_404(db, workspace_id, import_id)
     return StreamingResponse(
         job_events.stream(import_row.id),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get("/{import_id}/ai-classification-events")
+async def stream_ai_classification_events(
+    import_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Mirror di /events, ma per il namespace 'ai_classification' (job
+    disaccoppiato, vedi ai_classification_job.py) — stessa autenticazione,
+    stesso motivo per cui non e' un EventSource nativo."""
+    import_row = await _get_import_or_404(db, workspace_id, import_id)
+    return StreamingResponse(
+        job_events.stream(
+            import_row.id,
+            namespace="ai_classification",
+            timeout_seconds=get_settings().ai_classification_job_timeout_seconds,
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

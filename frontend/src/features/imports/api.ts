@@ -39,6 +39,59 @@ export function useConfirmImport() {
   });
 }
 
+export function useDeleteImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (importId: string) => api.delete<{ deleted_transactions_count: number }>(`/imports/${importId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: importsKey }),
+  });
+}
+
+/** Conteggio LIVE delle transazioni collegate — usato dal dialog di
+ * conferma eliminazione per mostrare l'impatto reale (mai il contatore
+ * `transactions_imported`, che non riflette eliminazioni singole
+ * successive delle stesse transazioni). */
+export function useImportTransactionsCount(importId: string | null) {
+  return useQuery({
+    queryKey: ["imports", importId, "transactions-count"],
+    queryFn: () => api.get<{ transactions_count: number }>(`/imports/${importId}/transactions-count`),
+    enabled: !!importId,
+  });
+}
+
+export interface ImportFileContent {
+  columns: string[];
+  rows: string[][];
+  truncated: boolean;
+  total_rows: number;
+}
+
+export function useImportFileContent(importId: string | null) {
+  return useQuery({
+    queryKey: ["imports", importId, "file-content"],
+    queryFn: () => api.get<ImportFileContent>(`/imports/${importId}/file-content`),
+    enabled: !!importId,
+  });
+}
+
+/**
+ * Scarica i byte grezzi del file originale come Blob, per un `<embed>` PDF
+ * lato client — stesso motivo di `streamImportEvents`: un `<embed>`/`<iframe>`
+ * non manda l'header Authorization, quindi va fetchato qui e passato come
+ * `blob:` URL (mai un token in query string, finirebbe nei log).
+ */
+export async function fetchImportFileBlob(importId: string): Promise<Blob> {
+  const token = getAccessToken();
+  const response = await fetch(`${api.base}/imports/${importId}/file`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, "Impossibile scaricare il file originale", null);
+  }
+  return response.blob();
+}
+
 export function useImport(importId: string | null) {
   return useQuery({
     queryKey: ["imports", importId],
@@ -63,18 +116,13 @@ export interface ImportProgressEvent {
   transactions_imported?: number;
 }
 
-/**
- * Legge lo stream SSE di `GET /imports/{id}/events` con `fetch` +
- * `ReadableStream` (non `EventSource`, che non può mandare l'header
- * Authorization — vedi `backend/app/api/v1/imports.py:422`).
- */
-export async function streamImportEvents(
-  importId: string,
+async function streamSse(
+  path: string,
   onEvent: (event: ImportProgressEvent) => void,
   signal: AbortSignal,
 ): Promise<void> {
   const token = getAccessToken();
-  const response = await fetch(`${api.base}/imports/${importId}/events`, {
+  const response = await fetch(`${api.base}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     credentials: "include",
     signal,
@@ -106,4 +154,37 @@ export async function streamImportEvents(
       }
     }
   }
+}
+
+/**
+ * Legge lo stream SSE di `GET /imports/{id}/events` con `fetch` +
+ * `ReadableStream` (non `EventSource`, che non può mandare l'header
+ * Authorization — vedi `backend/app/api/v1/imports.py:422`).
+ */
+export async function streamImportEvents(
+  importId: string,
+  onEvent: (event: ImportProgressEvent) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  return streamSse(`/imports/${importId}/events`, onEvent, signal);
+}
+
+export interface AiClassificationProgressEvent {
+  event: string;
+  processed?: number;
+  total?: number;
+  message?: string;
+}
+
+/**
+ * Stream SSE del namespace 'ai_classification' (job disaccoppiato dal job
+ * di import — vedi backend/app/worker/jobs/ai_classification_job.py). Stesso
+ * meccanismo di `streamImportEvents`, endpoint separato.
+ */
+export async function streamAiClassificationEvents(
+  importId: string,
+  onEvent: (event: AiClassificationProgressEvent) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  return streamSse(`/imports/${importId}/ai-classification-events`, onEvent, signal);
 }

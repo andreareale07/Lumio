@@ -1,8 +1,10 @@
 from arq import cron
 from arq.connections import RedisSettings
+from arq.worker import func as arq_func
 
 from app.core.config import get_settings
 from app.core.logging import setup_logging
+from app.worker.jobs.ai_classification_job import classify_import_transactions_job
 from app.worker.jobs.google_export_job import google_sheets_export_job
 from app.worker.jobs.import_job import import_job
 from app.worker.jobs.market_data import refresh_market_data_for_workspace, refresh_market_data_job
@@ -24,6 +26,14 @@ async def shutdown(ctx) -> None:
 class WorkerSettings:
     functions = [
         import_job,
+        # Timeout proprio, distinto dal `job_timeout` globale sotto (vedi
+        # docstring di ai_classification_job.py per il motivo): un
+        # `arq.worker.func(..., timeout=...)` sovrascrive il default solo
+        # per questa funzione, senza toccare gli altri job registrati qui.
+        arq_func(
+            classify_import_transactions_job,
+            timeout=_settings.ai_classification_job_timeout_seconds,
+        ),
         refresh_market_data_job,
         refresh_market_data_for_workspace,
         snapshot_job,

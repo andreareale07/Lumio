@@ -1,7 +1,11 @@
 import uuid
 
 from httpx import AsyncClient
+from sqlalchemy import text
 
+from app.db.base import async_session_factory
+from app.services.import_paths import original_file_path
+from app.storage import get_storage
 from app.worker.jobs.import_job import import_job
 
 CSV_SAMPLE = (
@@ -295,3 +299,208 @@ async def test_random_import_id_returns_404(client):
     token = await _register(client, "imp-404@example.com")
     response = await client.get(f"/api/v1/imports/{uuid.uuid4()}", headers=_auth_headers(token))
     assert response.status_code == 404
+
+
+async def _set_import_status(import_id: str, status: str, user_id: str) -> None:
+    """Manipola direttamente la riga per simulare uno stato ('processing')
+    che il job sincrono usato nei test non si ferma mai a metà — stesso
+    pattern di accesso diretto al DB già usato da test_rls_imports.py."""
+    async with async_session_factory() as session:
+        await session.execute(
+            text("SELECT set_config('app.current_user_id', :uid, true)"), {"uid": user_id}
+        )
+        await session.execute(text("UPDATE imports SET status = :s WHERE id = :id"), {"s": status, "id": import_id})
+        await session.commit()
+
+
+async def test_delete_completed_import_removes_transactions_import_and_file(client):
+    token = await _register(client, "imp-delete-completed@example.com")
+    account_id = await _create_account(client, token)
+    upload = await _upload(client, token, account_id, CSV_SAMPLE.encode())
+    import_id = upload.json()["import"]["id"]
+    workspace_id = uuid.UUID(upload.json()["import"]["workspace_id"])
+    suggested_mapping = upload.json()["preview"]["suggested_mapping"]
+    await client.post(
+        f"/api/v1/imports/{import_id}/confirm", json={"mapping": suggested_mapping}, headers=_auth_headers(token)
+    )
+    me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
+    await import_job(None, import_id, me.json()["id"])
+
+    assert get_storage().exists(original_file_path(workspace_id, uuid.UUID(import_id), "csv")) is True
+
+    count = await client.get(f"/api/v1/imports/{import_id}/transactions-count", headers=_auth_headers(token))
+    assert count.json()["transactions_count"] == 2
+
+    response = await client.delete(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
+    assert response.status_code == 200
+    assert response.json()["deleted_transactions_count"] == 2
+
+    assert (await client.get(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))).status_code == 404
+
+    transactions = await client.get(
+        "/api/v1/transactions", params={"financial_account_id": account_id}, headers=_auth_headers(token)
+    )
+    assert transactions.json() == []
+
+    assert get_storage().exists(original_file_path(workspace_id, uuid.UUID(import_id), "csv")) is False
+
+
+async def test_delete_queued_import_succeeds_with_zero_transactions(client):
+    token = await _register(client, "imp-delete-queued@example.com")
+    account_id = await _create_account(client, token)
+    upload = await _upload(client, token, account_id, CSV_SAMPLE.encode())
+    import_id = upload.json()["import"]["id"]
+    suggested_mapping = upload.json()["preview"]["suggested_mapping"]
+    await client.post(
+        f"/api/v1/imports/{import_id}/confirm", json={"mapping": suggested_mapping}, headers=_auth_headers(token)
+    )
+    # Nessuna invocazione di import_job: lo stato resta "queued", nessuna
+    # transazione mai creata — esattamente il caso "ferma il job in coda ed
+    # elimina subito", zero righe da cancellare.
+
+    response = await client.delete(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
+    assert response.status_code == 200
+    assert response.json()["deleted_transactions_count"] == 0
+    assert (await client.get(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))).status_code == 404
+
+
+async def test_delete_uploaded_import_succeeds(client):
+    token = await _register(client, "imp-delete-uploaded@example.com")
+    account_id = await _create_account(client, token)
+    upload = await _upload(client, token, account_id, CSV_SAMPLE.encode())
+    import_id = upload.json()["import"]["id"]
+    # Mai confermato: status resta "uploaded", nessun job_id.
+
+    response = await client.delete(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
+    assert response.status_code == 200
+    assert response.json()["deleted_transactions_count"] == 0
+
+
+async def test_delete_cancelled_import_succeeds(client):
+    token = await _register(client, "imp-delete-cancelled@example.com")
+    account_id = await _create_account(client, token)
+    upload = await _upload(client, token, account_id, CSV_SAMPLE.encode())
+    import_id = upload.json()["import"]["id"]
+    await client.post(f"/api/v1/imports/{import_id}/cancel", headers=_auth_headers(token))
+
+    response = await client.delete(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
+    assert response.status_code == 200
+    assert response.json()["deleted_transactions_count"] == 0
+
+
+async def test_delete_processing_import_returns_409(client):
+    """Il job worker e' realmente in esecuzione in questo stato — arq non
+    ha modo di interromperlo a meta', quindi l'eliminazione va rifiutata
+    esplicitamente (mai un bottone silenziosamente assente lato UI)."""
+    token = await _register(client, "imp-delete-processing@example.com")
+    account_id = await _create_account(client, token)
+    upload = await _upload(client, token, account_id, CSV_SAMPLE.encode())
+    import_id = upload.json()["import"]["id"]
+    suggested_mapping = upload.json()["preview"]["suggested_mapping"]
+    await client.post(
+        f"/api/v1/imports/{import_id}/confirm", json={"mapping": suggested_mapping}, headers=_auth_headers(token)
+    )
+    me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
+    await _set_import_status(import_id, "processing", me.json()["id"])
+
+    response = await client.delete(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
+    assert response.status_code == 409
+
+    # Nessun effetto collaterale: la riga e le eventuali transazioni restano.
+    assert (await client.get(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))).status_code == 200
+
+
+async def test_delete_import_returns_409_while_ai_classification_running(client):
+    """Rework "disaccoppiamento AI": l'import e' gia' 'completed' (le
+    transazioni esistono), ma il job separato di classificazione AI sta
+    ancora scrivendo su QUELLE STESSE transazioni — stessa impossibilita' di
+    interromperlo a meta' del job di import 'processing'/'parsing', quindi
+    stesso rifiuto esplicito (409), mai una corsa silenziosa tra la sua
+    scrittura e la DELETE."""
+    token = await _register(client, "imp-delete-ai-running@example.com")
+    account_id = await _create_account(client, token)
+    upload = await _upload(client, token, account_id, CSV_SAMPLE.encode())
+    import_id = upload.json()["import"]["id"]
+    suggested_mapping = upload.json()["preview"]["suggested_mapping"]
+    await client.post(
+        f"/api/v1/imports/{import_id}/confirm", json={"mapping": suggested_mapping}, headers=_auth_headers(token)
+    )
+    me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
+    await import_job(None, import_id, me.json()["id"])
+
+    async with async_session_factory() as session:
+        await session.execute(
+            text("SELECT set_config('app.current_user_id', :uid, true)"), {"uid": me.json()["id"]}
+        )
+        await session.execute(
+            text("UPDATE imports SET ai_classification_status = 'running' WHERE id = :id"), {"id": import_id}
+        )
+        await session.commit()
+
+    response = await client.delete(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
+    assert response.status_code == 409
+
+    # Nessun effetto collaterale: la riga e le transazioni restano.
+    assert (await client.get(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))).status_code == 200
+
+
+async def test_delete_cross_tenant_returns_404_and_does_not_touch_other_workspace(client):
+    token_a = await _register(client, "imp-delete-cross-a@example.com")
+    token_b = await _register(client, "imp-delete-cross-b@example.com")
+    account_b_id = await _create_account(client, token_b)
+    upload = await _upload(client, token_b, account_b_id, CSV_SAMPLE.encode())
+    import_b_id = upload.json()["import"]["id"]
+    suggested_mapping = upload.json()["preview"]["suggested_mapping"]
+    await client.post(
+        f"/api/v1/imports/{import_b_id}/confirm", json={"mapping": suggested_mapping}, headers=_auth_headers(token_b)
+    )
+    me_b = await client.get("/api/v1/auth/me", headers=_auth_headers(token_b))
+    await import_job(None, import_b_id, me_b.json()["id"])
+
+    response = await client.delete(f"/api/v1/imports/{import_b_id}", headers=_auth_headers(token_a))
+    assert response.status_code == 404
+
+    still_there = await client.get(f"/api/v1/imports/{import_b_id}", headers=_auth_headers(token_b))
+    assert still_there.status_code == 200
+    assert still_there.json()["status"] == "completed"
+
+
+async def test_get_import_file_returns_original_csv_bytes(client):
+    token = await _register(client, "imp-file@example.com")
+    account_id = await _create_account(client, token)
+    upload = await _upload(client, token, account_id, CSV_SAMPLE.encode())
+    import_id = upload.json()["import"]["id"]
+
+    response = await client.get(f"/api/v1/imports/{import_id}/file", headers=_auth_headers(token))
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert response.content == CSV_SAMPLE.encode()
+
+
+async def test_get_import_file_cross_tenant_returns_404(client):
+    token_a = await _register(client, "imp-file-cross-a@example.com")
+    token_b = await _register(client, "imp-file-cross-b@example.com")
+    account_b_id = await _create_account(client, token_b)
+    upload = await _upload(client, token_b, account_b_id, CSV_SAMPLE.encode())
+    import_b_id = upload.json()["import"]["id"]
+
+    response = await client.get(f"/api/v1/imports/{import_b_id}/file", headers=_auth_headers(token_a))
+    assert response.status_code == 404
+
+
+async def test_get_import_file_content_returns_full_csv_as_table(client):
+    token = await _register(client, "imp-file-content@example.com")
+    account_id = await _create_account(client, token)
+    upload = await _upload(client, token, account_id, CSV_SAMPLE.encode())
+    import_id = upload.json()["import"]["id"]
+
+    response = await client.get(f"/api/v1/imports/{import_id}/file-content", headers=_auth_headers(token))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["columns"] == ["data", "descrizione", "importo"]
+    assert body["total_rows"] == 2
+    assert body["truncated"] is False
+    assert body["rows"] == [
+        ["2026-01-15", "Supermercato Lidl", "-42.50"],
+        ["2026-01-16", "Stipendio", "1500.00"],
+    ]

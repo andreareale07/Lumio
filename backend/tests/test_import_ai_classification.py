@@ -4,12 +4,19 @@ transactions_via_rule, ma senza alcuna regola attiva: la riga Netflix viene
 classificata dal provider "custom" (mockato via pytest-httpx, nessuna rete
 reale), la riga Farmacia resta non classificata perche' il provider
 risponde con `category_code: null`.
+
+Rework "disaccoppiamento AI": la classificazione non avviene piu' dentro
+`import_job` (vedi worker/jobs/import_job.py) ma in un job separato,
+`classify_import_transactions_job` — nei test, senza un vero worker arq in
+ascolto, va invocato esplicitamente dopo `import_job`, stesso schema gia'
+usato per `import_job` stesso in questi test.
 """
 import json
 
 import httpx
 from httpx import AsyncClient
 
+from app.worker.jobs.ai_classification_job import classify_import_transactions_job
 from app.worker.jobs.import_job import import_job
 
 CSV_SAMPLE = (
@@ -96,7 +103,23 @@ async def test_import_classifies_unmatched_transaction_via_ai(client, httpx_mock
         headers=_auth_headers(token),
     )
     me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
-    await import_job(None, import_id, me.json()["id"])
+    user_id = me.json()["id"]
+    await import_job(None, import_id, user_id)
+
+    # Rework "disaccoppiamento AI": subito dopo import_job, le transazioni
+    # esistono ma nessuna e' ancora classificata dall'AI — l'import stesso e'
+    # gia' 'completed', in attesa del job separato (vedi commento in testa al
+    # file).
+    detail = await client.get(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
+    assert detail.json()["status"] == "completed"
+    assert detail.json()["ai_classification_status"] == "pending"
+    assert detail.json()["ai_transactions_total"] == 2  # nessuna regola attiva, entrambe le righe
+
+    await classify_import_transactions_job(None, import_id, user_id)
+
+    detail_after = await client.get(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
+    assert detail_after.json()["ai_classification_status"] == "completed"
+    assert detail_after.json()["ai_transactions_classified"] == 2
 
     transactions = await client.get(
         "/api/v1/transactions", params={"financial_account_id": account_id}, headers=_auth_headers(token)
@@ -151,9 +174,14 @@ async def test_import_skips_ai_when_provider_is_none(client, httpx_mock):
     # Nessuna richiesta HTTP verso alcun provider: httpx_mock solleverebbe
     # un errore se un test tentasse una richiesta non registrata, quindi
     # arrivare qui senza eccezioni conferma che l'AI (provider='none' di
-    # default, SPEC §25) non e' mai stata invocata.
+    # default, SPEC §25) non e' mai stata invocata, e nessun job di
+    # classificazione e' stato accodato.
     transactions = await client.get(
         "/api/v1/transactions", params={"financial_account_id": account_id}, headers=_auth_headers(token)
     )
     rows = transactions.json()
     assert all(r["category_id"] is None for r in rows)
+
+    detail = await client.get(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
+    assert detail.json()["ai_classification_status"] == "skipped"
+    assert detail.json()["ai_transactions_total"] == 0

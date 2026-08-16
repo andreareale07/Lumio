@@ -191,3 +191,86 @@ async def test_unrecognized_investment_description_leaves_transaction_untouched(
     assert movements == []
     assets = (await client.get("/api/v1/assets", headers=_auth_headers(token))).json()
     assert assets == []
+
+
+async def test_delete_import_removes_auto_created_investment_transactions_but_keeps_manual_links(client):
+    """Rework 'elimina import': i movimenti di investimento AUTO-CREATI dal
+    parser durante l'import (source_type_raw popolato) sono conseguenza
+    dell'import stesso — vanno cancellati con lui e la posizione ricalcolata.
+    Un movimento inserito/collegato A MANO dall'utente (nessun
+    source_type_raw), anche se collegato a una transazione di questo
+    import, NON e' creato dall'import: resta, solo scollegato dalla
+    transazione che sta per essere cancellata. Bug reale scoperto sui dati
+    veri dell'utente: senza scollegare esplicitamente PRIMA di cancellare le
+    transazioni, la FK composita (workspace_id, transaction_id) con
+    ON DELETE SET NULL azzererebbe anche workspace_id (NOT NULL), facendo
+    fallire l'intera DELETE con una violazione di vincolo."""
+    token = await _register(client, "invest-delete-cascade@example.com")
+    account_id = await _create_account(client, token)
+
+    upload = await client.post(
+        "/api/v1/imports",
+        data={"financial_account_id": account_id},
+        files={"file": ("estratto.csv", CSV_WITH_TRADES.encode(), "text/csv")},
+        headers=_auth_headers(token),
+    )
+    import_id = upload.json()["import"]["id"]
+    suggested_mapping = upload.json()["preview"]["suggested_mapping"]
+    await client.post(
+        f"/api/v1/imports/{import_id}/confirm", json={"mapping": suggested_mapping}, headers=_auth_headers(token)
+    )
+    me = await client.get("/api/v1/auth/me", headers=_auth_headers(token))
+    await import_job(None, import_id, me.json()["id"])
+
+    transactions = (
+        await client.get(
+            "/api/v1/transactions", params={"financial_account_id": account_id}, headers=_auth_headers(token)
+        )
+    ).json()
+    lidl_transaction = next(t for t in transactions if t["description_raw"] == "Supermercato Lidl")
+
+    assets = (await client.get("/api/v1/assets", headers=_auth_headers(token))).json()
+    world_etf = next(a for a in assets if a["isin"] == "IE00B4L5Y983")
+    apple = next(a for a in assets if a["isin"] == "US0378331005")
+
+    # Movimento MANUALE dell'utente, collegato a mano alla transazione Lidl
+    # (scenario plausibile: una riconciliazione manuale) — non deve mai
+    # essere trattato come "creato dall'import" solo perche' e' collegato a
+    # una sua transazione.
+    manual = await client.post(
+        "/api/v1/investment-transactions",
+        json={
+            "financial_account_id": account_id,
+            "asset_id": apple["id"],
+            "transaction_id": lidl_transaction["id"],
+            "trade_date": "2026-03-15",
+            "type": "buy",
+            "quantity": "1",
+            "price": "100",
+            "amount": "-100.00",
+            "currency": "EUR",
+        },
+        headers=_auth_headers(token),
+    )
+    assert manual.status_code == 201
+    manual_id = manual.json()["id"]
+
+    movements_before = (
+        await client.get("/api/v1/investment-transactions", headers=_auth_headers(token))
+    ).json()
+    assert len(movements_before) == 4  # 3 auto-creati (2 ETF + 1 Apple) + 1 manuale
+
+    response = await client.delete(f"/api/v1/imports/{import_id}", headers=_auth_headers(token))
+    assert response.status_code == 200
+    assert response.json()["deleted_transactions_count"] == 4
+
+    movements_after = (
+        await client.get("/api/v1/investment-transactions", headers=_auth_headers(token))
+    ).json()
+    assert [m["id"] for m in movements_after] == [manual_id]
+    assert movements_after[0]["transaction_id"] is None  # scollegato, mai cancellato
+
+    positions = (await client.get("/api/v1/positions", headers=_auth_headers(token))).json()
+    assert next((p for p in positions if p["asset_id"] == world_etf["id"]), None) is None
+    apple_position = next(p for p in positions if p["asset_id"] == apple["id"])
+    assert apple_position["quantity"] == "1.0000000000"  # solo il movimento manuale resta

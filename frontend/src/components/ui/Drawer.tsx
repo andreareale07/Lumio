@@ -9,11 +9,15 @@ interface DrawerProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** Larghezza massima su desktop — default invariato per i chiamanti
+   * esistenti. Un contenuto "a tutta altezza" come un viewer PDF/tabella CSV
+   * (rework "elimina import") beneficia di più spazio orizzontale. */
+  widthClassName?: string;
 }
 
 /** Su mobile occupa lo schermo intero (SPEC_FE §100: Drawer per dettagli
  * contestuali senza cambiare pagina), su desktop resta un pannello laterale. */
-export function Drawer({ open, onClose, title, children }: DrawerProps) {
+export function Drawer({ open, onClose, title, children, widthClassName = "max-w-md" }: DrawerProps) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -39,7 +43,7 @@ export function Drawer({ open, onClose, title, children }: DrawerProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="drawer-title"
-        className="relative flex h-full w-full max-w-md flex-col border-l border-border bg-surface p-5 shadow-lg sm:w-full"
+        className={`relative flex h-full w-full ${widthClassName} flex-col border-l border-border bg-surface p-5 shadow-lg sm:w-full`}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 id="drawer-title" className="text-base font-semibold text-text">

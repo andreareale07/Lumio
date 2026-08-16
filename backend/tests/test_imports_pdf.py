@@ -228,3 +228,28 @@ async def test_pdf_confirm_ignores_csv_mapping_fields(client):
     )
     assert confirm.status_code == 200
     assert confirm.json()["status"] == "queued"
+
+
+async def test_get_import_file_returns_original_pdf_bytes(client):
+    """Rework 'elimina import': il viewer del file originale deve
+    funzionare anche per il canale PDF, non solo CSV (content-type
+    corretto, byte identici a quelli caricati)."""
+    token = await _register(client, "pdfimp-file@example.com")
+    account_id = await _create_account(client, token)
+    upload = await _upload_pdf(client, token, account_id, PDF_SAMPLE)
+    import_id = upload.json()["import"]["id"]
+
+    response = await client.get(f"/api/v1/imports/{import_id}/file", headers=_auth_headers(token))
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/pdf")
+    assert response.content == PDF_SAMPLE
+
+
+async def test_get_import_file_content_rejects_pdf_import(client):
+    token = await _register(client, "pdfimp-file-content@example.com")
+    account_id = await _create_account(client, token)
+    upload = await _upload_pdf(client, token, account_id, PDF_SAMPLE)
+    import_id = upload.json()["import"]["id"]
+
+    response = await client.get(f"/api/v1/imports/{import_id}/file-content", headers=_auth_headers(token))
+    assert response.status_code == 400
