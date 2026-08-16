@@ -679,3 +679,34 @@ export interface Position {
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
+
+export interface SystemSetting {
+  key: string;
+  value: unknown;
+  default_value: unknown;
+  description: string;
+  updated_at: IsoDateTime;
+}
+
+export interface JobParameter {
+  label: string;
+  unit: string;
+  editable: boolean;
+  setting_key: string | null;
+  value: unknown;
+  readonly_reason: string | null;
+}
+
+export type JobCategory = "scheduled" | "triggered";
+
+export interface Job {
+  kind: string;
+  category: JobCategory;
+  name: string;
+  description: string;
+  schedule_description: string | null;
+  disable_warning: string | null;
+  enabled: boolean | null;
+  enabled_setting_key: string | null;
+  parameters: JobParameter[];
+}

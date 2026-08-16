@@ -26,6 +26,7 @@ from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
 from app.services.job_run_tracker import tracked_job_run
 from app.services.market_data_profile_service import get_active_profile
+from app.services.system_settings_service import is_job_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,14 @@ async def _refresh_workspace(db: AsyncSession, workspace_id: uuid.UUID) -> Refre
 
 
 async def refresh_market_data_job(ctx) -> None:
+    # Pagina Impostazioni > Job (jobs.market_data_refresh.enabled): riguarda
+    # SOLO l'esecuzione automatica schedulata — il trigger manuale
+    # (`refresh_market_data_for_workspace`, bottone "Aggiorna ora") resta
+    # sempre disponibile indipendentemente da questo flag, non e' influenzato
+    # da questa guardia.
+    if not await is_job_enabled(JOB_KIND):
+        logger.info("refresh prezzi: cron disattivato da configurazione, nessuna esecuzione automatica")
+        return
     for workspace_id, owner_user_id in await list_workspace_owners():
         try:
             async with tracked_job_run(workspace_id, owner_user_id, JOB_KIND) as run:

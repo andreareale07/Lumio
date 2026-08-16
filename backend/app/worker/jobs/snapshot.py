@@ -11,6 +11,7 @@ import uuid
 from app.db.rls import rls_session
 from app.services.job_run_tracker import tracked_job_run
 from app.services.portfolio_analytics import SnapshotRunSummary, write_daily_snapshots
+from app.services.system_settings_service import is_job_enabled
 from app.worker.jobs.market_data import list_workspace_owners
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,11 @@ def _snapshot_message(summary: SnapshotRunSummary) -> str:
 
 
 async def snapshot_job(ctx) -> None:
+    # Stesso principio di refresh_market_data_job: riguarda solo l'esecuzione
+    # automatica schedulata, il trigger manuale resta sempre disponibile.
+    if not await is_job_enabled(JOB_KIND):
+        logger.info("snapshot: cron disattivato da configurazione, nessuna esecuzione automatica")
+        return
     for workspace_id, owner_user_id in await list_workspace_owners():
         try:
             async with tracked_job_run(workspace_id, owner_user_id, JOB_KIND) as run:

@@ -11,11 +11,13 @@ from app.api.v1 import (
     imports,
     integrations_google,
     investment_transactions,
+    jobs,
     portfolios,
     positions,
     rules,
     settings_ai,
     settings_market_data,
+    system_settings,
     transaction_type_mappings,
     transactions,
 )
@@ -38,6 +40,8 @@ api_router.include_router(assets.router)
 api_router.include_router(portfolios.router)
 api_router.include_router(investment_transactions.router)
 api_router.include_router(positions.router)
+api_router.include_router(system_settings.router)
+api_router.include_router(jobs.router)
 
 # Milestone 10: isolamento reale, non solo un check a runtime (ROADMAP DoD
 # "con GOOGLE_ENABLED=false nessuna funzionalita' core e' impattata") — con

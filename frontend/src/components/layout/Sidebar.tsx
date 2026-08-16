@@ -6,6 +6,7 @@ import {
   Landmark,
   LineChart,
   Link2,
+  ListChecks,
   PiggyBank,
   Receipt,
   Sparkles,
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { to: "/settings/ai", label: "AI", icon: Sparkles },
   { to: "/settings/market-data", label: "Market Data", icon: LineChart },
   { to: "/settings/transaction-types", label: "Tipi di transazione", icon: Tags },
+  { to: "/settings/jobs", label: "Job di sistema", icon: ListChecks },
 ];
 
 /** Milestone 08: aggiunte Panoramica/Spese/Entrate/Patrimonio (SPEC §41).
@@ -41,7 +43,10 @@ const NAV_ITEMS = [
  * prima limitata alla creazione al volo dentro CategoryPicker).
  * Milestone 10: "Integrazioni" mostrata SOLO se `google_enabled` (isolamento
  * reale, non un placeholder disabilitato — con GOOGLE_ENABLED=false questa
- * voce non esiste affatto, ne' nel menu ne' come route). */
+ * voce non esiste affatto, ne' nel menu ne' come route).
+ * Rework "Job di sistema": pagina di configurazione dei job schedulati
+ * (soglie di stallo, on/off) — raggiungibile da qualunque utente autenticato
+ * per ora, nessun ruolo admin di istanza esiste ancora. */
 export function Sidebar() {
   const { user } = useAuth();
   const items = user?.google_enabled

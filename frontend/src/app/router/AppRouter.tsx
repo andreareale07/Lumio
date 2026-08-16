@@ -16,6 +16,7 @@ import { InvestmentsPage } from "../../features/portfolio/InvestmentsPage";
 import { RulesPage } from "../../features/rules/RulesPage";
 import { AISettingsPage } from "../../features/settings/ai/AISettingsPage";
 import { IntegrationsSettingsPage } from "../../features/settings/integrations/IntegrationsSettingsPage";
+import { JobsSettingsPage } from "../../features/settings/jobs/JobsSettingsPage";
 import { MarketDataSettingsPage } from "../../features/settings/market-data/MarketDataSettingsPage";
 import { TransactionTypeMappingsPage } from "../../features/settings/transaction-types/TransactionTypeMappingsPage";
 import { TransactionsPage } from "../../features/transactions/TransactionsPage";
@@ -59,6 +60,7 @@ export function AppRouter() {
       <Route path="/settings/ai" element={<Protected><AISettingsPage /></Protected>} />
       <Route path="/settings/market-data" element={<Protected><MarketDataSettingsPage /></Protected>} />
       <Route path="/settings/transaction-types" element={<Protected><TransactionTypeMappingsPage /></Protected>} />
+      <Route path="/settings/jobs" element={<Protected><JobsSettingsPage /></Protected>} />
       <Route
         path="/settings/integrations"
         element={
