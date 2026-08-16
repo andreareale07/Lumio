@@ -705,6 +705,7 @@ export interface Job {
   name: string;
   description: string;
   schedule_description: string | null;
+  schedule_readonly_reason: string | null;
   disable_warning: string | null;
   enabled: boolean | null;
   enabled_setting_key: string | null;

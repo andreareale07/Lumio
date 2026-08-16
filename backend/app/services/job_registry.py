@@ -48,11 +48,23 @@ class JobDescriptor:
     name: str
     description: str
     schedule_description: str | None = None
+    # Perche' la cadenza stessa (non solo i timeout) e' sola lettura: arq
+    # registra i cron UNA VOLTA, in Python, all'avvio del processo worker
+    # (vedi worker/main.py) — cambiarla richiede una modifica al codice E un
+    # riavvio, non solo un riavvio come per i timeout. Nessuna chiave in
+    # system_settings la governa oggi: renderla davvero editabile
+    # richiederebbe sostituire lo scheduling nativo di arq con un dispatcher
+    # che rilegge l'orario a ogni tick, una ristrutturazione a se',
+    # sproporzionata rispetto al problema che questa pagina risolve.
+    schedule_readonly_reason: str | None = None
     disable_warning: str | None = None
     parameters: list[JobParameterSpec] = field(default_factory=list)
 
 
 _READONLY_TIMEOUT_REASON = "Richiede il riavvio del worker per avere effetto (letto una sola volta all'avvio)."
+_READONLY_SCHEDULE_REASON = (
+    "Fissa nel codice del worker: cambiarla richiede una modifica al codice, non solo un riavvio."
+)
 
 JOB_DESCRIPTORS: list[JobDescriptor] = [
     JobDescriptor(
@@ -61,6 +73,7 @@ JOB_DESCRIPTORS: list[JobDescriptor] = [
         name="Refresh prezzi di mercato",
         description="Scarica una quotazione aggiornata per ogni asset con un provider di mercato attivo (per workspace).",
         schedule_description="Ogni giorno alle 2:00",
+        schedule_readonly_reason=_READONLY_SCHEDULE_REASON,
         disable_warning=(
             "I prezzi degli asset non verranno più aggiornati automaticamente ogni giorno. "
             "Il bottone \"Aggiorna ora\" nella pagina Market Data resta comunque disponibile."
@@ -80,6 +93,7 @@ JOB_DESCRIPTORS: list[JobDescriptor] = [
         name="Ricalcolo snapshot patrimonio",
         description="Scrive lo snapshot giornaliero di patrimonio/portfolio per ogni workspace.",
         schedule_description="Ogni giorno alle 3:00",
+        schedule_readonly_reason=_READONLY_SCHEDULE_REASON,
         disable_warning=(
             "Lo storico patrimonio non verrà più aggiornato automaticamente ogni giorno "
             "(mancherà un punto dato per i giorni saltati). Il bottone \"Ricalcola ora\" nella "
@@ -103,6 +117,7 @@ JOB_DESCRIPTORS: list[JobDescriptor] = [
             "raggiunto) e li marca falliti — questo stesso meccanismo."
         ),
         schedule_description="Ogni 2 minuti",
+        schedule_readonly_reason=_READONLY_SCHEDULE_REASON,
         disable_warning=(
             "ATTENZIONE: un job bloccato da un crash del worker (import, classificazione AI, "
             "refresh prezzi, snapshot, export Google Sheets) non verrà più rilevato automaticamente "
@@ -138,13 +153,6 @@ JOB_DESCRIPTORS: list[JobDescriptor] = [
                 unit="secondi",
                 editable=True,
                 setting_key="job_health.google_sheets_export.stale_after_seconds",
-            ),
-            JobParameterSpec(
-                label="Cadenza del controllo",
-                unit="secondi",
-                editable=False,
-                static_value=120,
-                readonly_reason="Fissa nel codice (ogni 2 minuti): cambiarla richiede una modifica al worker, non solo un riavvio.",
             ),
         ],
     ),
@@ -270,6 +278,7 @@ async def build_jobs_view() -> list[dict[str, Any]]:
                 "name": descriptor.name,
                 "description": descriptor.description,
                 "schedule_description": descriptor.schedule_description,
+                "schedule_readonly_reason": descriptor.schedule_readonly_reason,
                 "disable_warning": descriptor.disable_warning,
                 "enabled": enabled,
                 "enabled_setting_key": enabled_setting_key,

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Lock } from "lucide-react";
 
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -39,7 +40,13 @@ export function JobCard({ job }: { job: Job }) {
           <p className="font-medium text-text">{job.name}</p>
           <p className="text-sm text-text-muted">{job.description}</p>
           {job.schedule_description && (
-            <p className="mt-0.5 text-xs text-text-muted">Cadenza: {job.schedule_description}</p>
+            <p
+              className="mt-0.5 flex items-center gap-1 text-xs text-text-muted"
+              title={job.schedule_readonly_reason ?? undefined}
+            >
+              {job.schedule_readonly_reason && <Lock className="h-3 w-3" aria-hidden="true" />}
+              Cadenza: {job.schedule_description}
+            </p>
           )}
         </div>
         {job.category === "scheduled" && (

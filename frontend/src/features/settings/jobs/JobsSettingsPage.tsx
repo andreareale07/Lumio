@@ -74,6 +74,11 @@ export function JobsSettingsPage() {
             export. Non hanno un interruttore di sistema qui: si abilitano o disabilitano da dove già li
             configuri (profilo AI per workspace, integrazione Google). Qui vedi solo i loro parametri operativi.
           </p>
+          <p>
+            <span className="font-medium text-text">Il lucchetto</span> su un parametro (inclusa la cadenza
+            dei job schedulati) indica che il valore non è modificabile da qui: è fissato nel codice del
+            worker e cambiarlo richiede più di un semplice salvataggio.
+          </p>
         </div>
         <div className="mt-4 flex justify-end">
           <Button variant="secondary" onClick={() => setInfoOpen(false)}>

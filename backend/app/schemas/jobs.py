@@ -18,6 +18,7 @@ class JobOut(BaseModel):
     name: str
     description: str
     schedule_description: str | None
+    schedule_readonly_reason: str | None
     disable_warning: str | None
     enabled: bool | None
     enabled_setting_key: str | None
