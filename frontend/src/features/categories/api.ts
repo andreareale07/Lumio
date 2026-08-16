@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../lib/apiClient";
-import type { Category } from "../../types/api";
+import type { Category, CategoryKind } from "../../types/api";
 
 export const categoriesKey = ["categories"] as const;
 
@@ -16,26 +16,22 @@ export function useCategories() {
 export interface CreateCategoryInput {
   name: string;
   parent_id?: string | null;
+  // Rilevante solo per una categoria di primo livello: su una sottocategoria
+  // il backend lo ignora e la eredita comunque dal padre (validate_kind_matches_parent),
+  // quindi non ha senso lasciarlo inviare in quel caso dal form.
+  kind?: CategoryKind;
   sort_order?: number;
-}
-
-const DIACRITICS_PATTERN = new RegExp("[̀-ͯ]", "g");
-
-function slugify(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(DIACRITICS_PATTERN, "")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
 }
 
 export function useCreateCategory() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateCategoryInput) =>
-      api.post<Category>("/categories", { ...input, code: slugify(input.name) }),
+    // `code` non e' piu' un campo di input (rework tassonomia): generato
+    // server-side da `category_service.generate_code` — prefisso del padre
+    // + slug, con suffisso anti-collisione. Lo slugify client-side rotto
+    // (nessun prefisso del padre, causa storica di code non-dot-notation)
+    // e' stato rimosso, non corretto: non serve piu' a nulla.
+    mutationFn: (input: CreateCategoryInput) => api.post<Category>("/categories", input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: categoriesKey }),
   });
 }
@@ -44,6 +40,7 @@ export interface UpdateCategoryInput {
   id: string;
   name?: string;
   parent_id?: string | null;
+  kind?: CategoryKind;
   sort_order?: number;
   is_active?: boolean;
 }

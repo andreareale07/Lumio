@@ -7,7 +7,7 @@ import { RuleFormDialog } from "../src/features/rules/RuleFormDialog";
 import type { Category } from "../src/types/api";
 
 const CATEGORIES: Category[] = [
-  { id: "streaming", workspace_id: null, parent_id: null, name: "Streaming", code: "streaming", is_system: true, is_active: true, sort_order: 10 },
+  { id: "streaming", workspace_id: null, parent_id: null, name: "Streaming", code: "streaming", kind: "expense", is_system: true, is_active: true, sort_order: 10 },
 ];
 
 function renderDialog() {
@@ -29,6 +29,16 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
 
+/** Rework tassonomia: CategoryPicker non e' piu' un `<select>` nativo, le
+ * opzioni sono nel popover del Combobox e appaiono solo dopo aver aperto il
+ * trigger — `selectOptions` non si applica piu' a un elemento non-native. */
+async function pickCategory(user: ReturnType<typeof userEvent.setup>, name: string) {
+  const trigger = screen.getByLabelText("Categoria");
+  await waitFor(() => expect(trigger).toBeEnabled());
+  await user.click(trigger);
+  await user.click(await screen.findByRole("option", { name }));
+}
+
 describe("RuleFormDialog", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -39,12 +49,10 @@ describe("RuleFormDialog", () => {
     const user = userEvent.setup();
     renderDialog();
 
-    await waitFor(() => expect(screen.getByRole("option", { name: "Streaming" })).toBeInTheDocument());
-
     await user.type(screen.getByLabelText("Nome"), "Netflix");
     await user.selectOptions(screen.getByLabelText("Operatore"), "merchant_equals");
     await user.type(screen.getByLabelText("Valore"), "Netflix");
-    await user.selectOptions(screen.getByLabelText("Categoria"), "streaming");
+    await pickCategory(user, "Streaming");
     await user.click(screen.getByRole("button", { name: "Crea regola" }));
 
     expect(await screen.findByText("'merchant_equals' richiede il campo Merchant")).toBeInTheDocument();
@@ -55,14 +63,12 @@ describe("RuleFormDialog", () => {
     const user = userEvent.setup();
     renderDialog();
 
-    await waitFor(() => expect(screen.getByRole("option", { name: "Streaming" })).toBeInTheDocument());
-
     await user.type(screen.getByLabelText("Nome"), "Netflix");
     await user.selectOptions(screen.getByLabelText("Operatore"), "regex");
     // userEvent.type interpreta [ e ] come modificatori di tasti speciali:
     // per un valore letterale con parentesi quadre serve fireEvent.change.
     fireEvent.change(screen.getByLabelText("Valore"), { target: { value: "[unterminated" } });
-    await user.selectOptions(screen.getByLabelText("Categoria"), "streaming");
+    await pickCategory(user, "Streaming");
     await user.click(screen.getByRole("button", { name: "Crea regola" }));
 
     expect(await screen.findByText("Espressione regolare non valida")).toBeInTheDocument();
@@ -76,11 +82,10 @@ describe("RuleFormDialog", () => {
     const user = userEvent.setup();
     renderDialog();
 
-    await waitFor(() => expect(screen.getByRole("option", { name: "Streaming" })).toBeInTheDocument());
-
     await user.type(screen.getByLabelText("Nome"), "Netflix");
     await user.type(screen.getByLabelText("Valore"), "netflix");
-    await user.selectOptions(screen.getByLabelText("Categoria"), "streaming");
+    await pickCategory(user, "Streaming");
+    screen.debug(undefined, 40000);
     await user.click(screen.getByRole("button", { name: "Crea regola" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));

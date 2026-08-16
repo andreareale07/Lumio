@@ -53,12 +53,16 @@ export interface IbanHistoryEntry {
   created_at: IsoDateTime;
 }
 
+export const CATEGORY_KINDS = ["expense", "income", "transfer", "investment", "neutral"] as const;
+export type CategoryKind = (typeof CATEGORY_KINDS)[number];
+
 export interface Category {
   id: Uuid;
   workspace_id: Uuid | null;
   parent_id: Uuid | null;
   name: string;
   code: string;
+  kind: CategoryKind;
   is_system: boolean;
   is_active: boolean;
   sort_order: number;

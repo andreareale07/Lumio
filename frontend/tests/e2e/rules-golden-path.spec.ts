@@ -37,7 +37,11 @@ test("registrazione, regola, import CSV reale e suggerimento dopo correzioni rip
   await page.getByRole("button", { name: "Nuova regola" }).click();
   await page.getByLabel("Nome").fill("Netflix");
   await page.getByLabel("Valore").fill("netflix");
-  await page.getByLabel("Categoria").selectOption({ label: "Abbonamenti › Streaming" });
+  // Rework tassonomia: CategoryPicker non e' piu' un `<select>` nativo —
+  // il Combobox apre un popover con ricerca, "Streaming" e' raggruppata
+  // sotto l'intestazione "Abbonamenti" invece che nella label combinata.
+  await page.getByLabel("Categoria").click();
+  await page.getByRole("option", { name: "Streaming" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Crea regola" }).click();
   await expect(page.getByText(/Descrizione contiene "netflix"/)).toBeVisible();
 
@@ -69,7 +73,8 @@ test("registrazione, regola, import CSV reale e suggerimento dopo correzioni rip
 
   for (let i = 0; i < 2; i++) {
     await lidlRows.nth(i).click();
-    await page.getByRole("dialog").getByLabel("Categoria").selectOption({ label: "Alimentari › Supermercato" });
+    await page.getByRole("dialog").getByLabel("Categoria").click();
+    await page.getByRole("dialog").getByRole("option", { name: "Supermercato" }).click();
     await page.keyboard.press("Escape");
   }
 
