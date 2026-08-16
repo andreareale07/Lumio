@@ -74,6 +74,7 @@ async def get_summary(
         liquidity=result["liquidity"],
         debt=result["debt"],
         investments=result["investments"],
+        net_worth=result["net_worth"],
         has_investments=result["has_investments"],
         income=result["income"],
         expenses=result["expenses"],

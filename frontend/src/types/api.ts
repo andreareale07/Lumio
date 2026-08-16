@@ -336,6 +336,7 @@ export interface AnalyticsSummary {
   liquidity: string;
   debt: string;
   investments: string;
+  net_worth: string;
   has_investments: boolean;
   income: string;
   expenses: string;

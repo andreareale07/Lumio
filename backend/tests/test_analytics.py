@@ -82,6 +82,11 @@ async def test_summary_excludes_transfers_and_investments(client):
     # transfer/investment incluse: 2000 - 500 - 300 - 200 = 1000.
     assert body["liquidity"] == "1000.00"
     assert body["has_investments"] is False
+    # Rework dashboard interattivo: nuova KPI "Patrimonio totale" (SPEC.md
+    # §39/§73) = liquidita' - debiti + investimenti, calcolata qui in
+    # Decimal (non lato frontend in float). Nessun debito/investimento in
+    # questo scenario -> coincide con la liquidita'.
+    assert body["net_worth"] == "1000.00"
 
 
 async def test_brokerage_account_counts_as_liquidity_not_investment(client):

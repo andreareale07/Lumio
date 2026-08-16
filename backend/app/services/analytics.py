@@ -333,6 +333,11 @@ async def summary(
         "liquidity": balances.liquidity_total,
         "debt": balances.debt_total,
         "investments": balances.investment_total,
+        # Rework dashboard interattivo: la nuova KPI "Patrimonio totale"
+        # (SPEC.md §39/§73). Calcolato qui in Decimal, non lato frontend in
+        # float, per lo stesso motivo per cui ogni altra somma di denaro in
+        # questo modulo resta in Decimal fino alla serializzazione.
+        "net_worth": balances.liquidity_total - balances.debt_total + balances.investment_total,
         "has_investments": balances.has_investments,
         "income": current.income,
         "expenses": current.expenses,

@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Landmark, PiggyBank, UploadCloud, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import { BarComparisonChart } from "../../components/charts/BarComparisonChart";
+import { BarComparisonChart, type CashFlowBarPoint } from "../../components/charts/BarComparisonChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { DonutChart } from "../../components/charts/DonutChart";
+import { DrillDownDrawer } from "../../components/charts/DrillDownDrawer";
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { KpiCard } from "../../components/kpi/KpiCard";
 import { Card } from "../../components/ui/Card";
@@ -12,9 +14,16 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
 import { Skeleton, SkeletonRows } from "../../components/ui/Skeleton";
 import { formatDate, formatMoney, formatPercent, formatPeriodLabel, formatSignedMoney } from "../../lib/format";
+import { periodForAnchor, previousPeriod, type Granularity } from "../../lib/period";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useTransactions } from "../transactions/api";
-import { useAnalyticsByCategory, useAnalyticsCashFlow, useAnalyticsSummary } from "../analytics/api";
+import {
+  useAnalyticsBalanceHistory,
+  useAnalyticsByCategory,
+  useAnalyticsByMerchant,
+  useAnalyticsCashFlow,
+  useAnalyticsSummary,
+} from "../analytics/api";
 import { formatBucketLabel, greetingForHour } from "../analytics/chartData";
 import { usePortfolioAllocation, usePortfolioValuation } from "../portfolio/api";
 
@@ -23,9 +32,11 @@ export function DashboardPage() {
     granularities: ["month", "quarter", "year"],
   });
   const period = { date_from: currentPeriod.date_from, date_to: currentPeriod.date_to };
+  const previousRange = previousPeriod(period.date_from, period.date_to);
 
   const summary = useAnalyticsSummary(period);
   const cashFlow = useAnalyticsCashFlow({ ...trendWindow, granularity });
+  const balanceHistory = useAnalyticsBalanceHistory({ ...trendWindow, granularity });
   const byCategory = useAnalyticsByCategory({ ...period, direction: "expense" });
   const recentTransactions = useTransactions({ limit: 5 });
 
@@ -35,7 +46,52 @@ export function DashboardPage() {
     : undefined;
   const cashFlowIsEmpty = cashFlow.data?.points.every((p) => p.income === "0" && p.expenses === "0") ?? false;
   const cashFlowPoints = cashFlow.data?.points ?? [];
-  const cashFlowGranularity = cashFlow.data?.granularity ?? "month";
+  const cashFlowGranularity = (cashFlow.data?.granularity ?? "month") as Granularity;
+
+  const liquiditySparkline = (balanceHistory.data?.points ?? []).map((p) => Number(p.balance));
+  const incomeSparkline = cashFlowPoints.map((p) => Number(p.income));
+  const expensesSparkline = cashFlowPoints.map((p) => Number(p.expenses));
+  const cashFlowSparkline = cashFlowPoints.map((p) => Number(p.income) - Number(p.expenses));
+
+  // Drill-down categoria (Step A, riusato qui): stessa forma di
+  // BreakdownPage.tsx, sempre direction="expense" (l'unico donut qui).
+  const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null);
+  const drawerCashFlow = useAnalyticsCashFlow(
+    { ...trendWindow, granularity, category_id: selectedCategory?.id },
+    { enabled: !!selectedCategory },
+  );
+  const drawerMerchants = useAnalyticsByMerchant(
+    { ...period, direction: "expense", category_id: selectedCategory?.id },
+    { enabled: !!selectedCategory },
+  );
+  const drawerPreviousCategory = useAnalyticsByCategory(
+    { ...previousRange, direction: "expense" },
+    { enabled: !!selectedCategory },
+  );
+  const drawerCategoryTransactions = useTransactions(
+    { category_id: selectedCategory?.id, date_from: period.date_from, date_to: period.date_to, limit: 5 },
+    { enabled: !!selectedCategory },
+  );
+  const categoryDrawerGranularity = (drawerCashFlow.data?.granularity ?? "month") as Granularity;
+  const categoryDrawerTrend = (drawerCashFlow.data?.points ?? []).map((p) => ({
+    period: p.period,
+    label: formatBucketLabel(p.period, categoryDrawerGranularity),
+    value: Number(p.expenses),
+  }));
+  const currentCategoryTotal = byCategory.data?.items.find((i) => i.category_id === selectedCategory?.id)?.total;
+  const previousCategoryTotal = drawerPreviousCategory.data?.items.find(
+    (i) => i.category_id === selectedCategory?.id,
+  )?.total;
+
+  // Drill-down periodo (click su una barra Entrate/Uscite): un bucket
+  // temporale non ha "categorie", solo il confronto entrate/uscite di
+  // QUEL periodo + le transazioni che ci sono cadute dentro.
+  const [selectedBucket, setSelectedBucket] = useState<CashFlowBarPoint | null>(null);
+  const bucketRange = selectedBucket ? periodForAnchor(cashFlowGranularity, new Date(selectedBucket.period)) : null;
+  const bucketTransactions = useTransactions(
+    { date_from: bucketRange?.date_from, date_to: bucketRange?.date_to, limit: 5 },
+    { enabled: !!selectedBucket },
+  );
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4">
@@ -53,7 +109,7 @@ export function DashboardPage() {
 
       {summary.isLoading && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: 7 }).map((_, i) => (
             <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
@@ -61,13 +117,22 @@ export function DashboardPage() {
 
       {summary.data && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard title="Liquidità" value={summary.data.liquidity} currency={currency} />
+          <KpiCard title="Patrimonio totale" value={summary.data.net_worth} currency={currency} />
+          <KpiCard
+            title="Liquidità"
+            value={summary.data.liquidity}
+            currency={currency}
+            sparklineValues={liquiditySparkline.length > 1 ? liquiditySparkline : undefined}
+          />
+          <KpiCard title="Investimenti" value={summary.data.investments} currency={currency} />
+          <KpiCard title="Debiti" value={summary.data.debt} currency={currency} positiveIsGood={false} />
           <KpiCard
             title="Entrate"
             value={summary.data.income}
             previousValue={summary.data.previous_income}
             comparisonLabel={comparisonLabel}
             currency={currency}
+            sparklineValues={incomeSparkline.length > 1 ? incomeSparkline : undefined}
           />
           <KpiCard
             title="Spese"
@@ -76,6 +141,7 @@ export function DashboardPage() {
             comparisonLabel={comparisonLabel}
             currency={currency}
             positiveIsGood={false}
+            sparklineValues={expensesSparkline.length > 1 ? expensesSparkline : undefined}
           />
           <KpiCard
             title="Cash Flow"
@@ -83,6 +149,7 @@ export function DashboardPage() {
             previousValue={summary.data.previous_net_cash_flow}
             comparisonLabel={comparisonLabel}
             currency={currency}
+            sparklineValues={cashFlowSparkline.length > 1 ? cashFlowSparkline : undefined}
           />
         </div>
       )}
@@ -122,6 +189,7 @@ export function DashboardPage() {
                   income: Number(p.income),
                   expenses: Number(p.expenses),
                 }))}
+                onBarClick={setSelectedBucket}
               />
             </ChartCard>
           )}
@@ -164,17 +232,35 @@ export function DashboardPage() {
               >
                 <DonutChart
                   currency={currency}
-                  data={byCategory.data.items.map((item) => ({ label: item.name, value: Number(item.total) }))}
+                  data={byCategory.data.items.map((item) => ({
+                    key: item.category_id ?? undefined,
+                    label: item.name,
+                    value: Number(item.total),
+                  }))}
+                  onSliceClick={(slice) => slice.key && setSelectedCategory({ id: slice.key, name: slice.label })}
                 />
               </ChartCard>
               {byCategory.data.items.length > 0 && (
                 <ul className="flex flex-col gap-1.5">
-                  {byCategory.data.items.map((item) => (
-                    <li key={item.category_id ?? "none"} className="flex items-center justify-between text-sm">
-                      <span className="text-text">{item.name}</span>
-                      <span className="font-numeric text-text-muted">{formatMoney(item.total, currency)}</span>
-                    </li>
-                  ))}
+                  {byCategory.data.items.map((item) =>
+                    item.category_id === null ? (
+                      <li key="none" className="flex items-center justify-between text-sm">
+                        <span className="text-text">{item.name}</span>
+                        <span className="font-numeric text-text-muted">{formatMoney(item.total, currency)}</span>
+                      </li>
+                    ) : (
+                      <li key={item.category_id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCategory({ id: item.category_id as string, name: item.name })}
+                          className="flex w-full items-center justify-between rounded-md p-1 text-left text-sm hover:bg-surface-hover"
+                        >
+                          <span className="text-text">{item.name}</span>
+                          <span className="font-numeric text-text-muted">{formatMoney(item.total, currency)}</span>
+                        </button>
+                      </li>
+                    ),
+                  )}
                 </ul>
               )}
             </>
@@ -227,6 +313,66 @@ export function DashboardPage() {
           <Wallet className="h-4 w-4" aria-hidden="true" /> Visualizza movimenti
         </LinkButton>
       </div>
+
+      <DrillDownDrawer
+        open={!!selectedCategory}
+        onClose={() => setSelectedCategory(null)}
+        title={selectedCategory?.name ?? ""}
+        currency={currency}
+        isLoading={
+          drawerCashFlow.isLoading ||
+          drawerMerchants.isLoading ||
+          drawerPreviousCategory.isLoading ||
+          drawerCategoryTransactions.isLoading
+        }
+        comparison={
+          currentCategoryTotal !== undefined
+            ? { current: Number(currentCategoryTotal), previous: Number(previousCategoryTotal ?? 0), higherIsGood: false }
+            : undefined
+        }
+        trend={categoryDrawerTrend}
+        breakdownTitle="Top merchant"
+        breakdown={(drawerMerchants.data?.items ?? []).map((m) => ({
+          key: m.merchant ?? "senza-merchant",
+          label: m.merchant ?? "Senza merchant",
+          value: Number(m.total),
+        }))}
+        transactions={(drawerCategoryTransactions.data ?? []).map((t) => ({
+          id: t.id,
+          label: t.merchant ?? t.description_raw,
+          date: t.transaction_date,
+          amount: t.amount,
+          currency: t.currency,
+        }))}
+        viewAllHref={selectedCategory ? `/transactions?category=${selectedCategory.id}` : undefined}
+      />
+
+      <DrillDownDrawer
+        open={!!selectedBucket}
+        onClose={() => setSelectedBucket(null)}
+        title={selectedBucket?.label ?? ""}
+        currency={currency}
+        isLoading={bucketTransactions.isLoading}
+        breakdownTitle="Entrate vs Uscite"
+        breakdown={
+          selectedBucket
+            ? [
+                { key: "income", label: "Entrate", value: selectedBucket.income },
+                { key: "expenses", label: "Uscite", value: selectedBucket.expenses },
+              ]
+            : undefined
+        }
+        transactions={(bucketTransactions.data ?? []).map((t) => ({
+          id: t.id,
+          label: t.merchant ?? t.description_raw,
+          date: t.transaction_date,
+          amount: t.amount,
+          currency: t.currency,
+        }))}
+        viewAllHref={
+          bucketRange ? `/transactions?mode=custom&from=${bucketRange.date_from}&to=${bucketRange.date_to}` : undefined
+        }
+      />
     </div>
   );
 }

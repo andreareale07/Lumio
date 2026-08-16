@@ -19,6 +19,7 @@ class SummaryOut(BaseModel):
     liquidity: Decimal
     debt: Decimal
     investments: Decimal
+    net_worth: Decimal
     has_investments: bool
     income: Decimal
     expenses: Decimal
