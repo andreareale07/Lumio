@@ -29,6 +29,7 @@ class PortfolioAllocationOut(BaseModel):
     by_asset_type: list[AllocationItemOut]
     by_asset: list[AllocationItemOut]
     by_account: list[AllocationItemOut]
+    by_strategy: list[AllocationItemOut]
 
 
 class PortfolioSnapshotPointOut(BaseModel):

@@ -124,6 +124,7 @@ async def get_portfolio_allocation(
         by_asset_type=to_items(allocation.by_asset_type),
         by_asset=to_items(allocation.by_asset),
         by_account=to_items(allocation.by_account),
+        by_strategy=to_items(allocation.by_strategy),
     )
 
 

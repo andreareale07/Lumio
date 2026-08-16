@@ -25,11 +25,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
 from app.models.financial_account import FinancialAccount
+from app.models.investment_transaction import InvestmentTransaction
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.portfolio import Portfolio
 from app.models.portfolio_account import PortfolioAccount
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.position import Position
+from app.services.investment_strategy import STRATEGY_LABELS, classify_strategy
 
 # Import locale (dentro write_daily_snapshots, non qui a livello modulo):
 # `analytics.py` chiama `compute_valuation` per popolare `investment_total`
@@ -64,6 +66,14 @@ class PortfolioAllocation:
     by_asset_type: list[AllocationItem]
     by_asset: list[AllocationItem]
     by_account: list[AllocationItem]
+    # PAC vs una tantum (rework dashboard interattivo) — a differenza delle
+    # altre 3 distribuzioni, non e' "quanto vale oggi" (valore di mercato
+    # delle posizioni correnti: attribuire una posizione attuale alla
+    # strategia dell'acquisto originale richiederebbe un tracciamento a lotti,
+    # fuori scope) ma "quanto ho investito finora con ciascuna strategia" —
+    # una somma sul libro mastro (`InvestmentTransaction`, solo i "buy"),
+    # non sulle posizioni derivate.
+    by_strategy: list[AllocationItem]
 
 
 async def _latest_price(
@@ -151,6 +161,8 @@ async def compute_allocation(
     sommata in un totale unico. Solo le posizioni con quantita' != 0 e nella
     valuta richiesta entrano nella distribuzione — una posizione azzerata
     non ha piu' senso in un donut di allocation."""
+    by_strategy = await _compute_strategy_breakdown(db, workspace_id, account_ids, currency)
+
     query = select(Position).where(Position.workspace_id == workspace_id)
     if account_ids is not None:
         query = query.where(Position.financial_account_id.in_(account_ids))
@@ -159,7 +171,12 @@ async def compute_allocation(
 
     if not relevant:
         return PortfolioAllocation(
-            currency=currency, has_market_data=True, by_asset_type=[], by_asset=[], by_account=[]
+            currency=currency,
+            has_market_data=True,
+            by_asset_type=[],
+            by_asset=[],
+            by_account=[],
+            by_strategy=by_strategy,
         )
 
     asset_ids = {p.asset_id for p in relevant}
@@ -223,7 +240,51 @@ async def compute_allocation(
             values_by_asset, lambda k: (assets[k].symbol or assets[k].name) if k in assets else "—"
         ),
         by_account=_to_items(values_by_account, lambda k: accounts[k].name if k in accounts else "—"),
+        by_strategy=by_strategy,
     )
+
+
+async def _compute_strategy_breakdown(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    account_ids: set[uuid.UUID] | None,
+    currency: str,
+) -> list[AllocationItem]:
+    """Quanto e' stato investito finora con ciascuna strategia (PAC vs una
+    tantum) — somma sul libro mastro (`InvestmentTransaction`, solo i
+    movimenti "buy": una vendita o un dividendo non sono "investire", vedi
+    `app/services/investment_strategy.py`). A differenza delle altre
+    distribuzioni di `compute_allocation`, non e' legata alle posizioni
+    APERTE: un titolo interamente venduto ha comunque contribuito al totale
+    investito in passato."""
+    query = select(InvestmentTransaction).where(
+        InvestmentTransaction.workspace_id == workspace_id,
+        InvestmentTransaction.type == "buy",
+        InvestmentTransaction.currency == currency,
+    )
+    if account_ids is not None:
+        query = query.where(InvestmentTransaction.financial_account_id.in_(account_ids))
+    rows = (await db.execute(query)).scalars().all()
+
+    totals: dict[str, Decimal] = {}
+    for row in rows:
+        strategy = classify_strategy(row.source_type_raw)
+        totals[strategy] = totals.get(strategy, Decimal("0")) + abs(row.amount)
+
+    total_all = sum(totals.values(), Decimal("0"))
+    cents = Decimal("0.01")
+    fraction = Decimal("0.0001")
+    items = [
+        AllocationItem(
+            key=key,
+            label=STRATEGY_LABELS[key],
+            value=value.quantize(cents),
+            share=(value / total_all).quantize(fraction) if total_all != 0 else Decimal("0"),
+        )
+        for key, value in totals.items()
+    ]
+    items.sort(key=lambda item: item.value, reverse=True)
+    return items
 
 
 async def _upsert_portfolio_snapshot(
