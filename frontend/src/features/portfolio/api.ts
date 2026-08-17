@@ -135,6 +135,7 @@ export const investmentTransactionsKey = ["portfolio", "investment-transactions"
 export interface InvestmentTransactionFilters {
   financial_account_id?: string;
   asset_id?: string;
+  type?: InvestmentTransactionType;
   limit?: number;
   offset?: number;
 }
@@ -143,6 +144,7 @@ export function useInvestmentTransactions(filters: InvestmentTransactionFilters 
   const params = new URLSearchParams();
   if (filters.financial_account_id) params.set("financial_account_id", filters.financial_account_id);
   if (filters.asset_id) params.set("asset_id", filters.asset_id);
+  if (filters.type) params.set("type", filters.type);
   params.set("limit", String(filters.limit ?? 50));
   params.set("offset", String(filters.offset ?? 0));
 

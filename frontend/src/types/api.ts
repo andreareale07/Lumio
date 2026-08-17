@@ -575,6 +575,7 @@ export interface PortfolioAllocation {
   by_asset_type: AllocationItem[];
   by_asset: AllocationItem[];
   by_account: AllocationItem[];
+  by_strategy: AllocationItem[];
 }
 
 export interface PortfolioSnapshotPoint {

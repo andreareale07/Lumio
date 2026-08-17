@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { DonutChart } from "../../components/charts/DonutChart";
+import { DrillDownDrawer } from "../../components/charts/DrillDownDrawer";
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -23,6 +24,7 @@ import { ACCOUNT_TYPE_LABELS } from "../accounts/labels";
 import type { InvestmentTransaction, Portfolio, Position } from "../../types/api";
 import { AssetFormDialog } from "./AssetFormDialog";
 import { InvestmentTransactionFormDialog } from "./InvestmentTransactionFormDialog";
+import { classifyInvestmentStrategy, type InvestmentStrategy } from "./investmentStrategy";
 import { PortfolioFormDialog } from "./PortfolioFormDialog";
 import { PositionManualEditDialog } from "./PositionManualEditDialog";
 import {
@@ -201,6 +203,28 @@ function OverviewTab({
 
 function AllocationTab({ portfolioId }: { portfolioId: string | null }) {
   const allocation = usePortfolioAllocation(portfolioId);
+  const { data: assets } = useAssets();
+  const [selectedStrategy, setSelectedStrategy] = useState<{ key: InvestmentStrategy; label: string } | null>(null);
+
+  // "Quanto ho investito con questa strategia" (rework dashboard
+  // interattivo): a differenza delle altre distribuzioni, e' sul libro
+  // mastro (solo "buy"), non sulle posizioni aperte — fetchata qui, non
+  // filtrabile server-side per strategia (campo derivato, mai persistito).
+  const buyTransactions = useInvestmentTransactions({ type: "buy", limit: 200 });
+  const strategyTransactions = (buyTransactions.data ?? []).filter(
+    (t) => selectedStrategy && classifyInvestmentStrategy(t.source_type_raw) === selectedStrategy.key,
+  );
+  const assetNameById = useMemo(() => new Map((assets ?? []).map((a) => [a.id, a.symbol || a.name])), [assets]);
+  const strategyByAsset = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const t of strategyTransactions) {
+      const label = t.asset_id ? assetNameById.get(t.asset_id) ?? "—" : "—";
+      totals.set(label, (totals.get(label) ?? 0) + Math.abs(Number(t.amount)));
+    }
+    return Array.from(totals.entries())
+      .map(([label, value]) => ({ key: label, label, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [strategyTransactions, assetNameById]);
 
   if (allocation.isLoading) return <SkeletonRows rows={4} />;
   if (allocation.isError) {
@@ -208,9 +232,10 @@ function AllocationTab({ portfolioId }: { portfolioId: string | null }) {
   }
 
   const data = allocation.data;
-  const isEmpty = !data || data.by_asset.length === 0;
+  const hasPositions = !!data && data.by_asset.length > 0;
+  const hasStrategyData = !!data && data.by_strategy.length > 0;
 
-  if (isEmpty) {
+  if (!hasPositions && !hasStrategyData) {
     return (
       <EmptyState
         icon={PiggyBank}
@@ -222,55 +247,114 @@ function AllocationTab({ portfolioId }: { portfolioId: string | null }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {!data.has_market_data && (
-        <p className="text-sm text-text-muted">
-          Distribuzione calcolata al costo storico dove manca un prezzo di mercato.
-        </p>
-      )}
-      <ChartCard
-        title="Per tipo di strumento"
-        tableCaption="Allocation per tipo di strumento"
-        tableHeaders={["Tipo", "Valore", "Quota"]}
-        tableRows={data.by_asset_type.map((item) => [
-          item.label,
-          formatMoney(item.value, data.currency),
-          formatPercent(item.share),
-        ])}
-      >
-        <DonutChart
-          currency={data.currency}
-          data={data.by_asset_type.map((item) => ({ label: item.label, value: Number(item.value) }))}
-        />
-      </ChartCard>
+      {hasPositions && (
+        <>
+          {!data.has_market_data && (
+            <p className="text-sm text-text-muted">
+              Distribuzione calcolata al costo storico dove manca un prezzo di mercato.
+            </p>
+          )}
+          <ChartCard
+            title="Per tipo di strumento"
+            tableCaption="Allocation per tipo di strumento"
+            tableHeaders={["Tipo", "Valore", "Quota"]}
+            tableRows={data.by_asset_type.map((item) => [
+              item.label,
+              formatMoney(item.value, data.currency),
+              formatPercent(item.share),
+            ])}
+          >
+            <DonutChart
+              currency={data.currency}
+              data={data.by_asset_type.map((item) => ({ label: item.label, value: Number(item.value) }))}
+            />
+          </ChartCard>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-text">Per asset</h3>
-          <ul className="flex flex-col gap-1 text-sm">
-            {data.by_asset.map((item) => (
-              <li key={item.key} className="flex items-center justify-between text-text-muted">
-                <span>{item.label}</span>
-                <span className="font-numeric text-text">
-                  {formatMoney(item.value, data.currency)} · {formatPercent(item.share)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-        <Card className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-text">Per conto</h3>
-          <ul className="flex flex-col gap-1 text-sm">
-            {data.by_account.map((item) => (
-              <li key={item.key} className="flex items-center justify-between text-text-muted">
-                <span>{item.label}</span>
-                <span className="font-numeric text-text">
-                  {formatMoney(item.value, data.currency)} · {formatPercent(item.share)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold text-text">Per asset</h3>
+              <ul className="flex flex-col gap-1 text-sm">
+                {data.by_asset.map((item) => (
+                  <li key={item.key} className="flex items-center justify-between text-text-muted">
+                    <span>{item.label}</span>
+                    <span className="font-numeric text-text">
+                      {formatMoney(item.value, data.currency)} · {formatPercent(item.share)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+            <Card className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold text-text">Per conto</h3>
+              <ul className="flex flex-col gap-1 text-sm">
+                {data.by_account.map((item) => (
+                  <li key={item.key} className="flex items-center justify-between text-text-muted">
+                    <span>{item.label}</span>
+                    <span className="font-numeric text-text">
+                      {formatMoney(item.value, data.currency)} · {formatPercent(item.share)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {hasStrategyData && (
+        <ChartCard
+          title="PAC vs una tantum"
+          subtitle="Quanto è stato investito finora con ciascuna strategia"
+          tableCaption="Investito per strategia"
+          tableHeaders={["Strategia", "Investito", "Quota"]}
+          tableRows={data.by_strategy.map((item) => [
+            item.label,
+            formatMoney(item.value, data.currency),
+            formatPercent(item.share),
+          ])}
+        >
+          <DonutChart
+            currency={data.currency}
+            data={data.by_strategy.map((item) => ({ key: item.key, label: item.label, value: Number(item.value) }))}
+            onSliceClick={(slice) =>
+              slice.key && setSelectedStrategy({ key: slice.key as InvestmentStrategy, label: slice.label })
+            }
+          />
+        </ChartCard>
+      )}
+      {hasStrategyData && (
+        <ul className="flex flex-col gap-1.5">
+          {data.by_strategy.map((item) => (
+            <li key={item.key}>
+              <button
+                type="button"
+                onClick={() => setSelectedStrategy({ key: item.key as InvestmentStrategy, label: item.label })}
+                className="flex w-full items-center justify-between rounded-md p-1 text-left text-sm hover:bg-surface-hover"
+              >
+                <span className="text-text">{item.label}</span>
+                <span className="font-numeric text-text-muted">{formatMoney(item.value, data.currency)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <DrillDownDrawer
+        open={!!selectedStrategy}
+        onClose={() => setSelectedStrategy(null)}
+        title={selectedStrategy?.label ?? ""}
+        currency={data?.currency ?? "EUR"}
+        isLoading={buyTransactions.isLoading}
+        breakdownTitle="Per asset"
+        breakdown={strategyByAsset}
+        transactions={strategyTransactions.map((t) => ({
+          id: t.id,
+          label: t.asset_id ? assetNameById.get(t.asset_id) ?? "—" : "—",
+          date: t.trade_date,
+          amount: t.amount,
+          currency: t.currency,
+        }))}
+      />
     </div>
   );
 }
