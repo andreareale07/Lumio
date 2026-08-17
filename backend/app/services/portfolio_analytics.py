@@ -66,7 +66,7 @@ class PortfolioAllocation:
     by_asset_type: list[AllocationItem]
     by_asset: list[AllocationItem]
     by_account: list[AllocationItem]
-    # PAC vs una tantum (rework dashboard interattivo) — a differenza delle
+    # PAC vs Investimenti (rework dashboard interattivo) — a differenza delle
     # altre 3 distribuzioni, non e' "quanto vale oggi" (valore di mercato
     # delle posizioni correnti: attribuire una posizione attuale alla
     # strategia dell'acquisto originale richiederebbe un tracciamento a lotti,

@@ -303,7 +303,7 @@ function AllocationTab({ portfolioId }: { portfolioId: string | null }) {
 
       {hasStrategyData && (
         <ChartCard
-          title="PAC vs una tantum"
+          title="PAC vs Investimenti"
           subtitle="Quanto è stato investito finora con ciascuna strategia"
           tableCaption="Investito per strategia"
           tableHeaders={["Strategia", "Investito", "Quota"]}

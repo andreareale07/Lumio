@@ -232,7 +232,7 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
           tableHeaders={["Periodo", "Saldo"]}
           tableRows={trendPoints.map((p) => [p.label, formatMoney(p.value, currency)])}
         >
-          <AreaTrendChart data={trendPoints} currency={currency} />
+          <AreaTrendChart data={trendPoints} currency={currency} valueLabel="Saldo" />
         </ChartCard>
       )}
 

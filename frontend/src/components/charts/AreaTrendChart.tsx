@@ -9,8 +9,21 @@ export interface TrendPoint {
   value: number;
 }
 
-/** Grafico area/line del patrimonio nel tempo (SPEC §45, SPEC_FE §14). */
-export function AreaTrendChart({ data, currency }: { data: TrendPoint[]; currency: string }) {
+/** Grafico area/line generico per un trend nel tempo (SPEC §45, SPEC_FE
+ * §14) — riusato per contesti molto diversi (patrimonio, spese/entrate per
+ * categoria, valore portfolio, trend nel drawer di drill-down): "Saldo" era
+ * sbagliato ovunque tranne per un vero saldo conto (unico caso che lo passa
+ * esplicitamente, vedi AccountDetailPage.tsx), quindi il default e'
+ * generico. */
+export function AreaTrendChart({
+  data,
+  currency,
+  valueLabel = "Importo",
+}: {
+  data: TrendPoint[];
+  currency: string;
+  valueLabel?: string;
+}) {
   const theme = useChartTheme();
 
   return (
@@ -40,7 +53,7 @@ export function AreaTrendChart({ data, currency }: { data: TrendPoint[]; currenc
             color: theme.text,
           }}
           labelStyle={{ color: theme.textMuted }}
-          formatter={(value) => [formatMoney(Number(value), currency), "Saldo"] as [string, string]}
+          formatter={(value) => [formatMoney(Number(value), currency), valueLabel] as [string, string]}
         />
         <Area type="monotone" dataKey="value" stroke={theme.primary} strokeWidth={2} fill="url(#lumio-area-fill)" />
       </AreaChart>

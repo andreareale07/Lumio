@@ -152,7 +152,7 @@ export function NetWorthPage() {
                   — questa riga e' il valore delle POSIZIONI (asset
                   posseduti), un dato distinto, mai un doppio conteggio.
                   Link diretto invece di un drawer: il breakdown ricco
-                  (per tipo di strumento, per asset, PAC vs una tantum)
+                  (per tipo di strumento, per asset, PAC vs Investimenti)
                   vive gia' in Investimenti > Allocation, duplicarlo qui
                   sarebbe manutenzione doppia per lo stesso dato. */}
               {balances.data.has_investments && (

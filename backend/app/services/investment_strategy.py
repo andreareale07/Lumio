@@ -17,7 +17,11 @@ InvestmentStrategy = Literal["recurring_plan", "one_off", "other"]
 
 STRATEGY_LABELS: dict[InvestmentStrategy, str] = {
     "recurring_plan": "PAC",
-    "one_off": "Una tantum",
+    # "Una tantum" non e' un termine che l'utente riconosce nel proprio
+    # linguaggio finanziario — "Investimenti" (in coppia con "PAC") e' piu'
+    # chiaro, anche se la chiave interna resta `one_off` per accuratezza
+    # tecnica (un acquisto/vendita singolo, non ricorrente).
+    "one_off": "Investimenti",
     "other": "Altro",
 }
 
