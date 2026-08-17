@@ -337,7 +337,13 @@ async def summary(
         # (SPEC.md §39/§73). Calcolato qui in Decimal, non lato frontend in
         # float, per lo stesso motivo per cui ogni altra somma di denaro in
         # questo modulo resta in Decimal fino alla serializzazione.
-        "net_worth": balances.liquidity_total - balances.debt_total + balances.investment_total,
+        # `debt_total` e' GIA' un saldo con segno (negativo quando si e' in
+        # debito, vedi account_balances sopra) — si SOMMA cosi' com'e',
+        # esattamente come in `portfolio_analytics._upsert_net_worth_snapshot`
+        # (bug reale: la prima versione lo sottraeva di nuovo, raddoppiando
+        # l'effetto e restituendo un patrimonio piu' alto in presenza di
+        # debiti invece che piu' basso).
+        "net_worth": balances.liquidity_total + balances.debt_total + balances.investment_total,
         "has_investments": balances.has_investments,
         "income": current.income,
         "expenses": current.expenses,

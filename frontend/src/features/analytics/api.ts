@@ -11,6 +11,7 @@ import type {
   AnalyticsGranularity,
   AnalyticsMerchantBreakdown,
   AnalyticsSummary,
+  NetWorthHistory,
 } from "../../types/api";
 
 export interface PeriodFilters {
@@ -84,5 +85,20 @@ export function useAnalyticsByMerchant(filters: BreakdownFilters, options: { ena
     queryFn: () =>
       api.get<AnalyticsMerchantBreakdown>(`/analytics/by-merchant${buildQueryString(filters)}`),
     enabled: options.enabled ?? true,
+  });
+}
+
+export const netWorthHistoryKey = (filters: PeriodFilters) => ["analytics", "net-worth-history", filters] as const;
+
+/** A differenza di `useAnalyticsBalanceHistory` (sola liquidita',
+ * ricostruita a ritroso dalle transazioni), legge dagli snapshot gia'
+ * scritti (`net_worth_snapshots`) e include gli investimenti a valore di
+ * mercato — nessun parametro `granularity`, il backend ritorna sempre la
+ * serie giornaliera grezza degli snapshot nel range (stesso principio di
+ * `usePortfolioPerformance`). */
+export function useAnalyticsNetWorthHistory(filters: PeriodFilters) {
+  return useQuery({
+    queryKey: netWorthHistoryKey(filters),
+    queryFn: () => api.get<NetWorthHistory>(`/analytics/net-worth-history${buildQueryString(filters)}`),
   });
 }

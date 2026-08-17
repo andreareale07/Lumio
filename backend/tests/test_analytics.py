@@ -113,6 +113,34 @@ async def test_brokerage_account_counts_as_liquidity_not_investment(client):
     assert body["has_investments"] is False
 
 
+async def test_net_worth_subtracts_debt_not_adds_it(client):
+    # Bug reale (rework dashboard interattivo): `debt_total` e' GIA' un
+    # saldo con segno (negativo quando si e' in debito, vedi il test sopra)
+    # — la prima versione di questa formula lo SOTTRAEVA di nuovo
+    # (liquidity - debt), raddoppiando l'effetto e restituendo un
+    # patrimonio PIU' alto in presenza di debiti invece che piu' basso.
+    # Speculare a `_upsert_net_worth_snapshot` in portfolio_analytics.py,
+    # che soffriva dello stesso rischio se scritta cosi'.
+    token = await _register(client, "net-worth-debt@example.com")
+    checking_id = await _create_account(client, token, account_type="checking")
+    credit_card_id = await _create_account(client, token, account_type="credit_card")
+
+    await _create_transaction(
+        client, token, checking_id, amount="3000.00", direction="credit", transaction_type="income"
+    )
+    await _create_transaction(client, token, credit_card_id, amount="-450.00")
+
+    response = await client.get(
+        "/api/v1/analytics/summary",
+        params={"date_from": "2026-08-01", "date_to": "2026-08-31"},
+        headers=_auth_headers(token),
+    )
+    body = response.json()
+    assert body["liquidity"] == "3000.00"
+    assert body["debt"] == "-450.00"
+    assert body["net_worth"] == "2550.00"
+
+
 async def test_by_category_rolls_up_subcategories_to_parent(client):
     token = await _register(client, "category@example.com")
     account_id = await _create_account(client, token)

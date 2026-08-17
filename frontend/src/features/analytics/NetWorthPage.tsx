@@ -1,43 +1,80 @@
-import { Landmark, PiggyBank } from "lucide-react";
+import { useState } from "react";
+import { Landmark, PiggyBank, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
+import { DrillDownDrawer } from "../../components/charts/DrillDownDrawer";
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
+import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
+import { JobRunStatus } from "../../components/ui/JobRunStatus";
 import { Skeleton } from "../../components/ui/Skeleton";
-import { formatMoney, formatPeriodLabel } from "../../lib/format";
+import { formatDate, formatMoney } from "../../lib/format";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
-import { useAnalyticsBalanceHistory, useAnalyticsBalances, useAnalyticsSummary } from "./api";
-import { formatBucketLabel } from "./chartData";
+import { useTransactions } from "../transactions/api";
+import { useSnapshotRebuildStatus, useTriggerSnapshotRebuild } from "../portfolio/api";
+import { useAnalyticsBalances, useAnalyticsNetWorthHistory, useAnalyticsSummary } from "./api";
+
+const LIQUIDITY_ACCOUNT_TYPES = new Set(["checking", "savings", "brokerage", "cash", "other"]);
+const DEBT_ACCOUNT_TYPES = new Set(["credit_card"]);
 
 /** SPEC_FE §33-34: storico + breakdown per gruppo di conti + attribution
  * del periodo. Il saldo di QUALSIASI conto — incluso un conto titoli,
  * spesso ibrido (spendibile con carta E usato per investire, es. Trade
  * Republic/Fineco) — conta come Liquidita', non come investimento: un
  * acquisto reale sposta cash verso una posizione, valorizzata separatamente
- * (M09b, `balances.investment_total`) — mai un doppio conteggio. Il grafico
- * storico resta sulla sola liquidita' (ricostruita dalle transazioni, SPEC
- * §31); lo storico del valore delle posizioni vive in Investimenti →
- * Performance, che legge dagli snapshot invece di ricalcolare al volo. */
+ * (M09b, `balances.investment_total`) — mai un doppio conteggio.
+ *
+ * Rework dashboard interattivo: il grafico storico usa ora
+ * `net-worth-history` (vero patrimonio, liquidita'+debiti+investimenti a
+ * valore di mercato, letto SEMPRE dagli snapshot gia' scritti) invece di
+ * `balance-history` (sola liquidita', ricostruita a ritroso dalle
+ * transazioni) — endpoint gia' esistente, mai collegato prima. Nessun
+ * "recompute vs snapshot" da riconciliare: a differenza della vecchia
+ * versione (che avrebbe dovuto mischiare una serie ricalcolata con una da
+ * snapshot), qui l'intera serie viene da UNA sola fonte, gli snapshot. */
 export function NetWorthPage() {
-  const { granularity: navGranularity, currentPeriod, trendWindow } = usePeriodNavigator({
+  const { currentPeriod, trendWindow } = usePeriodNavigator({
     granularities: ["month", "quarter", "year"],
   });
 
   const summary = useAnalyticsSummary({ date_from: currentPeriod.date_from, date_to: currentPeriod.date_to });
   const balances = useAnalyticsBalances();
-  const history = useAnalyticsBalanceHistory({ ...trendWindow, granularity: navGranularity });
+  const history = useAnalyticsNetWorthHistory({ date_from: trendWindow.date_from, date_to: trendWindow.date_to });
+  const rebuildSnapshot = useTriggerSnapshotRebuild();
+  const rebuildStatus = useSnapshotRebuildStatus();
+
+  const [selectedComposition, setSelectedComposition] = useState<"liquidity" | "debt" | null>(null);
+  const compositionTransactions = useTransactions({ limit: 5 }, { enabled: !!selectedComposition });
 
   const currency = summary.data?.currency ?? "EUR";
-  const granularity = history.data?.granularity ?? "month";
   const trendPoints = (history.data?.points ?? []).map((p) => ({
-    period: p.period,
-    label: formatBucketLabel(p.period, granularity),
-    value: Number(p.balance),
+    period: p.snapshot_date,
+    label: formatDate(p.snapshot_date),
+    value: Number(p.net_worth),
   }));
+
+  const compositionAccounts = (balances.data?.accounts ?? []).filter((a) =>
+    selectedComposition === "liquidity"
+      ? LIQUIDITY_ACCOUNT_TYPES.has(a.account_type)
+      : selectedComposition === "debt"
+        ? DEBT_ACCOUNT_TYPES.has(a.account_type)
+        : false,
+  );
+
+  const onRebuildNow = async () => {
+    await rebuildSnapshot.mutateAsync();
+    // Stesso principio di InvestmentsPage.tsx > PerformanceTab: nessun
+    // canale di progresso live, si ri-legge lo stato persistente dopo che
+    // il worker ha avuto il tempo di scriverlo.
+    setTimeout(() => {
+      void history.refetch();
+      void rebuildStatus.refetch();
+    }, 1500);
+  };
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
@@ -46,31 +83,37 @@ export function NetWorthPage() {
           <h1 className="text-lg font-semibold text-text">Patrimonio</h1>
           {summary.data && (
             <span className="font-numeric text-2xl font-semibold text-text">
-              {formatMoney(summary.data.liquidity, currency)}
+              {formatMoney(summary.data.net_worth, currency)}
             </span>
           )}
-          <p className="text-sm text-text-muted">Liquidità disponibile. Il patrimonio totale è nel dettaglio sotto.</p>
+          <p className="text-sm text-text-muted">Patrimonio totale: liquidità, debiti e investimenti.</p>
         </div>
         <PeriodNavigator granularities={["month", "quarter", "year"]} />
       </div>
 
       {summary.isError && <ErrorState message="Dati non disponibili." onRetry={() => void summary.refetch()} />}
 
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="secondary" size="sm" loading={rebuildSnapshot.isPending} onClick={() => void onRebuildNow()}>
+          <RefreshCw className="h-4 w-4" /> Ricalcola adesso
+        </Button>
+      </div>
+      <JobRunStatus run={rebuildStatus.data} />
+
       {history.isLoading && <Skeleton className="h-72 w-full" />}
       {history.data && (
         <ChartCard
           title="Patrimonio nel tempo"
-          subtitle={formatPeriodLabel(history.data.period.date_from, history.data.period.date_to)}
           empty={trendPoints.length === 0}
           emptyState={
             <EmptyState
               icon={Landmark}
-              title="Nessun dato"
-              description="Lo storico apparirà non appena avrai movimenti registrati."
+              title="Nessuno storico ancora"
+              description="Lo storico si costruisce giorno per giorno dallo snapshot automatico — usa 'Ricalcola adesso' per crearne subito uno."
             />
           }
-          tableCaption="Patrimonio (liquidità) nel tempo"
-          tableHeaders={["Periodo", "Saldo"]}
+          tableCaption="Patrimonio nel tempo"
+          tableHeaders={["Data", "Patrimonio"]}
           tableRows={trendPoints.map((p) => [p.label, formatMoney(p.value, currency)])}
         >
           <AreaTrendChart data={trendPoints} currency={currency} />
@@ -83,25 +126,46 @@ export function NetWorthPage() {
           {balances.isLoading && <Skeleton className="h-24 w-full" />}
           {balances.data && (
             <ul className="flex flex-col gap-2 text-sm">
-              <li className="flex items-center justify-between">
-                <span className="text-text">Liquidità</span>
-                <span className="font-numeric text-text">{formatMoney(balances.data.liquidity_total, currency)}</span>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setSelectedComposition("liquidity")}
+                  className="flex w-full items-center justify-between rounded-md p-1 text-left hover:bg-surface-hover"
+                >
+                  <span className="text-text">Liquidità</span>
+                  <span className="font-numeric text-text">{formatMoney(balances.data.liquidity_total, currency)}</span>
+                </button>
               </li>
               {Number(balances.data.debt_total) !== 0 && (
-                <li className="flex items-center justify-between">
-                  <span className="text-text">Debiti</span>
-                  <span className="font-numeric text-danger">{formatMoney(balances.data.debt_total, currency)}</span>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedComposition("debt")}
+                    className="flex w-full items-center justify-between rounded-md p-1 text-left hover:bg-surface-hover"
+                  >
+                    <span className="text-text">Debiti</span>
+                    <span className="font-numeric text-danger">{formatMoney(balances.data.debt_total, currency)}</span>
+                  </button>
                 </li>
               )}
               {/* Il saldo dei conti titoli conta gia' come Liquidita' sopra
                   — questa riga e' il valore delle POSIZIONI (asset
-                  posseduti), un dato distinto, mai un doppio conteggio. */}
+                  posseduti), un dato distinto, mai un doppio conteggio.
+                  Link diretto invece di un drawer: il breakdown ricco
+                  (per tipo di strumento, per asset, PAC vs una tantum)
+                  vive gia' in Investimenti > Allocation, duplicarlo qui
+                  sarebbe manutenzione doppia per lo stesso dato. */}
               {balances.data.has_investments && (
-                <li className="flex items-center justify-between">
-                  <span className="text-text">Investimenti</span>
-                  <span className="font-numeric text-text">
-                    {formatMoney(balances.data.investment_total, currency)}
-                  </span>
+                <li>
+                  <Link
+                    to="/investments?tab=allocation"
+                    className="flex items-center justify-between rounded-md p-1 hover:bg-surface-hover"
+                  >
+                    <span className="text-text">Investimenti</span>
+                    <span className="font-numeric text-text">
+                      {formatMoney(balances.data.investment_total, currency)}
+                    </span>
+                  </Link>
                 </li>
               )}
               {balances.data.has_investments && (
@@ -156,6 +220,29 @@ export function NetWorthPage() {
           </p>
         </Card>
       </div>
+
+      <DrillDownDrawer
+        open={!!selectedComposition}
+        onClose={() => setSelectedComposition(null)}
+        title={selectedComposition === "liquidity" ? "Liquidità" : "Debiti"}
+        currency={currency}
+        isLoading={balances.isLoading || compositionTransactions.isLoading}
+        breakdownTitle="Per conto"
+        breakdown={compositionAccounts.map((a) => ({
+          key: a.financial_account_id,
+          label: a.name,
+          value: Math.abs(Number(a.balance)),
+        }))}
+        transactions={(compositionTransactions.data ?? []).map((t) => ({
+          id: t.id,
+          label: t.merchant ?? t.description_raw,
+          date: t.transaction_date,
+          amount: t.amount,
+          currency: t.currency,
+        }))}
+        viewAllHref="/accounts"
+        viewAllLabel="Vedi tutti i conti"
+      />
     </div>
   );
 }
