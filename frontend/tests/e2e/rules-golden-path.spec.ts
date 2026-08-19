@@ -40,8 +40,15 @@ test("registrazione, regola, import CSV reale e suggerimento dopo correzioni rip
   // Rework tassonomia: CategoryPicker non e' piu' un `<select>` nativo —
   // il Combobox apre un popover con ricerca, "Streaming" e' raggruppata
   // sotto l'intestazione "Abbonamenti" invece che nella label combinata.
-  await page.getByLabel("Categoria").click();
-  await page.getByRole("option", { name: "Streaming" }).click();
+  // Scoped al dialog aperto (come alla riga sotto per la correzione LIDL):
+  // senza scoping va in conflitto strict-mode con la checkbox sempre
+  // presente di ReclassificationPanel ("...rimaste senza categoria" matcha
+  // "Categoria" come sottostringa case-insensitive per Playwright).
+  await page.getByRole("dialog").getByLabel("Categoria").click();
+  // { exact: true }: "Streaming" e' altrimenti una substring case-insensitive
+  // di "Streaming musica" (tassonomia categorie, b33af37) per il matcher di
+  // ruolo/nome di Playwright.
+  await page.getByRole("option", { name: "Streaming", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Crea regola" }).click();
   await expect(page.getByText(/Descrizione contiene "netflix"/)).toBeVisible();
 
@@ -60,7 +67,10 @@ test("registrazione, regola, import CSV reale e suggerimento dopo correzioni rip
   await page.getByRole("button", { name: "Conferma e importa" }).click();
 
   await expect(page.getByText("Import completato")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/3 movimenti importati/)).toBeVisible();
+  // Messaggio rivisto per il Transaction Deduplication Engine (mostra sempre
+  // analizzati/nuovi/duplicati/da verificare, non solo "importati").
+  await expect(page.getByText(/3 movimenti analizzati/)).toBeVisible();
+  await expect(page.getByText(/3 nuovi/)).toBeVisible();
   await page.getByRole("button", { name: "Visualizza movimenti" }).click();
 
   await expect(page).toHaveURL(/\/transactions/);
@@ -68,22 +78,34 @@ test("registrazione, regola, import CSV reale e suggerimento dopo correzioni rip
   await expect(netflixRow).toContainText("Streaming");
 
   // --- Correzione ripetuta sulle due transazioni Lidl -> suggerimento regola ---
+  // Il catalogo di pattern deterministico (rifondazione tassonomia, b33af37)
+  // classifica gia' automaticamente "LIDL" come Alimentari › Supermercato
+  // (`method="system"`, vedi app/classification/catalog.py) — correggerla di
+  // nuovo a "Supermercato" sarebbe un no-op (nessuna Classification method=
+  // "user" creata, vedi app/api/v1/transactions.py "category_corrected"),
+  // quindi non farebbe mai scattare la soglia di correzioni ripetute
+  // (SPEC §29). Si sceglie qui una categoria deliberatamente diversa da
+  // quella assegnata dal sistema, per generare una VERA correzione utente.
   const lidlRows = page.getByRole("row", { name: /LIDL/i });
   await expect(lidlRows).toHaveCount(2);
 
   for (let i = 0; i < 2; i++) {
     await lidlRows.nth(i).click();
     await page.getByRole("dialog").getByLabel("Categoria").click();
-    await page.getByRole("dialog").getByRole("option", { name: "Supermercato" }).click();
+    await page.getByRole("dialog").getByRole("option", { name: "Bar e caffetteria" }).click();
     await page.keyboard.press("Escape");
   }
 
+  // Il match del suggerimento e' per merchant ("Lidl", estratto da
+  // merchant_extraction.py) e non per descrizione, perche' Transaction.merchant
+  // e' valorizzato (vedi GET /rules/suggestions: preferisce sempre il merchant
+  // quando presente).
   await page.goto("/settings/rules");
-  await expect(page.getByText(/Spesa LIDL Milano.*2 volte/)).toBeVisible();
+  await expect(page.getByText(/Lidl.*2 volte/)).toBeVisible();
 
   await page.getByRole("button", { name: "Crea regola" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Crea regola" }).click();
 
-  await expect(page.getByText(/Spesa LIDL Milano.*2 volte/)).not.toBeVisible();
+  await expect(page.getByText(/Lidl.*2 volte/)).not.toBeVisible();
 });

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ArrowLeft, PiggyBank, Plus, Trash2 } from "lucide-react";
+import { PiggyBank, Plus, Trash2 } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
+import { BackLink } from "../../components/ui/BackLink";
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -102,9 +103,7 @@ export function PortfolioDetailPage() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <div>
-        <Link to="/investments" className="flex items-center gap-1 text-sm text-text-muted hover:text-text">
-          <ArrowLeft className="h-4 w-4" /> Investimenti
-        </Link>
+        <BackLink to="/investments" label="Investimenti" />
         <h1 className="mt-1 text-lg font-semibold text-text">{title}</h1>
         {isUnassigned && (
           <p className="text-sm text-text-muted">Conti non raggruppati in nessun portfolio.</p>

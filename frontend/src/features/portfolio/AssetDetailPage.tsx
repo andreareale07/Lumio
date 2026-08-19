@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { ArrowLeft, PiggyBank } from "lucide-react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { PiggyBank } from "lucide-react";
+import { useLocation, useParams } from "react-router-dom";
 
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { RangeSelector } from "../../components/charts/RangeSelector";
+import { BackLink } from "../../components/ui/BackLink";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
@@ -138,9 +139,7 @@ export function AssetDetailPage() {
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <Link to={backTo} className="flex items-center gap-1 text-sm text-text-muted hover:text-text">
-            <ArrowLeft className="h-4 w-4" /> {backLabel}
-          </Link>
+          <BackLink to={backTo} label={backLabel} />
           <h1 className="mt-1 text-lg font-semibold text-text">{asset.display_name ?? asset.name}</h1>
           <p className="text-sm text-text-muted">
             {[asset.symbol, asset.isin, ASSET_TYPE_LABELS[asset.asset_type], asset.currency]

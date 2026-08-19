@@ -79,8 +79,14 @@ test("import reale e KPI dashboard coerenti su piu' pagine", async ({ page }) =>
   await expect(cashFlowTable).toContainText(/2\.?500,00\s*€/);
 
   // --- Movimenti: stessa transazione visibile nella lista completa ---
+  // La tabella mostra il merchant estratto ("Lidl", da merchant_aliases.py)
+  // invece della descrizione grezza quando disponibile (Transaction.merchant,
+  // pattern gia' esistente in TransactionsPage.tsx dalla milestone M01-M06,
+  // rimasto dormiente finche' `merchant_extraction.py` non l'ha popolato) —
+  // `description_raw` ("Supermercato Lidl") resta intatto e visibile nel
+  // drawer di dettaglio, qui si verifica solo la riga in tabella.
   await page.goto("/transactions");
-  await expect(page.getByText("Supermercato Lidl").first()).toBeVisible();
+  await expect(page.getByText("Lidl").first()).toBeVisible();
 
   // --- Spese: stesso numero, pagina diversa, stesso intervallo personalizzato ---
   await page.goto("/expenses");

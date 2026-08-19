@@ -167,7 +167,11 @@ test("connect, scelta cartella, export con progress, cambio cartella e disconnec
   await page.getByRole("button", { name: "Accedi" }).click();
   await expect(page).toHaveURL(/\/accounts$/);
 
-  // --- Voce di menu visibile (google_enabled=true) ---
+  // --- Voce di menu visibile (google_enabled=true): dal rework Navigation
+  // (SPEC_FE_REDESIGN §6) "Integrazioni" non e' piu' un link diretto in
+  // sidebar, vive nel Settings Hub raggiungibile da "Impostazioni". ---
+  await page.getByRole("link", { name: "Impostazioni" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
   await page.getByRole("link", { name: "Integrazioni" }).click();
   await expect(page).toHaveURL(/\/settings\/integrations$/);
   await expect(page.getByText("Prima di connetterti: serve un progetto Google Cloud")).toBeVisible();

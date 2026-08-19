@@ -56,12 +56,22 @@ test("login, empty state di conti/movimenti, import CSV reale e movimenti aggior
   await page.getByRole("button", { name: "Conferma e importa" }).click();
 
   await expect(page.getByText("Import completato")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/2 movimenti importati/)).toBeVisible();
+  // Messaggio rivisto per il Transaction Deduplication Engine (mostra sempre
+  // analizzati/nuovi/duplicati/da verificare, non solo "importati" — un
+  // import con 0 nuovi perché tutto già presente è un esito corretto).
+  await expect(page.getByText(/2 movimenti analizzati/)).toBeVisible();
+  await expect(page.getByText(/2 nuovi/)).toBeVisible();
 
   // --- Transactions aggiornate: l'empty state e' sparito, i movimenti reali ci sono ---
+  // La tabella mostra il merchant estratto ("Farmacia", da merchant_extraction.py)
+  // invece della descrizione grezza "Farmacia Centrale" quando disponibile —
+  // stesso pattern gia' documentato in dashboard-golden-path.spec.ts. Locator
+  // sulla riga (non getByText semplice): "Farmacia" e' anche il testo di
+  // un'opzione nascosta del filtro categoria ("Salute e cura della persona
+  // › Farmacia"), altrimenti ambiguo/nascosto per Playwright.
   await page.getByRole("button", { name: "Visualizza movimenti" }).click();
   await expect(page).toHaveURL(/\/transactions/);
   await expect(page.getByText("Nessun movimento")).not.toBeVisible();
-  await expect(page.getByText("Farmacia Centrale").first()).toBeVisible();
-  await expect(page.getByText("Stipendio").first()).toBeVisible();
+  await expect(page.getByRole("row", { name: /Farmacia/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Stipendio/ })).toBeVisible();
 });
