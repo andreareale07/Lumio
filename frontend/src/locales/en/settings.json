@@ -1,0 +1,47 @@
+{
+  "hub": {
+    "title": "Settings",
+    "description": "Configure how Lumio behaves."
+  },
+  "backLink": "Settings",
+  "groups": {
+    "finance": "Finance",
+    "automation": "Automation",
+    "dataIntegrations": "Data & integrations",
+    "system": "System"
+  },
+  "items": {
+    "categories": {
+      "label": "Categories",
+      "description": "Manage the categories used to classify transactions."
+    },
+    "transactionTypes": {
+      "label": "Transaction types",
+      "description": "Map the raw labels from your bank statement to Lumio's transaction types."
+    },
+    "currency": {
+      "label": "Currency",
+      "description": "Set the workspace's reference currency."
+    },
+    "rules": {
+      "label": "Rules",
+      "description": "Automatically classify transactions based on criteria you define."
+    },
+    "ai": {
+      "label": "AI",
+      "description": "Configure an optional AI provider for automatic classification."
+    },
+    "marketData": {
+      "label": "Market data",
+      "description": "Configure the quote provider used to refresh investment prices."
+    },
+    "integrations": {
+      "label": "Integrations",
+      "description": "Export your financial data to Google Sheets."
+    },
+    "jobs": {
+      "label": "System jobs",
+      "description": "Configure automatic jobs and the ones triggered by your actions."
+    }
+  }
+}

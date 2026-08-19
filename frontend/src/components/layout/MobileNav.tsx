@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { NAV_SECTIONS, SETTINGS_NAV_ITEM } from "../../app/navigation";
 import { Drawer } from "../ui/Drawer";
@@ -10,7 +11,7 @@ import { Drawer } from "../ui/Drawer";
 const PRIMARY_PATHS = new Set(["/", "/accounts", "/transactions", "/imports"]);
 // "Transazioni" diventa "Movimenti" solo nella bottom bar (etichetta piu'
 // corta gia' in uso prima di questo rework, invariata).
-const PRIMARY_LABEL_OVERRIDES: Record<string, string> = { "/transactions": "Movimenti" };
+const PRIMARY_LABEL_KEY_OVERRIDES: Record<string, string> = { "/transactions": "movements" };
 
 function navLinkClassNamePrimary({ isActive }: { isActive: boolean }) {
   return `flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium ${
@@ -32,6 +33,7 @@ function navLinkClassNameDrawer({ isActive }: { isActive: boolean }) {
  * sola voce che porta al Settings Hub. */
 export function MobileNav() {
   const [moreOpen, setMoreOpen] = useState(false);
+  const { t } = useTranslation("navigation");
 
   const allItems = NAV_SECTIONS.flatMap((section) => section.items);
   const primaryItems = allItems.filter((item) => PRIMARY_PATHS.has(item.to));
@@ -40,13 +42,13 @@ export function MobileNav() {
   return (
     <>
       <nav
-        aria-label="Navigazione principale"
+        aria-label={t("ariaLabel")}
         className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-surface md:hidden"
       >
-        {primaryItems.map(({ to, label, icon: Icon }) => (
+        {primaryItems.map(({ to, labelKey, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === "/"} className={navLinkClassNamePrimary}>
             <Icon className="h-5 w-5" aria-hidden="true" />
-            {PRIMARY_LABEL_OVERRIDES[to] ?? label}
+            {t(`items.${PRIMARY_LABEL_KEY_OVERRIDES[to] ?? labelKey}`)}
           </NavLink>
         ))}
         <button
@@ -55,16 +57,16 @@ export function MobileNav() {
           className="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium text-text-muted"
         >
           <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
-          Altro
+          {t("items.more")}
         </button>
       </nav>
 
-      <Drawer open={moreOpen} onClose={() => setMoreOpen(false)} title="Altro">
+      <Drawer open={moreOpen} onClose={() => setMoreOpen(false)} title={t("items.more")}>
         <div className="flex flex-col gap-1">
-          {moreItems.map(({ to, label, icon: Icon }) => (
+          {moreItems.map(({ to, labelKey, icon: Icon }) => (
             <NavLink key={to} to={to} onClick={() => setMoreOpen(false)} className={navLinkClassNameDrawer}>
               <Icon className="h-4 w-4" aria-hidden="true" />
-              {label}
+              {t(`items.${labelKey}`)}
             </NavLink>
           ))}
         </div>

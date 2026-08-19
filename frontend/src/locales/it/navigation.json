@@ -1,0 +1,22 @@
+{
+  "ariaLabel": "Navigazione principale",
+  "sections": {
+    "finance": "Finanze",
+    "analytics": "Analisi",
+    "wealth": "Patrimonio"
+  },
+  "items": {
+    "dashboard": "Panoramica",
+    "accounts": "Conti",
+    "transactions": "Transazioni",
+    "movements": "Movimenti",
+    "expenses": "Spese",
+    "income": "Entrate",
+    "netWorth": "Patrimonio",
+    "investments": "Investimenti",
+    "imports": "Import",
+    "activity": "Attività",
+    "settings": "Impostazioni",
+    "more": "Altro"
+  }
+}

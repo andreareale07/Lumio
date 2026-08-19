@@ -1,0 +1,22 @@
+{
+  "ariaLabel": "Main navigation",
+  "sections": {
+    "finance": "Finances",
+    "analytics": "Analytics",
+    "wealth": "Wealth"
+  },
+  "items": {
+    "dashboard": "Overview",
+    "accounts": "Accounts",
+    "transactions": "Transactions",
+    "movements": "Transactions",
+    "expenses": "Expenses",
+    "income": "Income",
+    "netWorth": "Net worth",
+    "investments": "Investments",
+    "imports": "Import",
+    "activity": "Activity",
+    "settings": "Settings",
+    "more": "More"
+  }
+}

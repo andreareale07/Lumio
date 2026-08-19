@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../../app/providers/AuthProvider";
 import { Card } from "../../components/ui/Card";
@@ -12,6 +13,7 @@ import { SETTINGS_GROUPS } from "./settingsNav";
  * stesso gruppo, quindi nessun gruppo è mai vuoto nello stato attuale. */
 export function SettingsHubPage() {
   const { user } = useAuth();
+  const { t } = useTranslation("settings");
 
   const groups = SETTINGS_GROUPS.map((group) => ({
     ...group,
@@ -21,21 +23,23 @@ export function SettingsHubPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-lg font-semibold text-text">Impostazioni</h1>
-        <p className="text-sm text-text-muted">Configura il comportamento di Lumio.</p>
+        <h1 className="text-lg font-semibold text-text">{t("hub.title")}</h1>
+        <p className="text-sm text-text-muted">{t("hub.description")}</p>
       </div>
 
       {groups.map((group) => (
-        <section key={group.label} className="flex flex-col gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{group.label}</h2>
+        <section key={group.groupKey} className="flex flex-col gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+            {t(`groups.${group.groupKey}`)}
+          </h2>
           <div className="grid gap-2 sm:grid-cols-2">
-            {group.items.map(({ to, label, description, icon: Icon }) => (
+            {group.items.map(({ to, itemKey, icon: Icon }) => (
               <Link key={to} to={to}>
                 <Card className="flex h-full items-start gap-3 transition-colors hover:bg-surface-hover">
                   <Icon className="mt-0.5 h-5 w-5 shrink-0 text-text-muted" aria-hidden="true" />
                   <div>
-                    <p className="font-medium text-text">{label}</p>
-                    <p className="text-sm text-text-muted">{description}</p>
+                    <p className="font-medium text-text">{t(`items.${itemKey}.label`)}</p>
+                    <p className="text-sm text-text-muted">{t(`items.${itemKey}.description`)}</p>
                   </div>
                 </Card>
               </Link>

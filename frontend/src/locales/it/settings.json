@@ -1,0 +1,47 @@
+{
+  "hub": {
+    "title": "Impostazioni",
+    "description": "Configura il comportamento di Lumio."
+  },
+  "backLink": "Impostazioni",
+  "groups": {
+    "finance": "Finanze",
+    "automation": "Automazione",
+    "dataIntegrations": "Dati e integrazioni",
+    "system": "Sistema"
+  },
+  "items": {
+    "categories": {
+      "label": "Categorie",
+      "description": "Gestisci le categorie usate per classificare le transazioni."
+    },
+    "transactionTypes": {
+      "label": "Tipi di transazione",
+      "description": "Mappa le etichette grezze del tuo estratto conto sui tipi di transazione di Lumio."
+    },
+    "currency": {
+      "label": "Valuta",
+      "description": "Imposta la valuta di riferimento del workspace."
+    },
+    "rules": {
+      "label": "Regole",
+      "description": "Classifica automaticamente le transazioni in base a criteri che definisci."
+    },
+    "ai": {
+      "label": "AI",
+      "description": "Configura un provider AI opzionale per la classificazione automatica."
+    },
+    "marketData": {
+      "label": "Market Data",
+      "description": "Configura il provider di quotazioni per l'aggiornamento prezzi degli investimenti."
+    },
+    "integrations": {
+      "label": "Integrazioni",
+      "description": "Esporta i tuoi dati finanziari su Google Sheets."
+    },
+    "jobs": {
+      "label": "Job di sistema",
+      "description": "Configura i job automatici e quelli innescati dalle tue azioni."
+    }
+  }
+}

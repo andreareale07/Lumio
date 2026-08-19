@@ -1,9 +1,12 @@
 import { Coins, FolderTree, Link2, ListChecks, Sparkles, LineChart, Tags, Wand2 } from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
 
-import type { NavItem } from "../../app/navigation";
-
-export interface SettingsPageLink extends NavItem {
-  description: string;
+export interface SettingsPageLink {
+  to: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  /** Chiave `items.<itemKey>.label`/`items.<itemKey>.description` nel
+   * namespace i18next "settings" (SPEC_FE_REDESIGN PHASE 3). */
+  itemKey: string;
   /** Se true, la voce compare solo quando `user.google_enabled` è vero —
    * stesso gating già applicato oggi a livello di route (`RequireGoogleEnabled`
    * in AppRouter), qui replicato solo per la visibilità nell'hub. */
@@ -11,7 +14,8 @@ export interface SettingsPageLink extends NavItem {
 }
 
 export interface SettingsGroup {
-  label: string;
+  /** Chiave `groups.<groupKey>` nel namespace "settings". */
+  groupKey: string;
   items: SettingsPageLink[];
 }
 
@@ -22,72 +26,29 @@ export interface SettingsGroup {
  * ancora (§9A.8). */
 export const SETTINGS_GROUPS: SettingsGroup[] = [
   {
-    label: "Finanze",
+    groupKey: "finance",
     items: [
-      {
-        to: "/settings/categories",
-        label: "Categorie",
-        icon: FolderTree,
-        description: "Gestisci le categorie usate per classificare le transazioni.",
-      },
-      {
-        to: "/settings/transaction-types",
-        label: "Tipi di transazione",
-        icon: Tags,
-        description: "Mappa le etichette grezze del tuo estratto conto sui tipi di transazione di Lumio.",
-      },
-      {
-        to: "/settings/currency",
-        label: "Valuta",
-        icon: Coins,
-        description: "Imposta la valuta di riferimento del workspace.",
-      },
+      { to: "/settings/categories", icon: FolderTree, itemKey: "categories" },
+      { to: "/settings/transaction-types", icon: Tags, itemKey: "transactionTypes" },
+      { to: "/settings/currency", icon: Coins, itemKey: "currency" },
     ],
   },
   {
-    label: "Automazione",
+    groupKey: "automation",
     items: [
-      {
-        to: "/settings/rules",
-        label: "Regole",
-        icon: Wand2,
-        description: "Classifica automaticamente le transazioni in base a criteri che definisci.",
-      },
-      {
-        to: "/settings/ai",
-        label: "AI",
-        icon: Sparkles,
-        description: "Configura un provider AI opzionale per la classificazione automatica.",
-      },
+      { to: "/settings/rules", icon: Wand2, itemKey: "rules" },
+      { to: "/settings/ai", icon: Sparkles, itemKey: "ai" },
     ],
   },
   {
-    label: "Dati e integrazioni",
+    groupKey: "dataIntegrations",
     items: [
-      {
-        to: "/settings/market-data",
-        label: "Market Data",
-        icon: LineChart,
-        description: "Configura il provider di quotazioni per l'aggiornamento prezzi degli investimenti.",
-      },
-      {
-        to: "/settings/integrations",
-        label: "Integrazioni",
-        icon: Link2,
-        description: "Esporta i tuoi dati finanziari su Google Sheets.",
-        requiresGoogle: true,
-      },
+      { to: "/settings/market-data", icon: LineChart, itemKey: "marketData" },
+      { to: "/settings/integrations", icon: Link2, itemKey: "integrations", requiresGoogle: true },
     ],
   },
   {
-    label: "Sistema",
-    items: [
-      {
-        to: "/settings/jobs",
-        label: "Job di sistema",
-        icon: ListChecks,
-        description: "Configura i job automatici e quelli innescati dalle tue azioni.",
-      },
-    ],
+    groupKey: "system",
+    items: [{ to: "/settings/jobs", icon: ListChecks, itemKey: "jobs" }],
   },
 ];
