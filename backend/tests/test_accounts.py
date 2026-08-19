@@ -60,6 +60,31 @@ async def test_update_and_delete_account(client):
     assert get_response.status_code == 404
 
 
+async def test_create_account_rejects_unknown_currency_code(client):
+    token = await _register(client, "acc-invalid-currency@example.com")
+    response = await client.post(
+        "/api/v1/accounts",
+        json={"name": "Conto", "account_type": "checking", "currency": "XXX"},
+        headers=_auth_headers(token),
+    )
+    assert response.status_code == 400
+
+
+async def test_update_account_rejects_unknown_currency_code(client):
+    token = await _register(client, "acc-invalid-currency-update@example.com")
+    create_response = await client.post(
+        "/api/v1/accounts",
+        json={"name": "Conto", "account_type": "checking", "currency": "EUR"},
+        headers=_auth_headers(token),
+    )
+    account_id = create_response.json()["id"]
+
+    response = await client.patch(
+        f"/api/v1/accounts/{account_id}", json={"currency": "XXX"}, headers=_auth_headers(token)
+    )
+    assert response.status_code == 400
+
+
 async def test_user_a_cannot_see_user_b_account_via_api(client):
     token_a = await _register(client, "acc-a@example.com")
     token_b = await _register(client, "acc-b@example.com")

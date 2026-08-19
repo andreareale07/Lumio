@@ -2,10 +2,14 @@
 §31, §37) — ponte tra il libro mastro investimenti (`positions`) e
 `asset_prices`/`portfolio_snapshots`/`net_worth_snapshots`.
 
-Principio non negoziabile (stesso di `analytics.py` per M08): NESSUNA
-conversione valutaria. Una posizione la cui valuta non coincide con la
-valuta richiesta viene semplicemente esclusa dal totale — non e' un errore,
-e' lo stesso limite gia' accettato per i saldi conto.
+Sistema di valute: una posizione la cui valuta non coincide con quella
+richiesta viene CONVERTITA (via `fx_rate_service.get_rate`, tasso alla data
+`as_of` — mai il piu' recente in assoluto, un valore storico non e'
+ricostruibile a posteriori dal tasso di oggi), non piu' esclusa in
+silenzio (limite precedente, M08). Se nessun tasso e' disponibile per la
+coppia richiesta, la posizione resta onestamente esclusa dal totale ma il
+risultato lo segnala (`has_missing_fx_rate=True`) — mai un'esclusione
+invisibile come prima.
 
 Il refresh dei PREZZI (chiamare un `MarketDataProvider`) e' un modulo
 separato (`app/worker/jobs/market_data.py`): questo modulo legge sempre da
@@ -14,9 +18,10 @@ prezzo disponibile per il giorno richiesto ricade onestamente sul costo
 storico (`has_market_data=False` sul risultato), mai un crash (DoD M09:
 "l'app funziona anche senza market data provider configurato").
 """
+import bisect
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -24,14 +29,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
+from app.models.asset_profile import AssetProfile
 from app.models.financial_account import FinancialAccount
+from app.models.fx_rate import FxRate
 from app.models.investment_transaction import InvestmentTransaction
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.portfolio import Portfolio
 from app.models.portfolio_account import PortfolioAccount
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.position import Position
-from app.services.investment_strategy import STRATEGY_LABELS, classify_strategy
+from app.services import fx_rate_service
+from app.services.investment_strategy import STRATEGY_LABELS
+from app.services.position_calc import compute_position
 
 # Import locale (dentro write_daily_snapshots, non qui a livello modulo):
 # `analytics.py` chiama `compute_valuation` per popolare `investment_total`
@@ -49,6 +58,11 @@ class PortfolioValuation:
     realized_pl: Decimal
     has_market_data: bool
     has_holdings: bool
+    # Sistema di valute: True se almeno una posizione in valuta diversa da
+    # `currency` non ha potuto essere convertita (nessun tasso disponibile
+    # per la coppia/data) ed e' quindi esclusa dal totale — mai
+    # un'esclusione silenziosa, il chiamante la segnala in UI.
+    has_missing_fx_rate: bool = False
 
 
 @dataclass
@@ -63,16 +77,30 @@ class AllocationItem:
 class PortfolioAllocation:
     currency: str
     has_market_data: bool
+    has_missing_fx_rate: bool
     by_asset_type: list[AllocationItem]
     by_asset: list[AllocationItem]
     by_account: list[AllocationItem]
+    # Sistema di valute: ogni posizione raggruppata per la SUA valuta
+    # originale (`key`/`label` = codice valuta, es. "USD"), ma il `value` e'
+    # gia' convertito in `currency` — cosi' la somma delle fette torna col
+    # totale aggregato, e la UI puo' comunque mostrare "USD 9.800 (≈8.950
+    # EUR)" invece di un unico numero opaco (Step C-bis).
+    by_currency: list[AllocationItem]
     # PAC vs Investimenti (rework dashboard interattivo) — a differenza delle
-    # altre 3 distribuzioni, non e' "quanto vale oggi" (valore di mercato
-    # delle posizioni correnti: attribuire una posizione attuale alla
-    # strategia dell'acquisto originale richiederebbe un tracciamento a lotti,
-    # fuori scope) ma "quanto ho investito finora con ciascuna strategia" —
-    # una somma sul libro mastro (`InvestmentTransaction`, solo i "buy"),
-    # non sulle posizioni derivate.
+    # altre 3 distribuzioni e' un valore di COSTO, non di mercato ("quanto ho
+    # attualmente investito", non "quanto vale oggi"): il totale coincide
+    # quindi con `by_asset_type` solo in assenza di plus/minusvalenze non
+    # realizzate. E' comunque legato alle sole posizioni APERTE: un asset
+    # venduto per intero smette di contribuire (vedi
+    # `_compute_strategy_breakdown`/`position_calc.compute_position`), un
+    # riacquisto successivo dello stesso asset riparte pulito senza ereditare
+    # il capitale di un ciclo gia' chiuso. Attribuzione per lotto d'acquisto
+    # (necessaria per un calcolo fiscale FIFO) resta fuori scope qui: dentro
+    # una posizione ancora aperta, una vendita parziale scala tutte le
+    # strategie gia' presenti in proporzione, senza distinguere quali unita'
+    # specifiche sono state vendute (nessuna identita' di lotto, stesso
+    # principio del costo medio ponderato usato ovunque in questo modulo).
     by_strategy: list[AllocationItem]
 
 
@@ -113,18 +141,27 @@ async def compute_valuation(
     market_value = cost_basis = unrealized_pl = realized_pl = Decimal("0")
     has_market_data = True
     has_holdings = False
+    has_missing_fx_rate = False
     for position in positions:
-        if position.currency != currency:
+        fx_rate = await fx_rate_service.get_rate(db, position.currency, currency, as_of)
+        if fx_rate is None:
+            if position.quantity != 0:
+                has_missing_fx_rate = True
             continue
         if position.quantity != 0:
             has_holdings = True
-        position_cost = position.quantity * position.average_cost
+        position_cost = position.quantity * position.average_cost * fx_rate
         cost_basis += position_cost
-        realized_pl += position.realized_pl
+        realized_pl += position.realized_pl * fx_rate
 
         price_row = await _latest_price(db, workspace_id, position.asset_id, as_of)
-        if price_row is not None and price_row.currency == currency:
-            position_market_value = position.quantity * price_row.price
+        price_fx_rate = (
+            await fx_rate_service.get_rate(db, price_row.currency, currency, as_of)
+            if price_row is not None
+            else None
+        )
+        if price_row is not None and price_fx_rate is not None:
+            position_market_value = position.quantity * price_row.price * price_fx_rate
             market_value += position_market_value
             unrealized_pl += position_market_value - position_cost
         else:
@@ -146,7 +183,71 @@ async def compute_valuation(
         realized_pl=realized_pl.quantize(cents),
         has_market_data=has_market_data,
         has_holdings=has_holdings,
+        has_missing_fx_rate=has_missing_fx_rate,
     )
+
+
+@dataclass
+class PortfolioSummary:
+    portfolio_id: uuid.UUID
+    name: str
+    account_count: int
+    currency: str
+    market_value: Decimal
+    cost_basis: Decimal
+    unrealized_pl: Decimal
+    has_market_data: bool
+    has_holdings: bool
+
+
+async def list_portfolio_summaries(
+    db: AsyncSession, workspace_id: uuid.UUID, as_of: date, currency: str
+) -> list[PortfolioSummary]:
+    """Riepilogo di OGNI `Portfolio` del workspace in una sola risposta —
+    per la lista della Panoramica Investimenti (redesign): evita N chiamate
+    separate lato client, una per portfolio. Riusa `compute_valuation` in
+    un loop, stesso principio gia' in uso in `list_position_valuations`/
+    `get_asset_valuation` (un giro per riga, mai una query aggregata
+    speciale) — il numero di portfolio di un utente reale e' tipicamente
+    una manciata, non centinaia, quindi non serve altro."""
+    portfolios = list(
+        (
+            await db.execute(
+                select(Portfolio).where(Portfolio.workspace_id == workspace_id).order_by(Portfolio.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not portfolios:
+        return []
+
+    summaries: list[PortfolioSummary] = []
+    for portfolio in portfolios:
+        links = (
+            await db.execute(
+                select(PortfolioAccount.financial_account_id).where(
+                    PortfolioAccount.workspace_id == workspace_id,
+                    PortfolioAccount.portfolio_id == portfolio.id,
+                )
+            )
+        ).scalars().all()
+        account_ids = set(links)
+        valuation = await compute_valuation(db, workspace_id, account_ids, as_of, currency)
+        summaries.append(
+            PortfolioSummary(
+                portfolio_id=portfolio.id,
+                name=portfolio.name,
+                account_count=len(account_ids),
+                currency=valuation.currency,
+                market_value=valuation.market_value,
+                cost_basis=valuation.cost_basis,
+                unrealized_pl=valuation.unrealized_pl,
+                has_market_data=valuation.has_market_data,
+                has_holdings=valuation.has_holdings,
+            )
+        )
+    return summaries
 
 
 async def compute_allocation(
@@ -156,26 +257,29 @@ async def compute_allocation(
     as_of: date,
     currency: str,
 ) -> PortfolioAllocation:
-    """Distribuzione per tipo/asset/conto (SPEC §37) — stessa fonte di
+    """Distribuzione per tipo/asset/conto/valuta (SPEC §37) — stessa fonte di
     `compute_valuation` (posizioni + `asset_prices`), raggruppata invece che
-    sommata in un totale unico. Solo le posizioni con quantita' != 0 e nella
-    valuta richiesta entrano nella distribuzione — una posizione azzerata
-    non ha piu' senso in un donut di allocation."""
-    by_strategy = await _compute_strategy_breakdown(db, workspace_id, account_ids, currency)
+    sommata in un totale unico. Solo le posizioni con quantita' != 0 entrano
+    nella distribuzione — una posizione azzerata non ha piu' senso in un
+    donut di allocation. Una posizione in valuta diversa da `currency` viene
+    convertita (vedi `compute_valuation`), non piu' esclusa."""
+    by_strategy = await _compute_strategy_breakdown(db, workspace_id, account_ids, as_of, currency)
 
     query = select(Position).where(Position.workspace_id == workspace_id)
     if account_ids is not None:
         query = query.where(Position.financial_account_id.in_(account_ids))
     positions = list((await db.execute(query)).scalars().all())
-    relevant = [p for p in positions if p.currency == currency and p.quantity != 0]
+    relevant = [p for p in positions if p.quantity != 0]
 
     if not relevant:
         return PortfolioAllocation(
             currency=currency,
             has_market_data=True,
+            has_missing_fx_rate=False,
             by_asset_type=[],
             by_asset=[],
             by_account=[],
+            by_currency=[],
             by_strategy=by_strategy,
         )
 
@@ -196,15 +300,27 @@ async def compute_allocation(
     values_by_asset_type: dict[str, Decimal] = {}
     values_by_asset: dict[uuid.UUID, Decimal] = {}
     values_by_account: dict[uuid.UUID, Decimal] = {}
+    values_by_currency: dict[str, Decimal] = {}
     has_market_data = True
+    has_missing_fx_rate = False
     total = Decimal("0")
 
     for position in relevant:
+        fx_rate = await fx_rate_service.get_rate(db, position.currency, currency, as_of)
+        if fx_rate is None:
+            has_missing_fx_rate = True
+            continue
+
         price_row = await _latest_price(db, workspace_id, position.asset_id, as_of)
-        if price_row is not None and price_row.currency == currency:
-            value = position.quantity * price_row.price
+        price_fx_rate = (
+            await fx_rate_service.get_rate(db, price_row.currency, currency, as_of)
+            if price_row is not None
+            else None
+        )
+        if price_row is not None and price_fx_rate is not None:
+            value = position.quantity * price_row.price * price_fx_rate
         else:
-            value = position.quantity * position.average_cost
+            value = position.quantity * position.average_cost * fx_rate
             has_market_data = False
         total += value
         asset = assets.get(position.asset_id)
@@ -216,6 +332,7 @@ async def compute_allocation(
         values_by_account[position.financial_account_id] = (
             values_by_account.get(position.financial_account_id, Decimal("0")) + value
         )
+        values_by_currency[position.currency] = values_by_currency.get(position.currency, Decimal("0")) + value
 
     def _to_items(values: dict, label_fn) -> list[AllocationItem]:
         cents = Decimal("0.01")
@@ -235,11 +352,13 @@ async def compute_allocation(
     return PortfolioAllocation(
         currency=currency,
         has_market_data=has_market_data,
+        has_missing_fx_rate=has_missing_fx_rate,
         by_asset_type=_to_items(values_by_asset_type, lambda k: k),
         by_asset=_to_items(
             values_by_asset, lambda k: (assets[k].symbol or assets[k].name) if k in assets else "—"
         ),
         by_account=_to_items(values_by_account, lambda k: accounts[k].name if k in accounts else "—"),
+        by_currency=_to_items(values_by_currency, lambda k: k),
         by_strategy=by_strategy,
     )
 
@@ -248,28 +367,50 @@ async def _compute_strategy_breakdown(
     db: AsyncSession,
     workspace_id: uuid.UUID,
     account_ids: set[uuid.UUID] | None,
+    as_of: date,
     currency: str,
 ) -> list[AllocationItem]:
-    """Quanto e' stato investito finora con ciascuna strategia (PAC vs una
-    tantum) — somma sul libro mastro (`InvestmentTransaction`, solo i
-    movimenti "buy": una vendita o un dividendo non sono "investire", vedi
-    `app/services/investment_strategy.py`). A differenza delle altre
-    distribuzioni di `compute_allocation`, non e' legata alle posizioni
-    APERTE: un titolo interamente venduto ha comunque contribuito al totale
-    investito in passato."""
-    query = select(InvestmentTransaction).where(
-        InvestmentTransaction.workspace_id == workspace_id,
-        InvestmentTransaction.type == "buy",
-        InvestmentTransaction.currency == currency,
-    )
+    """Quanto ho ATTUALMENTE investito (costo, non valore di mercato) nelle
+    posizioni ancora aperte, ripartito per strategia (PAC vs una tantum) —
+    rilegge l'intero libro mastro per (conto, asset) con lo stesso motore di
+    `position_service.recompute_position` (`position_calc.compute_position`),
+    non una somma grezza di tutti i "buy" mai fatti. Bug reale corretto: un
+    asset comprato e poi venduto per intero continuava a contare nel totale
+    "Investimenti" anche a posizione chiusa, disallineando il totale rispetto
+    a "Per tipo di strumento" (che vede solo le posizioni aperte) — ora il
+    costo di un ciclo gia' chiuso si azzera insieme all'average_cost, stessa
+    garanzia gia' testata per il costo medio (vedi test_position_calc.py)."""
+    query = select(InvestmentTransaction).where(InvestmentTransaction.workspace_id == workspace_id)
     if account_ids is not None:
         query = query.where(InvestmentTransaction.financial_account_id.in_(account_ids))
-    rows = (await db.execute(query)).scalars().all()
+    rows = (
+        await db.execute(
+            query.order_by(
+                InvestmentTransaction.financial_account_id,
+                InvestmentTransaction.asset_id,
+                InvestmentTransaction.trade_date,
+                InvestmentTransaction.created_at,
+                InvestmentTransaction.id,
+            )
+        )
+    ).scalars().all()
+
+    # L'ORDER BY sopra clusterizza gia' ogni gruppo (conto, asset) in ordine
+    # cronologico al suo interno: nessun re-sort necessario qui.
+    groups: dict[tuple[uuid.UUID, uuid.UUID], list[InvestmentTransaction]] = {}
+    for row in rows:
+        if row.asset_id is None:
+            continue  # movimento di cassa puro (deposit/withdrawal/fee), nessun asset a cui attribuirlo
+        groups.setdefault((row.financial_account_id, row.asset_id), []).append(row)
 
     totals: dict[str, Decimal] = {}
-    for row in rows:
-        strategy = classify_strategy(row.source_type_raw)
-        totals[strategy] = totals.get(strategy, Decimal("0")) + abs(row.amount)
+    for movements in groups.values():
+        fx_rate = await fx_rate_service.get_rate(db, movements[0].currency, currency, as_of)
+        if fx_rate is None:
+            continue
+        state = compute_position(movements)
+        for strategy, cost in state.strategy_cost.items():
+            totals[strategy] = totals.get(strategy, Decimal("0")) + cost * fx_rate
 
     total_all = sum(totals.values(), Decimal("0"))
     cents = Decimal("0.01")
@@ -404,12 +545,13 @@ async def list_portfolio_snapshots(
     date_from: date,
     date_to: date,
 ) -> list[PortfolioSnapshot]:
-    """Storico per il grafico Performance (SPEC §37) — legge SEMPRE dagli
-    snapshot gia' scritti (cron/trigger manuale), mai ricalcolato al volo
-    (DoD M09: "non ricalcolato da zero ogni volta"). Nessun punto per un
-    giorno in cui lo snapshot non e' ancora stato scritto: lo storico parte
-    da quando esiste il primo snapshot, senza tentare di ricostruire il
-    passato (decisione di prodotto per M09)."""
+    """Storico per l'export Google Sheets (`report_builder.py`) — legge dagli
+    snapshot gia' scritti (cron/trigger manuale), mai ricalcolato al volo.
+    Nessun punto per un giorno in cui lo snapshot non e' ancora stato
+    scritto. Il grafico "Andamento del valore" di Investimenti (redesign)
+    NON usa piu' questa funzione: vedi `compute_historical_series` sotto,
+    che ricostruisce lo storico vero dal libro movimenti invece di leggere
+    uno snapshot congelato."""
     query = select(PortfolioSnapshot).where(
         PortfolioSnapshot.workspace_id == workspace_id,
         PortfolioSnapshot.snapshot_date >= date_from,
@@ -424,18 +566,248 @@ async def list_portfolio_snapshots(
     return list(result.scalars().all())
 
 
+def _monthly_checkpoints(date_from: date, date_to: date) -> list[date]:
+    """Un checkpoint per la fine di ogni mese nell'intervallo, piu' sempre
+    `date_to` come ultimo punto anche se il mese e' incompleto — usata per
+    gli intervalli lunghi (oltre un anno) dove una granularita' piu' fine
+    produrrebbe centinaia di punti solo per essere ri-bucketizzati dal
+    frontend."""
+    if date_from > date_to:
+        return []
+    checkpoints: list[date] = []
+    cursor = date(date_from.year, date_from.month, 1)
+    while cursor <= date_to:
+        next_month = date(cursor.year + 1, 1, 1) if cursor.month == 12 else date(cursor.year, cursor.month + 1, 1)
+        checkpoint = min(next_month - timedelta(days=1), date_to)
+        if checkpoint >= date_from:
+            checkpoints.append(checkpoint)
+        cursor = next_month
+    if not checkpoints or checkpoints[-1] != date_to:
+        checkpoints.append(date_to)
+    return checkpoints
+
+
+def _historical_checkpoints(date_from: date, date_to: date) -> list[date]:
+    """Sceglie la granularita' dei checkpoint in base all'ampiezza
+    dell'intervallo richiesto — stessa "gestione temporale" gia' offerta
+    per lo storico prezzi di un singolo asset (`RangeSelector`/
+    `HISTORY_PRESETS`), qui applicata all'andamento di un intero ambito:
+    un intervallo corto con soli punti mensili sarebbe troppo povero (es.
+    "1 mese" con un solo punto), uno lungo con punti giornalieri
+    produrrebbe centinaia di punti inutili. Sempre `date_to` come ultimo
+    punto, anche a cavallo di un passo incompleto."""
+    if date_from > date_to:
+        return []
+    span_days = (date_to - date_from).days
+    if span_days > 400:
+        return _monthly_checkpoints(date_from, date_to)
+    step_days = 1 if span_days <= 45 else 7
+    checkpoints: list[date] = []
+    cursor = date_from
+    while cursor < date_to:
+        checkpoints.append(cursor)
+        cursor += timedelta(days=step_days)
+    checkpoints.append(date_to)
+    return checkpoints
+
+
+async def compute_historical_series(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    account_ids: set[uuid.UUID] | None,
+    date_from: date,
+    date_to: date,
+    currency: str,
+) -> list[tuple[date, PortfolioValuation]]:
+    """Andamento storico VERO dell'ambito richiesto, per il grafico
+    "Andamento del valore" di Investimenti — a differenza di
+    `compute_valuation`, che usa sempre la quantita' ATTUALE di `Position`
+    (corretta solo per "oggi", motivo per cui `write_daily_snapshots`
+    scrive una riga al giorno invece di ricostruire il passato), qui la
+    quantita' ad ogni checkpoint e' ricostruita dal libro mastro
+    (`compute_position`, la stessa funzione pura di `position_service.py`)
+    filtrato a quella data — stesso principio della pagina di dettaglio
+    asset, che mostra gia' lo storico prezzi reale, applicato all'intero
+    ambito invece che a un singolo asset.
+
+    Funziona per QUALSIASI scope, incluso lo pseudo-gruppo "conti non
+    assegnati a un portfolio": non serve una riga di snapshot dedicata
+    (che non esiste e non puo' esistere per uno pseudo-gruppo), il libro
+    movimenti e' gia' filtrabile per `account_ids` come ovunque altro nel
+    redesign (`portfolio_scope.resolve_account_ids`).
+
+    A differenza di uno snapshot scritto una volta (congelato alla data di
+    scrittura), un movimento inserito con data passata si riflette
+    correttamente su ogni checkpoint da quella data in poi la prossima
+    volta che il grafico viene richiesto — proprieta' voluta per un'app
+    dove l'utente corregge/backdata i propri movimenti, non un registro
+    "chiuso" a fini contabili.
+
+    Prezzi e tassi di cambio sono precaricati UNA volta per l'intero
+    intervallo (non una query per checkpoint per posizione, come farebbe
+    riusare `_latest_price`/`fx_rate_service.get_rate`): con la granularita'
+    giornaliera di `_historical_checkpoints` per intervalli corti, un
+    roundtrip DB per checkpoint moltiplicherebbe le query di centinaia di
+    volte. La ricerca "ultimo valore non piu' recente di una data" avviene
+    quindi in memoria via bisezione su liste gia' ordinate per data.
+
+    Senza un `MarketDataProvider` configurato, nessun prezzo viene trovato:
+    il valore ricade sul costo storico (`has_market_data=False`, stesso
+    fallback di `compute_valuation`) — l'andamento mostra comunque il
+    capitale investito nel tempo, mai vuoto solo perche' manca un provider
+    (DoD M09: l'app funziona anche senza)."""
+    checkpoints = _historical_checkpoints(date_from, date_to)
+    if not checkpoints:
+        return []
+
+    query = select(InvestmentTransaction).where(
+        InvestmentTransaction.workspace_id == workspace_id,
+        InvestmentTransaction.asset_id.is_not(None),
+    )
+    if account_ids is not None:
+        query = query.where(InvestmentTransaction.financial_account_id.in_(account_ids))
+    query = query.order_by(
+        InvestmentTransaction.trade_date, InvestmentTransaction.created_at, InvestmentTransaction.id
+    )
+    transactions = list((await db.execute(query)).scalars().all())
+
+    by_position: dict[tuple[uuid.UUID, uuid.UUID], list[InvestmentTransaction]] = {}
+    for txn in transactions:
+        by_position.setdefault((txn.financial_account_id, txn.asset_id), []).append(txn)
+
+    asset_ids = {asset_id for (_account_id, asset_id) in by_position}
+    prices_by_asset: dict[uuid.UUID, list[AssetPrice]] = {}
+    if asset_ids:
+        price_rows = list(
+            (
+                await db.execute(
+                    select(AssetPrice)
+                    .where(AssetPrice.workspace_id == workspace_id, AssetPrice.asset_id.in_(asset_ids))
+                    .order_by(AssetPrice.asset_id, AssetPrice.price_date)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for row in price_rows:
+            prices_by_asset.setdefault(row.asset_id, []).append(row)
+
+    def latest_price(asset_id: uuid.UUID, as_of: date) -> AssetPrice | None:
+        rows = prices_by_asset.get(asset_id)
+        if not rows:
+            return None
+        idx = bisect.bisect_right(rows, as_of, key=lambda r: r.price_date) - 1
+        return rows[idx] if idx >= 0 else None
+
+    position_currencies = {relevant[-1].currency for relevant in by_position.values() if relevant}
+    price_currencies = {row.currency for rows in prices_by_asset.values() for row in rows}
+    fx_currencies = (position_currencies | price_currencies) - {currency}
+    fx_by_currency: dict[str, list[FxRate]] = {}
+    if fx_currencies:
+        fx_rows = list(
+            (
+                await db.execute(
+                    select(FxRate)
+                    .where(FxRate.to_currency == currency, FxRate.from_currency.in_(fx_currencies))
+                    .order_by(FxRate.from_currency, FxRate.rate_date)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for row in fx_rows:
+            fx_by_currency.setdefault(row.from_currency, []).append(row)
+
+    def latest_fx_rate(from_currency: str, as_of: date) -> Decimal | None:
+        if from_currency == currency:
+            return Decimal("1")
+        rows = fx_by_currency.get(from_currency)
+        if not rows:
+            return None
+        idx = bisect.bisect_right(rows, as_of, key=lambda r: r.rate_date) - 1
+        return rows[idx].rate if idx >= 0 else None
+
+    cents = Decimal("0.01")
+    series: list[tuple[date, PortfolioValuation]] = []
+    for checkpoint in checkpoints:
+        market_value = cost_basis = unrealized_pl = realized_pl = Decimal("0")
+        has_market_data = True
+        has_holdings = False
+        has_missing_fx_rate = False
+
+        for (_account_id, asset_id), movements in by_position.items():
+            relevant = [m for m in movements if m.trade_date <= checkpoint]
+            if not relevant:
+                continue
+            state = compute_position(relevant)
+            if state.quantity == 0 and state.realized_pl == 0:
+                continue
+
+            position_currency = relevant[-1].currency
+            fx_rate = latest_fx_rate(position_currency, checkpoint)
+            if fx_rate is None:
+                if state.quantity != 0:
+                    has_missing_fx_rate = True
+                continue
+            if state.quantity != 0:
+                has_holdings = True
+
+            position_cost = state.quantity * state.average_cost * fx_rate
+            cost_basis += position_cost
+            realized_pl += state.realized_pl * fx_rate
+
+            price_row = latest_price(asset_id, checkpoint)
+            price_fx_rate = latest_fx_rate(price_row.currency, checkpoint) if price_row is not None else None
+            if price_row is not None and price_fx_rate is not None:
+                position_market_value = state.quantity * price_row.price * price_fx_rate
+                market_value += position_market_value
+                unrealized_pl += position_market_value - position_cost
+            else:
+                market_value += position_cost
+                if state.quantity != 0:
+                    has_market_data = False
+
+        series.append(
+            (
+                checkpoint,
+                PortfolioValuation(
+                    currency=currency,
+                    market_value=market_value.quantize(cents),
+                    cost_basis=cost_basis.quantize(cents),
+                    unrealized_pl=unrealized_pl.quantize(cents),
+                    realized_pl=realized_pl.quantize(cents),
+                    has_market_data=has_market_data,
+                    has_holdings=has_holdings,
+                    has_missing_fx_rate=has_missing_fx_rate,
+                ),
+            )
+        )
+    return series
+
+
 @dataclass
 class PositionValuation:
+    position_id: uuid.UUID
     asset_id: uuid.UUID
     asset_label: str
+    financial_account_id: uuid.UUID
+    account_label: str
     quantity: Decimal
     average_cost: Decimal
     currency: str
+    currency_native: str
     cost_basis: Decimal
     market_value: Decimal
     unrealized_pl: Decimal
     realized_pl: Decimal
     has_market_data: bool
+
+
+@dataclass
+class PositionValuationsResult:
+    items: list[PositionValuation]
+    has_market_data: bool
+    has_missing_fx_rate: bool
 
 
 async def list_position_valuations(
@@ -444,54 +816,205 @@ async def list_position_valuations(
     account_ids: set[uuid.UUID] | None,
     as_of: date,
     currency: str,
-) -> list[PositionValuation]:
-    """P&L per SINGOLA posizione (milestone 10, report Google Sheets: a
-    differenza di `compute_valuation`, che e' solo l'aggregato, qui serve
-    rispondere a "quanto sto guadagnando/perdendo su quel titolo"). Stessa
-    fonte dati e stesso fallback a costo storico di `compute_valuation`,
-    solo a grana fine invece che sommata in un totale."""
-    query = select(Position).where(Position.workspace_id == workspace_id, Position.quantity != 0)
+    include_closed: bool = False,
+) -> PositionValuationsResult:
+    """P&L per SINGOLA posizione (milestone 10, report Google Sheets; e
+    tabella Posizioni del redesign Investimenti — a differenza di
+    `compute_valuation`, che e' solo l'aggregato, qui serve rispondere a
+    "quanto sto guadagnando/perdendo su QUEL titolo"). Stessa fonte dati e
+    stesso fallback a costo storico di `compute_valuation`, solo a grana
+    fine invece che sommata in un totale. `include_closed=True` include
+    anche le posizioni a quantita' zero (utile solo per mostrarne il P&L
+    realizzato residuo, mai un valore di mercato)."""
+    query = select(Position).where(Position.workspace_id == workspace_id)
+    if not include_closed:
+        query = query.where(Position.quantity != 0)
     if account_ids is not None:
         query = query.where(Position.financial_account_id.in_(account_ids))
-    positions = list((await db.execute(query)).scalars().all())
-    relevant = [p for p in positions if p.currency == currency]
+    relevant = list((await db.execute(query)).scalars().all())
     if not relevant:
-        return []
+        return PositionValuationsResult(items=[], has_market_data=True, has_missing_fx_rate=False)
 
     asset_ids = {p.asset_id for p in relevant}
     assets = {
         a.id: a for a in (await db.execute(select(Asset).where(Asset.id.in_(asset_ids)))).scalars().all()
     }
+    # Nome pulito dal provider (Step 3, `AssetProfile.display_name`), se mai
+    # arricchito — MAI `Asset.name`/`symbol` da soli: quello e' il nome
+    # grezzo del parser, spesso con suffissi di borsa tedeschi tipo
+    # "DL-,0001" (valore nominale), che l'utente ha gia' segnalato come
+    # artefatto da nascondere ovunque si mostri un asset (stesso principio
+    # gia' applicato in AssetDetailPage/list_assets).
+    display_names = dict(
+        (
+            await db.execute(
+                select(AssetProfile.asset_id, AssetProfile.display_name).where(
+                    AssetProfile.workspace_id == workspace_id, AssetProfile.asset_id.in_(asset_ids)
+                )
+            )
+        ).all()
+    )
+    account_row_ids = {p.financial_account_id for p in relevant}
+    accounts = {
+        a.id: a
+        for a in (
+            await db.execute(select(FinancialAccount).where(FinancialAccount.id.in_(account_row_ids)))
+        )
+        .scalars()
+        .all()
+    }
 
     cents = Decimal("0.01")
     results: list[PositionValuation] = []
+    has_market_data = True
+    has_missing_fx_rate = False
     for position in relevant:
-        cost_basis = position.quantity * position.average_cost
+        fx_rate = await fx_rate_service.get_rate(db, position.currency, currency, as_of)
+        if fx_rate is None:
+            # Nessun tasso disponibile per questa valuta: onestamente
+            # esclusa dall'elenco, come `compute_valuation` — ma, a
+            # differenza di prima, il flag aggregato lo segnala invece di
+            # sparire in silenzio (stesso principio gia' corretto altrove
+            # in questo modulo per `compute_valuation`/`compute_allocation`).
+            has_missing_fx_rate = True
+            continue
+        cost_basis = position.quantity * position.average_cost * fx_rate
         price_row = await _latest_price(db, workspace_id, position.asset_id, as_of)
-        if price_row is not None and price_row.currency == currency:
-            market_value = position.quantity * price_row.price
-            has_market_data = True
+        price_fx_rate = (
+            await fx_rate_service.get_rate(db, price_row.currency, currency, as_of)
+            if price_row is not None
+            else None
+        )
+        if price_row is not None and price_fx_rate is not None:
+            market_value = position.quantity * price_row.price * price_fx_rate
+            position_has_market_data = True
         else:
             market_value = cost_basis  # fallback onesto a costo storico
-            has_market_data = False
+            position_has_market_data = False
+            if position.quantity != 0:
+                has_market_data = False
         asset = assets.get(position.asset_id)
-        label = (asset.symbol or asset.name) if asset is not None else "—"
+        asset_label = (
+            (display_names.get(position.asset_id) or asset.symbol or asset.name) if asset is not None else "—"
+        )
+        account = accounts.get(position.financial_account_id)
+        account_label = account.name if account is not None else "—"
         results.append(
             PositionValuation(
+                position_id=position.id,
                 asset_id=position.asset_id,
-                asset_label=label,
+                asset_label=asset_label,
+                financial_account_id=position.financial_account_id,
+                account_label=account_label,
                 quantity=position.quantity,
                 average_cost=position.average_cost,
                 currency=currency,
+                currency_native=position.currency,
                 cost_basis=cost_basis.quantize(cents),
                 market_value=market_value.quantize(cents),
                 unrealized_pl=(market_value - cost_basis).quantize(cents),
                 realized_pl=position.realized_pl.quantize(cents),
-                has_market_data=has_market_data,
+                has_market_data=position_has_market_data,
             )
         )
     results.sort(key=lambda p: p.market_value, reverse=True)
-    return results
+    return PositionValuationsResult(
+        items=results, has_market_data=has_market_data, has_missing_fx_rate=has_missing_fx_rate
+    )
+
+
+@dataclass
+class AssetValuation:
+    currency: str
+    quantity: Decimal
+    cost_basis: Decimal
+    market_value: Decimal
+    unrealized_pl: Decimal
+    realized_pl: Decimal
+    has_market_data: bool
+    has_missing_fx_rate: bool
+    # Prezzo per unita' (non moltiplicato per `quantity`, disponibile anche
+    # senza posizioni aperte): `price` e' convertito in `currency` (None se
+    # nessun prezzo o nessun tasso di cambio disponibile), `price_native`/
+    # `price_native_currency` sono il dato originale del provider, sempre
+    # presenti quando un prezzo esiste — mai persi dietro la conversione
+    # (SPEC: l'originale resta sempre disponibile, la UI lo mostra al
+    # passaggio del mouse sul prezzo convertito).
+    price: Decimal | None = None
+    price_native: Decimal | None = None
+    price_native_currency: str | None = None
+
+
+async def get_asset_valuation(
+    db: AsyncSession, workspace_id: uuid.UUID, asset_id: uuid.UUID, as_of: date, currency: str
+) -> AssetValuation:
+    """P&L convertito per UN asset (somma su tutte le posizioni/conti che lo
+    detengono) — stessa fonte e stesso fallback onesto a costo storico di
+    `compute_valuation`/`list_position_valuations`, qui filtrato a un asset
+    invece che a un portfolio. Usato dalla card "Rendimento" del dettaglio
+    asset: a differenza del calcolo lato frontend (che mostrava "—" quando
+    il prezzo era in una valuta diversa da quella della posizione, es. un
+    ISIN giapponese quotato in JPY comprato in EUR), qui la conversione
+    passa sempre da `fx_rate_service`, cosi' il rendimento resta visibile —
+    dato che l'utente considera troppo importante per sparire silenziosamente."""
+    positions = list(
+        (
+            await db.execute(
+                select(Position).where(
+                    Position.workspace_id == workspace_id,
+                    Position.asset_id == asset_id,
+                    Position.quantity != 0,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    cents = Decimal("0.01")
+    quantity = Decimal("0")
+    cost_basis = Decimal("0")
+    market_value = Decimal("0")
+    realized_pl = Decimal("0")
+    has_market_data = True
+    has_missing_fx_rate = False
+
+    price_row = await _latest_price(db, workspace_id, asset_id, as_of)
+    price_fx_rate = (
+        await fx_rate_service.get_rate(db, price_row.currency, currency, as_of) if price_row is not None else None
+    )
+
+    for position in positions:
+        fx_rate = await fx_rate_service.get_rate(db, position.currency, currency, as_of)
+        if fx_rate is None:
+            has_missing_fx_rate = True
+            continue
+        quantity += position.quantity
+        position_cost = position.quantity * position.average_cost * fx_rate
+        cost_basis += position_cost
+        realized_pl += position.realized_pl * fx_rate
+
+        if price_row is not None and price_fx_rate is not None:
+            market_value += position.quantity * price_row.price * price_fx_rate
+        else:
+            market_value += position_cost
+            has_market_data = False
+
+    price = price_row.price * price_fx_rate if price_row is not None and price_fx_rate is not None else None
+
+    return AssetValuation(
+        currency=currency,
+        quantity=quantity,
+        cost_basis=cost_basis.quantize(cents),
+        market_value=market_value.quantize(cents),
+        unrealized_pl=(market_value - cost_basis).quantize(cents),
+        realized_pl=realized_pl.quantize(cents),
+        has_market_data=has_market_data,
+        has_missing_fx_rate=has_missing_fx_rate,
+        price=price.quantize(cents) if price is not None else None,
+        price_native=price_row.price if price_row is not None else None,
+        price_native_currency=price_row.currency if price_row is not None else None,
+    )
 
 
 async def list_net_worth_snapshots(

@@ -17,8 +17,12 @@ from app.schemas.portfolio_analytics import (
     AllocationItemOut,
     PortfolioAllocationOut,
     PortfolioPerformanceOut,
+    PortfolioPositionsOut,
     PortfolioSnapshotPointOut,
+    PortfolioSummaryItemOut,
+    PortfolioSummaryListOut,
     PortfolioValuationOut,
+    PositionValuationOut,
 )
 from app.schemas.portfolios import (
     PortfolioAccountCreate,
@@ -31,38 +35,10 @@ from app.schemas.portfolios import (
 from app.services import analytics as analytics_service
 from app.services import portfolio_analytics
 from app.services.job_run_tracker import get_latest_run
+from app.services.portfolio_scope import get_portfolio_or_404, resolve_account_ids
 from app.worker.queue import enqueue_snapshot_rebuild
 
 router = APIRouter(prefix="/portfolios", tags=["portfolio"])
-
-
-async def _get_portfolio_or_404(
-    db: AsyncSession, workspace_id: uuid.UUID, portfolio_id: uuid.UUID
-) -> Portfolio:
-    portfolio = await db.get(Portfolio, portfolio_id)
-    if portfolio is None or portfolio.workspace_id != workspace_id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Portfolio not found")
-    return portfolio
-
-
-async def _resolve_account_ids(
-    db: AsyncSession, workspace_id: uuid.UUID, portfolio_id: uuid.UUID | None
-) -> set[uuid.UUID] | None:
-    """`portfolio_id=None` risolve nella vista implicita "tutti i conti"
-    (SPEC §36) — `None` propagato a `compute_valuation`/`compute_allocation`
-    significa "nessun filtro", non "nessun conto"."""
-    if portfolio_id is None:
-        return None
-    await _get_portfolio_or_404(db, workspace_id, portfolio_id)
-    links = (
-        await db.execute(
-            select(PortfolioAccount).where(
-                PortfolioAccount.workspace_id == workspace_id,
-                PortfolioAccount.portfolio_id == portfolio_id,
-            )
-        )
-    ).scalars().all()
-    return {link.financial_account_id for link in links}
 
 
 # --- Analytics (SPEC §37): valore, allocation, performance -----------------
@@ -78,12 +54,13 @@ async def get_portfolio_valuation(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
     portfolio_id: uuid.UUID | None = None,
+    unassigned: bool = False,
     as_of: date | None = None,
     currency: str | None = None,
 ) -> PortfolioValuationOut:
     resolved_currency = await analytics_service.resolve_currency(db, workspace_id, currency)
     resolved_as_of = as_of or date.today()
-    account_ids = await _resolve_account_ids(db, workspace_id, portfolio_id)
+    account_ids = await resolve_account_ids(db, workspace_id, portfolio_id, unassigned)
     valuation = await portfolio_analytics.compute_valuation(
         db, workspace_id, account_ids, resolved_as_of, resolved_currency
     )
@@ -96,6 +73,7 @@ async def get_portfolio_valuation(
         realized_pl=valuation.realized_pl,
         has_market_data=valuation.has_market_data,
         has_holdings=valuation.has_holdings,
+        has_missing_fx_rate=valuation.has_missing_fx_rate,
     )
 
 
@@ -104,12 +82,13 @@ async def get_portfolio_allocation(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
     portfolio_id: uuid.UUID | None = None,
+    unassigned: bool = False,
     as_of: date | None = None,
     currency: str | None = None,
 ) -> PortfolioAllocationOut:
     resolved_currency = await analytics_service.resolve_currency(db, workspace_id, currency)
     resolved_as_of = as_of or date.today()
-    account_ids = await _resolve_account_ids(db, workspace_id, portfolio_id)
+    account_ids = await resolve_account_ids(db, workspace_id, portfolio_id, unassigned)
     allocation = await portfolio_analytics.compute_allocation(
         db, workspace_id, account_ids, resolved_as_of, resolved_currency
     )
@@ -121,9 +100,11 @@ async def get_portfolio_allocation(
         currency=allocation.currency,
         as_of=resolved_as_of,
         has_market_data=allocation.has_market_data,
+        has_missing_fx_rate=allocation.has_missing_fx_rate,
         by_asset_type=to_items(allocation.by_asset_type),
         by_asset=to_items(allocation.by_asset),
         by_account=to_items(allocation.by_account),
+        by_currency=to_items(allocation.by_currency),
         by_strategy=to_items(allocation.by_strategy),
     )
 
@@ -133,6 +114,7 @@ async def get_portfolio_performance(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
     portfolio_id: uuid.UUID | None = None,
+    unassigned: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
     currency: str | None = None,
@@ -140,24 +122,107 @@ async def get_portfolio_performance(
     resolved_currency = await analytics_service.resolve_currency(db, workspace_id, currency)
     resolved_to = date_to or date.today()
     resolved_from = date_from or (resolved_to - timedelta(days=365))
-    if portfolio_id is not None:
-        await _get_portfolio_or_404(db, workspace_id, portfolio_id)
-    snapshots = await portfolio_analytics.list_portfolio_snapshots(
-        db, workspace_id, portfolio_id, resolved_from, resolved_to
+    account_ids = await resolve_account_ids(db, workspace_id, portfolio_id, unassigned)
+    series = await portfolio_analytics.compute_historical_series(
+        db, workspace_id, account_ids, resolved_from, resolved_to, resolved_currency
     )
     return PortfolioPerformanceOut(
         currency=resolved_currency,
         points=[
             PortfolioSnapshotPointOut(
-                snapshot_date=s.snapshot_date,
+                snapshot_date=checkpoint,
+                market_value=valuation.market_value,
+                cost_basis=valuation.cost_basis,
+                unrealized_pl=valuation.unrealized_pl,
+                realized_pl=valuation.realized_pl,
+                has_market_data=valuation.has_market_data,
+            )
+            for checkpoint, valuation in series
+        ],
+    )
+
+
+@router.get("/analytics/summary", response_model=PortfolioSummaryListOut)
+async def get_portfolio_summaries(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+    as_of: date | None = None,
+    currency: str | None = None,
+) -> PortfolioSummaryListOut:
+    """Riepilogo di ogni `Portfolio` del workspace in una sola risposta —
+    usato dalla Panoramica Investimenti (redesign) per la lista dei
+    portfolio senza fare N chiamate separate lato client. Non include lo
+    pseudo-gruppo "Asset senza portfolio": quello si valorizza con
+    `GET /analytics/valuation?unassigned=true`, gia' esistente."""
+    resolved_currency = await analytics_service.resolve_currency(db, workspace_id, currency)
+    resolved_as_of = as_of or date.today()
+    summaries = await portfolio_analytics.list_portfolio_summaries(
+        db, workspace_id, resolved_as_of, resolved_currency
+    )
+    return PortfolioSummaryListOut(
+        as_of=resolved_as_of,
+        items=[
+            PortfolioSummaryItemOut(
+                portfolio_id=s.portfolio_id,
+                name=s.name,
+                account_count=s.account_count,
+                currency=s.currency,
                 market_value=s.market_value,
                 cost_basis=s.cost_basis,
                 unrealized_pl=s.unrealized_pl,
-                realized_pl=s.realized_pl,
                 has_market_data=s.has_market_data,
+                has_holdings=s.has_holdings,
             )
-            for s in snapshots
-            if s.currency == resolved_currency
+            for s in summaries
+        ],
+    )
+
+
+@router.get("/analytics/positions", response_model=PortfolioPositionsOut)
+async def get_portfolio_positions(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+    portfolio_id: uuid.UUID | None = None,
+    unassigned: bool = False,
+    as_of: date | None = None,
+    currency: str | None = None,
+    include_closed: bool = False,
+) -> PortfolioPositionsOut:
+    """Valore attuale e rendimento PER SINGOLA posizione (redesign
+    Investimenti, tabella Posizioni) — a differenza del calcolo client-side
+    precedente (mai possibile senza `fx_rate_service`), qui la conversione
+    valuta e' sempre corretta anche quando prezzo e posizione sono in
+    valute diverse. Riusa `list_position_valuations`, gia' scritta e
+    testata per l'export Google Sheets."""
+    resolved_currency = await analytics_service.resolve_currency(db, workspace_id, currency)
+    resolved_as_of = as_of or date.today()
+    account_ids = await resolve_account_ids(db, workspace_id, portfolio_id, unassigned)
+    result = await portfolio_analytics.list_position_valuations(
+        db, workspace_id, account_ids, resolved_as_of, resolved_currency, include_closed
+    )
+    return PortfolioPositionsOut(
+        currency=resolved_currency,
+        as_of=resolved_as_of,
+        has_market_data=result.has_market_data,
+        has_missing_fx_rate=result.has_missing_fx_rate,
+        positions=[
+            PositionValuationOut(
+                position_id=p.position_id,
+                asset_id=p.asset_id,
+                asset_label=p.asset_label,
+                financial_account_id=p.financial_account_id,
+                account_label=p.account_label,
+                quantity=p.quantity,
+                average_cost=p.average_cost,
+                currency=p.currency,
+                currency_native=p.currency_native,
+                cost_basis=p.cost_basis,
+                market_value=p.market_value,
+                unrealized_pl=p.unrealized_pl,
+                realized_pl=p.realized_pl,
+                has_market_data=p.has_market_data,
+            )
+            for p in result.items
         ],
     )
 
@@ -195,7 +260,7 @@ async def get_portfolio(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
 ) -> Portfolio:
-    return await _get_portfolio_or_404(db, workspace_id, portfolio_id)
+    return await get_portfolio_or_404(db, workspace_id, portfolio_id)
 
 
 @router.patch("/{portfolio_id}", response_model=PortfolioOut)
@@ -205,7 +270,7 @@ async def update_portfolio(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
 ) -> Portfolio:
-    portfolio = await _get_portfolio_or_404(db, workspace_id, portfolio_id)
+    portfolio = await get_portfolio_or_404(db, workspace_id, portfolio_id)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(portfolio, field, value)
     try:
@@ -222,7 +287,7 @@ async def delete_portfolio(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    portfolio = await _get_portfolio_or_404(db, workspace_id, portfolio_id)
+    portfolio = await get_portfolio_or_404(db, workspace_id, portfolio_id)
     await db.delete(portfolio)
     await db.commit()
 
@@ -236,7 +301,7 @@ async def list_portfolio_accounts(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
 ) -> list[PortfolioAccount]:
-    await _get_portfolio_or_404(db, workspace_id, portfolio_id)
+    await get_portfolio_or_404(db, workspace_id, portfolio_id)
     result = await db.execute(
         select(PortfolioAccount)
         .where(PortfolioAccount.workspace_id == workspace_id, PortfolioAccount.portfolio_id == portfolio_id)
@@ -254,7 +319,7 @@ async def add_portfolio_account(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
 ) -> PortfolioAccount:
-    await _get_portfolio_or_404(db, workspace_id, portfolio_id)
+    await get_portfolio_or_404(db, workspace_id, portfolio_id)
     account = await db.get(FinancialAccount, payload.financial_account_id)
     if account is None or account.workspace_id != workspace_id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid financial_account_id")
@@ -280,7 +345,7 @@ async def remove_portfolio_account(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    await _get_portfolio_or_404(db, workspace_id, portfolio_id)
+    await get_portfolio_or_404(db, workspace_id, portfolio_id)
     result = await db.execute(
         select(PortfolioAccount).where(
             PortfolioAccount.workspace_id == workspace_id,

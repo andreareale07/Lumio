@@ -49,7 +49,12 @@ class ImportOut(BaseModel):
     period_start: date | None
     period_end: date | None
     transactions_found: int
+    # Transaction Deduplication Engine (docs/SPEC_DEDUP_TRANSACTION.md):
+    # transactions_imported conta solo le righe realmente persistite come
+    # Transaction (non piu' incondizionatamente transactions_found).
     transactions_imported: int
+    transactions_duplicate: int
+    transactions_review_pending: int
     error_message: str | None
     created_at: datetime
     updated_at: datetime

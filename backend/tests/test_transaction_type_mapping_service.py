@@ -114,6 +114,7 @@ async def _create_transaction(
         direction=direction,
         transaction_type=transaction_type,
         source_type_raw=source_type_raw,
+        dedup_fingerprint=uuid.uuid4().hex,
     )
     db.add(txn)
     await db.flush()

@@ -82,6 +82,25 @@ async def test_asset_duplicate_symbol_rejected(client):
     assert response.status_code == 400
 
 
+async def test_create_asset_rejects_unknown_currency_code(client):
+    token = await _register(client, "asset-invalid-currency@example.com")
+    response = await client.post(
+        "/api/v1/assets",
+        json={"name": "Apple", "symbol": "AAPL", "asset_type": "stock", "currency": "XXX"},
+        headers=_auth_headers(token),
+    )
+    assert response.status_code == 400
+
+
+async def test_update_asset_rejects_unknown_currency_code(client):
+    token = await _register(client, "asset-invalid-currency-update@example.com")
+    asset_id = await _create_asset(client, token)
+    response = await client.patch(
+        f"/api/v1/assets/{asset_id}", json={"currency": "XXX"}, headers=_auth_headers(token)
+    )
+    assert response.status_code == 400
+
+
 async def test_asset_with_no_movements_can_be_deleted_but_referenced_one_cannot(client):
     token = await _register(client, "asset-delete@example.com")
     account_id = await _create_account(client, token)
@@ -297,6 +316,109 @@ async def test_investment_transaction_rejects_account_from_another_workspace(cli
 
     response = await _create_investment_transaction(client, token_a, account_b, asset_id=asset_a)
     assert response.status_code == 400
+
+
+# --- Filtro portfolio_id/unassigned (redesign Investimenti, sezione Movimenti) --
+
+
+async def test_list_investment_transactions_filters_by_portfolio(client):
+    token = await _register(client, "itx-portfolio-filter@example.com")
+    account_in = await _create_account(client, token, name="Dentro")
+    account_out = await _create_account(client, token, name="Fuori")
+    asset_id = await _create_asset(client, token)
+    await _create_investment_transaction(client, token, account_in, asset_id=asset_id)
+    await _create_investment_transaction(client, token, account_out, asset_id=asset_id)
+
+    portfolio = await client.post(
+        "/api/v1/portfolios", json={"name": "Solo dentro", "currency": "EUR"}, headers=_auth_headers(token)
+    )
+    await client.post(
+        f"/api/v1/portfolios/{portfolio.json()['id']}/accounts",
+        json={"financial_account_id": account_in},
+        headers=_auth_headers(token),
+    )
+
+    scoped = await client.get(
+        "/api/v1/investment-transactions",
+        params={"portfolio_id": portfolio.json()["id"]},
+        headers=_auth_headers(token),
+    )
+    rows = scoped.json()
+    assert len(rows) == 1
+    assert rows[0]["financial_account_id"] == account_in
+
+
+async def test_list_investment_transactions_unassigned_scope(client):
+    token = await _register(client, "itx-unassigned-filter@example.com")
+    account_in = await _create_account(client, token, name="Dentro un portfolio")
+    account_out = await _create_account(client, token, name="Non raggruppato")
+    asset_id = await _create_asset(client, token)
+    await _create_investment_transaction(client, token, account_in, asset_id=asset_id)
+    await _create_investment_transaction(client, token, account_out, asset_id=asset_id)
+
+    portfolio = await client.post(
+        "/api/v1/portfolios", json={"name": "Con un conto dentro", "currency": "EUR"}, headers=_auth_headers(token)
+    )
+    await client.post(
+        f"/api/v1/portfolios/{portfolio.json()['id']}/accounts",
+        json={"financial_account_id": account_in},
+        headers=_auth_headers(token),
+    )
+
+    response = await client.get(
+        "/api/v1/investment-transactions", params={"unassigned": "true"}, headers=_auth_headers(token)
+    )
+    rows = response.json()
+    assert len(rows) == 1
+    assert rows[0]["financial_account_id"] == account_out
+
+
+async def test_list_investment_transactions_portfolio_and_account_filter_intersect(client):
+    """`portfolio_id` e `financial_account_id` insieme devono intersecare
+    (AND), mai uno sostituire l'altro."""
+    token = await _register(client, "itx-portfolio-and-account@example.com")
+    account_a = await _create_account(client, token, name="Conto A")
+    account_b = await _create_account(client, token, name="Conto B")
+    asset_id = await _create_asset(client, token)
+    await _create_investment_transaction(client, token, account_a, asset_id=asset_id)
+    await _create_investment_transaction(client, token, account_b, asset_id=asset_id)
+
+    portfolio = await client.post(
+        "/api/v1/portfolios", json={"name": "A e B", "currency": "EUR"}, headers=_auth_headers(token)
+    )
+    for account_id in (account_a, account_b):
+        await client.post(
+            f"/api/v1/portfolios/{portfolio.json()['id']}/accounts",
+            json={"financial_account_id": account_id},
+            headers=_auth_headers(token),
+        )
+
+    response = await client.get(
+        "/api/v1/investment-transactions",
+        params={"portfolio_id": portfolio.json()["id"], "financial_account_id": account_a},
+        headers=_auth_headers(token),
+    )
+    rows = response.json()
+    assert len(rows) == 1
+    assert rows[0]["financial_account_id"] == account_a
+
+
+async def test_list_investment_transactions_portfolio_without_accounts_returns_empty(client):
+    token = await _register(client, "itx-portfolio-empty@example.com")
+    account_id = await _create_account(client, token)
+    asset_id = await _create_asset(client, token)
+    await _create_investment_transaction(client, token, account_id, asset_id=asset_id)
+
+    portfolio = await client.post(
+        "/api/v1/portfolios", json={"name": "Vuoto", "currency": "EUR"}, headers=_auth_headers(token)
+    )
+
+    response = await client.get(
+        "/api/v1/investment-transactions",
+        params={"portfolio_id": portfolio.json()["id"]},
+        headers=_auth_headers(token),
+    )
+    assert response.json() == []
 
 
 # --- Modifica manuale della posizione (onboarding senza storico) ------------

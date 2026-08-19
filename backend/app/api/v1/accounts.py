@@ -16,6 +16,7 @@ from app.schemas.accounts import (
     IbanHistoryCreate,
     IbanHistoryOut,
 )
+from app.services.currency_service import currency_exists
 from app.services.transfer_recognition import archive_previous_iban, reapply_internal_transfer_detection
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -40,6 +41,8 @@ async def create_account(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
 ) -> FinancialAccount:
+    if not await currency_exists(db, workspace_id, payload.currency):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown currency code")
     account = FinancialAccount(workspace_id=workspace_id, **payload.model_dump())
     db.add(account)
     try:
@@ -91,6 +94,9 @@ async def update_account(
 ) -> FinancialAccount:
     account = await _get_account_or_404(db, workspace_id, account_id)
     updates = payload.model_dump(exclude_unset=True)
+
+    if "currency" in updates and not await currency_exists(db, workspace_id, updates["currency"]):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown currency code")
 
     # Milestone 09.5c: un istituto puo' cambiare l'IBAN di un conto pur
     # restando lo stesso conto (es. migrazione DE->IT osservata su Trade

@@ -1,13 +1,16 @@
 from app.models.ai_profile import AIProfile
 from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
+from app.models.asset_profile import AssetProfile
 from app.models.audit_log import AuditLog
 from app.models.bank import Bank
 from app.models.bank_parser import BankParser
 from app.models.category import Category
 from app.models.classification import Classification
+from app.models.currency import Currency
 from app.models.financial_account import FinancialAccount
 from app.models.financial_account_iban_history import FinancialAccountIbanHistory
+from app.models.fx_rate import FxRate
 from app.models.google_integration import GoogleIntegration
 from app.models.import_ import Import
 from app.models.import_mapping import ImportMapping
@@ -21,6 +24,8 @@ from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.position import Position
 from app.models.rule import Rule
 from app.models.transaction import Transaction
+from app.models.transaction_dedup_decision import TransactionDedupDecision
+from app.models.transaction_review_item import TransactionReviewItem
 from app.models.transaction_type_mapping import TransactionTypeMapping
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -30,13 +35,16 @@ __all__ = [
     "AIProfile",
     "Asset",
     "AssetPrice",
+    "AssetProfile",
     "AuditLog",
     "Bank",
     "BankParser",
     "Category",
     "Classification",
+    "Currency",
     "FinancialAccount",
     "FinancialAccountIbanHistory",
+    "FxRate",
     "GoogleIntegration",
     "Import",
     "ImportMapping",
@@ -50,6 +58,8 @@ __all__ = [
     "Position",
     "Rule",
     "Transaction",
+    "TransactionDedupDecision",
+    "TransactionReviewItem",
     "TransactionTypeMapping",
     "User",
     "Workspace",

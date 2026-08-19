@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useController, useForm } from "react-hook-form";
 
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
@@ -62,11 +62,19 @@ export function RuleFormDialog({ open, onClose, onSaved, rule, defaults }: RuleF
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<RuleFormValues>({
     resolver: zodResolver(ruleSchema),
     defaultValues: valuesFrom(rule, defaults),
   });
+  // CategoryPicker e' un componente controllato (si aspetta `value` come
+  // prop esplicita) — a differenza degli <input>/<select> nativi sopra,
+  // spread di register() qui non basta: register() passa solo onChange/
+  // onBlur/name/ref, mai `value`, quindi il campo risultava sempre vuoto
+  // (bug reale: "categoria sbiancata" aprendo il dialog da una
+  // transazione, ma capitava anche in modifica di una regola esistente).
+  const categoryField = useController({ name: "category_id", control });
 
   useEffect(() => {
     if (open) {
@@ -112,7 +120,14 @@ export function RuleFormDialog({ open, onClose, onSaved, rule, defaults }: RuleF
           </Select>
         </div>
         <Input label="Valore" error={errors.value?.message} {...register("value")} />
-        <CategoryPicker error={errors.category_id?.message} {...register("category_id")} />
+        <CategoryPicker
+          error={errors.category_id?.message}
+          value={categoryField.field.value}
+          onChange={categoryField.field.onChange}
+          onBlur={categoryField.field.onBlur}
+          name={categoryField.field.name}
+          ref={categoryField.field.ref}
+        />
         <Input
           label="Priorità"
           type="number"

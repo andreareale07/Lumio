@@ -79,6 +79,33 @@ async def test_user_cannot_see_another_users_membership_row_via_rls():
         assert rows == {(workspace_a, user_a)}
 
 
+async def test_user_cannot_update_another_users_workspace_via_rls():
+    # Sistema di valute (migration 0030): workspaces ora ha una policy
+    # UPDATE, ristretta a is_workspace_owner — un utente senza alcuna
+    # relazione con un workspace non deve poter cambiarne base_currency.
+    user_a, workspace_a = await _create_user_with_workspace("rls-g@example.com")
+    _, workspace_b = await _create_user_with_workspace("rls-h@example.com")
+
+    async with async_session_factory() as session:
+        await _set_current_user(session, user_a)
+        result = await session.execute(
+            text("UPDATE workspaces SET base_currency = 'USD' WHERE id = :id"),
+            {"id": str(workspace_b)},
+        )
+        assert result.rowcount == 0
+        await session.commit()
+
+    async with async_session_factory() as session:
+        await _set_current_user(session, user_a)
+        # L'owner PUO' invece aggiornare il proprio workspace.
+        result = await session.execute(
+            text("UPDATE workspaces SET base_currency = 'USD' WHERE id = :id"),
+            {"id": str(workspace_a)},
+        )
+        assert result.rowcount == 1
+        await session.commit()
+
+
 async def test_user_cannot_join_another_users_workspace_via_rls():
     user_a, _workspace_a = await _create_user_with_workspace("rls-e@example.com")
     _, workspace_b = await _create_user_with_workspace("rls-f@example.com")

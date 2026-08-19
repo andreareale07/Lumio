@@ -80,6 +80,45 @@ class MarketDataRefreshTriggered(BaseModel):
     job_id: str
 
 
+class PricePointOut(BaseModel):
+    """`at` e' sempre l'istante completo, anche per i preset giornalieri
+    (mezzanotte UTC in quel caso) — i preset intraday (1G/1S) hanno bisogno
+    dell'ora per non collassare tutti i punti di una giornata sulla stessa
+    etichetta nel grafico."""
+
+    at: datetime
+    price: Decimal
+
+
+class PriceHistoryOut(BaseModel):
+    """Risposta di `GET /assets/{id}/price-history`. `supports_history=False`
+    distingue "questo provider non fa storico" (es. profilo manuale/stooq/
+    custom) da `points=[]` ("il provider lo supporta ma non ha dati per
+    questo range") — casi che il frontend deve mostrare diversamente."""
+
+    preset: str
+    supports_history: bool
+    currency: str
+    points: list[PricePointOut]
+
+
+class AssetProfileOut(BaseModel):
+    """Arricchimento best-effort (Step 3) — ogni campo puo' essere `None`
+    (dato non disponibile, mai "N/A" ne' un errore). `fetched_at=None`
+    significa "nessun dato mai ottenuto per questo asset"."""
+
+    issuer: str | None
+    category: str | None
+    aum: Decimal | None
+    distribution_policy: str | None
+    # Nome "pulito" secondo il provider (es. "Apple Inc.") — MAI una
+    # sovrascrittura di Asset.name, solo un'alternativa opzionale per la UI.
+    display_name: str | None = None
+    fetched_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
 class AssetPriceOut(BaseModel):
     id: uuid.UUID
     asset_id: uuid.UUID

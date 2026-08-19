@@ -8,6 +8,8 @@ import { Dialog } from "../../components/ui/Dialog";
 import { Input } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
+import { useAuth } from "../../app/providers/AuthProvider";
+import { CurrencyPicker } from "../settings/currency/CurrencyPicker";
 import { ACCOUNT_TYPES, type FinancialAccount } from "../../types/api";
 import { useAddIbanHistory, useCreateAccount, useDeleteIbanHistory, useIbanHistory, useUpdateAccount } from "./api";
 import { ACCOUNT_TYPE_LABELS } from "./labels";
@@ -20,7 +22,9 @@ const IBAN_PATTERN = /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/;
 const schema = z.object({
   name: z.string().min(1, "Inserisci un nome"),
   account_type: z.enum(ACCOUNT_TYPES),
-  currency: z.string().length(3, "Codice valuta a 3 lettere (es. EUR)"),
+  // Sistema di valute: il codice viene scelto da CurrencyPicker (sempre
+  // valido), non piu' digitato — il vincolo qui e' solo "non vuoto".
+  currency: z.string().min(2, "Seleziona una valuta"),
   iban: z
     .string()
     .trim()
@@ -37,7 +41,7 @@ interface AccountFormDialogProps {
   account?: FinancialAccount | null;
 }
 
-function valuesFrom(account: FinancialAccount | null | undefined): FormValues {
+function valuesFrom(account: FinancialAccount | null | undefined, defaultCurrency: string): FormValues {
   if (account) {
     return {
       name: account.name,
@@ -46,7 +50,7 @@ function valuesFrom(account: FinancialAccount | null | undefined): FormValues {
       iban: account.iban ?? "",
     };
   }
-  return { name: "", account_type: "checking", currency: "EUR", iban: "" };
+  return { name: "", account_type: "checking", currency: defaultCurrency, iban: "" };
 }
 
 /** Il tipo di conto (`account_type`) determina in quale bucket del
@@ -59,6 +63,8 @@ function valuesFrom(account: FinancialAccount | null | undefined): FormValues {
 export function AccountFormDialog({ open, onClose, account }: AccountFormDialogProps) {
   const createAccount = useCreateAccount();
   const updateAccount = useUpdateAccount();
+  const { user } = useAuth();
+  const defaultCurrency = user?.base_currency ?? "EUR";
   const [formError, setFormError] = useState<string | null>(null);
   const isEditing = !!account;
 
@@ -69,12 +75,12 @@ export function AccountFormDialog({ open, onClose, account }: AccountFormDialogP
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: valuesFrom(account),
+    defaultValues: valuesFrom(account, defaultCurrency),
   });
 
   useEffect(() => {
     if (open) {
-      reset(valuesFrom(account));
+      reset(valuesFrom(account, defaultCurrency));
       setFormError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset intenzionale solo su open/account
@@ -111,17 +117,11 @@ export function AccountFormDialog({ open, onClose, account }: AccountFormDialogP
             </option>
           ))}
         </Select>
-        <Input
-          label="Valuta"
-          maxLength={3}
-          className="uppercase"
-          error={errors.currency?.message}
-          {...register("currency")}
-        />
+        <CurrencyPicker error={errors.currency?.message} {...register("currency")} />
         <Input
           label="IBAN (opzionale)"
           className="uppercase"
-          placeholder="Serve a riconoscere i bonifici verso questo conto come trasferimenti interni"
+          hint="Serve per il match dei bonifici"
           error={errors.iban?.message}
           {...register("iban")}
         />

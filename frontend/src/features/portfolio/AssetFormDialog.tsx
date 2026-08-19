@@ -8,6 +8,8 @@ import { Dialog } from "../../components/ui/Dialog";
 import { Input } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
+import { useAuth } from "../../app/providers/AuthProvider";
+import { CurrencyPicker } from "../settings/currency/CurrencyPicker";
 import { ASSET_TYPES, type Asset } from "../../types/api";
 import { useCreateAsset, useUpdateAsset } from "./api";
 import { ASSET_TYPE_LABELS } from "./labels";
@@ -17,7 +19,9 @@ const schema = z.object({
   symbol: z.string().max(32).optional(),
   isin: z.string().max(12).optional(),
   asset_type: z.enum(ASSET_TYPES),
-  currency: z.string().length(3, "Codice valuta a 3 lettere (es. EUR)"),
+  // Sistema di valute: il codice viene scelto da CurrencyPicker (sempre
+  // valido), non piu' digitato — il vincolo qui e' solo "non vuoto".
+  currency: z.string().min(2, "Seleziona una valuta"),
   notes: z.string().optional(),
 });
 type FormValues = z.infer<typeof schema>;
@@ -28,7 +32,7 @@ interface AssetFormDialogProps {
   asset?: Asset | null;
 }
 
-function valuesFrom(asset: Asset | null | undefined): FormValues {
+function valuesFrom(asset: Asset | null | undefined, defaultCurrency: string): FormValues {
   if (asset) {
     return {
       name: asset.name,
@@ -39,7 +43,7 @@ function valuesFrom(asset: Asset | null | undefined): FormValues {
       notes: asset.notes ?? "",
     };
   }
-  return { name: "", symbol: "", isin: "", asset_type: "etf", currency: "EUR", notes: "" };
+  return { name: "", symbol: "", isin: "", asset_type: "etf", currency: defaultCurrency, notes: "" };
 }
 
 /** Catalogo asset per workspace (SPEC §33): non richiede un
@@ -48,6 +52,8 @@ function valuesFrom(asset: Asset | null | undefined): FormValues {
 export function AssetFormDialog({ open, onClose, asset }: AssetFormDialogProps) {
   const createAsset = useCreateAsset();
   const updateAsset = useUpdateAsset();
+  const { user } = useAuth();
+  const defaultCurrency = user?.base_currency ?? "EUR";
   const [formError, setFormError] = useState<string | null>(null);
   const isEditing = !!asset;
 
@@ -56,11 +62,14 @@ export function AssetFormDialog({ open, onClose, asset }: AssetFormDialogProps) 
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: valuesFrom(asset) });
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: valuesFrom(asset, defaultCurrency),
+  });
 
   useEffect(() => {
     if (open) {
-      reset(valuesFrom(asset));
+      reset(valuesFrom(asset, defaultCurrency));
       setFormError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset intenzionale solo su open/asset
@@ -106,13 +115,7 @@ export function AssetFormDialog({ open, onClose, asset }: AssetFormDialogProps) 
             </option>
           ))}
         </Select>
-        <Input
-          label="Valuta"
-          maxLength={3}
-          className="uppercase"
-          error={errors.currency?.message}
-          {...register("currency")}
-        />
+        <CurrencyPicker error={errors.currency?.message} {...register("currency")} />
         <Input label="Note (opzionale)" {...register("notes")} />
         {formError && (
           <p role="alert" className="text-sm text-danger">

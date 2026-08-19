@@ -3,7 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/apiClient";
 import type {
   Asset,
+  AssetProfile,
   AssetType,
+  AssetValuation,
+  HistoryPreset,
   InvestmentTransaction,
   InvestmentTransactionType,
   JobRun,
@@ -11,10 +14,37 @@ import type {
   PortfolioAccountLink,
   PortfolioAllocation,
   PortfolioPerformance,
+  PortfolioPositions,
+  PortfolioSummaryList,
   PortfolioValuation,
   Position,
+  PriceHistory,
   SnapshotRebuildTriggered,
 } from "../../types/api";
+
+/** Ambito di uno dei 3 scope possibili per gli analytics del portfolio
+ * (redesign Investimenti): tutti i conti (nessun campo), un Portfolio
+ * nominato, o "conti non assegnati a nessun Portfolio" — mutuamente
+ * esclusivi, stesso principio del backend (`resolve_account_ids`). */
+export interface PortfolioScope {
+  portfolioId?: string | null;
+  unassigned?: boolean;
+}
+
+function scopeParams(scope: PortfolioScope): URLSearchParams {
+  const params = new URLSearchParams();
+  if (scope.unassigned) {
+    params.set("unassigned", "true");
+  } else if (scope.portfolioId) {
+    params.set("portfolio_id", scope.portfolioId);
+  }
+  return params;
+}
+
+function scopeKeyPart(scope: PortfolioScope): string {
+  if (scope.unassigned) return "unassigned";
+  return scope.portfolioId ?? "all";
+}
 
 // --- Assets --------------------------------------------------------------
 
@@ -57,12 +87,64 @@ export function useDeleteAsset() {
   });
 }
 
+/** Storico prezzi per il grafico di dettaglio asset (Step 1). I preset
+ * giornalieri (1M/3M/6M/1A) vengono persistiti lato backend in
+ * `asset_prices` alla stessa chiamata — nessun endpoint separato per
+ * "salva" vs "leggi". */
+export function usePriceHistory(assetId: string | null, preset: HistoryPreset) {
+  return useQuery({
+    queryKey: ["portfolio", "assets", assetId ?? "", "price-history", preset] as const,
+    queryFn: () => api.get<PriceHistory>(`/assets/${assetId}/price-history?preset=${preset}`),
+    enabled: !!assetId,
+  });
+}
+
+/** Rendimento per asset, sempre convertito nella valuta richiesta (default:
+ * base_currency del workspace) anche quando prezzo e posizione sono in
+ * valute diverse — a differenza del calcolo client-side precedente, che
+ * mostrava "—" in quel caso. `currency` esplicito permette di chiedere il
+ * prezzo convertito in una valuta diversa da quella base (es. la valuta
+ * dell'asset, per confrontare il prezzo attuale con quello di un acquisto
+ * storico registrato in quella stessa valuta). */
+export function useAssetValuation(assetId: string | null, currency?: string) {
+  return useQuery({
+    queryKey: ["portfolio", "assets", assetId ?? "", "valuation", currency ?? "default"] as const,
+    queryFn: () => {
+      const query = currency ? `?currency=${encodeURIComponent(currency)}` : "";
+      return api.get<AssetValuation>(`/assets/${assetId}/valuation${query}`);
+    },
+    enabled: !!assetId,
+  });
+}
+
+/** Arricchimento best-effort (Step 3) — sempre 200 con campi `null` quando
+ * non disponibile, mai un errore da gestire qui. */
+export function useAssetProfile(assetId: string | null) {
+  return useQuery({
+    queryKey: ["portfolio", "assets", assetId ?? "", "profile"] as const,
+    queryFn: () => api.get<AssetProfile>(`/assets/${assetId}/profile`),
+    enabled: !!assetId,
+  });
+}
+
 // --- Portfolios (aggregazione su piu' conti, SPEC §36) --------------------
 
 export const portfoliosKey = ["portfolio", "portfolios"] as const;
 
 export function usePortfolios() {
   return useQuery({ queryKey: portfoliosKey, queryFn: () => api.get<Portfolio[]>("/portfolios") });
+}
+
+/** Un singolo Portfolio per id (nome/descrizione per l'header del
+ * dettaglio, redesign Investimenti) — non filtra dalla lista gia' in
+ * cache: e' una pagina diversa (`/investments/portfolios/:id`), nessuna
+ * garanzia che la lista sia gia' stata scaricata in questa sessione. */
+export function usePortfolio(portfolioId: string | null) {
+  return useQuery({
+    queryKey: [...portfoliosKey, portfolioId],
+    queryFn: () => api.get<Portfolio>(`/portfolios/${portfolioId}`),
+    enabled: !!portfolioId,
+  });
 }
 
 export interface PortfolioInput {
@@ -134,6 +216,8 @@ export const investmentTransactionsKey = ["portfolio", "investment-transactions"
 
 export interface InvestmentTransactionFilters {
   financial_account_id?: string;
+  portfolio_id?: string;
+  unassigned?: boolean;
   asset_id?: string;
   type?: InvestmentTransactionType;
   limit?: number;
@@ -141,7 +225,7 @@ export interface InvestmentTransactionFilters {
 }
 
 export function useInvestmentTransactions(filters: InvestmentTransactionFilters = {}) {
-  const params = new URLSearchParams();
+  const params = scopeParams({ portfolioId: filters.portfolio_id, unassigned: filters.unassigned });
   if (filters.financial_account_id) params.set("financial_account_id", filters.financial_account_id);
   if (filters.asset_id) params.set("asset_id", filters.asset_id);
   if (filters.type) params.set("type", filters.type);
@@ -174,6 +258,10 @@ export interface InvestmentTransactionInput {
 function invalidatePortfolioData(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: investmentTransactionsKey });
   queryClient.invalidateQueries({ queryKey: positionsKey });
+  // Anche gli analytics (valore/rendimento aggregati e per riga) devono
+  // aggiornarsi dopo un movimento — senza questo, la Panoramica/tabella
+  // Posizioni resterebbe stantia finche' non si smonta/rimonta la pagina.
+  queryClient.invalidateQueries({ queryKey: ["portfolio", "analytics"] });
 }
 
 export function useCreateInvestmentTransaction() {
@@ -239,42 +327,73 @@ export function useEditPositionManually() {
 // valori sono sempre nella valuta prevalente del workspace, risolta lato
 // backend quando non specificata.
 
-export function portfolioValuationKey(portfolioId: string | null) {
-  return ["portfolio", "analytics", "valuation", portfolioId ?? "all"] as const;
+export function portfolioValuationKey(portfolioId: string | null, unassigned = false) {
+  return ["portfolio", "analytics", "valuation", scopeKeyPart({ portfolioId, unassigned })] as const;
 }
 
-export function usePortfolioValuation(portfolioId: string | null) {
-  const params = new URLSearchParams();
-  if (portfolioId) params.set("portfolio_id", portfolioId);
+export function usePortfolioValuation(portfolioId: string | null, unassigned = false) {
+  const params = scopeParams({ portfolioId, unassigned });
   return useQuery({
-    queryKey: portfolioValuationKey(portfolioId),
+    queryKey: portfolioValuationKey(portfolioId, unassigned),
     queryFn: () => api.get<PortfolioValuation>(`/portfolios/analytics/valuation?${params.toString()}`),
   });
 }
 
-export function usePortfolioAllocation(portfolioId: string | null) {
-  const params = new URLSearchParams();
-  if (portfolioId) params.set("portfolio_id", portfolioId);
+export function usePortfolioAllocation(portfolioId: string | null, unassigned = false) {
+  const params = scopeParams({ portfolioId, unassigned });
   return useQuery({
-    queryKey: ["portfolio", "analytics", "allocation", portfolioId ?? "all"] as const,
+    queryKey: ["portfolio", "analytics", "allocation", scopeKeyPart({ portfolioId, unassigned })] as const,
     queryFn: () => api.get<PortfolioAllocation>(`/portfolios/analytics/allocation?${params.toString()}`),
   });
 }
 
 export interface PortfolioPerformanceFilters {
   portfolio_id?: string | null;
+  unassigned?: boolean;
   date_from?: string;
   date_to?: string;
 }
 
 export function usePortfolioPerformance(filters: PortfolioPerformanceFilters = {}) {
-  const params = new URLSearchParams();
-  if (filters.portfolio_id) params.set("portfolio_id", filters.portfolio_id);
+  const params = scopeParams({ portfolioId: filters.portfolio_id, unassigned: filters.unassigned });
   if (filters.date_from) params.set("date_from", filters.date_from);
   if (filters.date_to) params.set("date_to", filters.date_to);
   return useQuery({
     queryKey: ["portfolio", "analytics", "performance", filters] as const,
     queryFn: () => api.get<PortfolioPerformance>(`/portfolios/analytics/performance?${params.toString()}`),
+  });
+}
+
+/** Riepilogo di ogni Portfolio del workspace in una sola chiamata (lista
+ * della Panoramica Investimenti) — mai N chiamate separate, una per
+ * portfolio. */
+export function usePortfolioSummaries() {
+  return useQuery({
+    queryKey: ["portfolio", "analytics", "summary"] as const,
+    queryFn: () => api.get<PortfolioSummaryList>("/portfolios/analytics/summary"),
+  });
+}
+
+export interface PortfolioPositionsFilters extends PortfolioScope {
+  includeClosed?: boolean;
+}
+
+/** Valore attuale e rendimento per singola posizione (tabella Posizioni,
+ * redesign) — mai calcolato client-side (richiede `fx_rate_service`,
+ * solo il backend puo' convertire correttamente prezzo/posizione in
+ * valute diverse). */
+export function usePortfolioPositions(filters: PortfolioPositionsFilters = {}) {
+  const params = scopeParams(filters);
+  if (filters.includeClosed) params.set("include_closed", "true");
+  return useQuery({
+    queryKey: [
+      "portfolio",
+      "analytics",
+      "positions",
+      scopeKeyPart(filters),
+      filters.includeClosed ?? false,
+    ] as const,
+    queryFn: () => api.get<PortfolioPositions>(`/portfolios/analytics/positions?${params.toString()}`),
   });
 }
 

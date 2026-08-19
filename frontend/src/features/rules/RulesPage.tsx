@@ -11,6 +11,7 @@ import { SkeletonRows } from "../../components/ui/Skeleton";
 import { useCategories } from "../categories/api";
 import { categoryLabel } from "../categories/utils";
 import { useDeleteRule, useRuleSuggestions, useRules, useUpdateRule } from "./api";
+import { ReclassificationPanel } from "./ReclassificationPanel";
 import { RuleFormDialog } from "./RuleFormDialog";
 import { RULE_FIELD_LABELS, RULE_OPERATOR_LABELS } from "./schemas";
 import type { Rule } from "../../types/api";
@@ -123,6 +124,8 @@ export function RulesPage() {
             ))}
         </div>
       )}
+
+      <ReclassificationPanel />
 
       <RuleFormDialog
         open={formOpen || !!suggestionPrefill}

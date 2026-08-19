@@ -35,5 +35,13 @@ class AssetOut(BaseModel):
     notes: str | None
     created_at: datetime
     updated_at: datetime
+    # Nome "pulito" secondo il market data provider attivo (es. "Apple
+    # Inc."), dalla cache di `asset_profiles` (Step 3) — MAI una
+    # sovrascrittura di `name` (il dato grezzo estratto dal parser Trade
+    # Republic, spesso con suffissi di borsa tedeschi tipo "DL-,0001").
+    # `None` finche' nessuno ha ancora aperto il dettaglio di questo asset
+    # (la cache si popola on-demand, non in blocco per non moltiplicare le
+    # chiamate a un endpoint gia' fragile — vedi asset_profile_service.py).
+    display_name: str | None = None
 
     model_config = {"from_attributes": True}

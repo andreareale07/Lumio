@@ -27,6 +27,7 @@ class SummaryOut(BaseModel):
     previous_income: Decimal
     previous_expenses: Decimal
     previous_net_cash_flow: Decimal
+    has_unconverted_rows: bool = False
 
 
 class AccountBalanceOut(BaseModel):
@@ -44,6 +45,10 @@ class BalancesOut(BaseModel):
     debt_total: Decimal
     investment_total: Decimal
     has_investments: bool
+    # Sistema di valute: True se un conto/posizione in valuta diversa e'
+    # stato escluso dai totali per mancanza di un tasso di cambio — mai
+    # un'esclusione invisibile (vedi app/services/fx_rate_service.py).
+    has_unconverted_rows: bool = False
 
 
 class BalanceHistoryPointOut(BaseModel):

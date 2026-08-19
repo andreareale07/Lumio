@@ -23,9 +23,14 @@ from app.db.base import Base
 # raggiungibile e':
 #   uploaded -> queued -> processing -> parsing -> completed | failed
 #   uploaded | queued -> cancelled
-# `classifying` e `ready_for_review` restano nel CHECK constraint (la SPEC li
-# richiede) ma sono deliberatamente irraggiungibili finche' non esiste una
-# vera classificazione da rivedere: usarli ora sarebbe uno stato finto.
+# `classifying` resta nel CHECK constraint (la SPEC lo richiede) ma e'
+# deliberatamente irraggiungibile: nessuna classificazione sincrona blocca
+# piu' l'import (vedi ai_classification_job.py, disaccoppiato). `ready_for_
+# review` invece E' raggiungibile da migration 0033 (Transaction
+# Deduplication Engine, docs/SPEC_DEDUP_TRANSACTION.md): un import vi
+# transita quando il dedup batch produce almeno una riga REVIEW ancora
+# pendente, e ne esce solo quando l'utente ha deciso tutte le voci
+# (`transaction_review_items.status='pending'` a zero per l'import).
 IMPORT_STATUSES = (
     "uploaded",
     "queued",
@@ -126,7 +131,15 @@ class Import(Base):
     period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
     period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
     transactions_found: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    # Transaction Deduplication Engine (migration 0033): transactions_imported
+    # conta SOLO le righe realmente persistite come Transaction (NEW +
+    # risolte come 'confirmed_distinct'), non piu' incondizionatamente
+    # len(rows) — le due nuove colonne sotto coprono gli altri due esiti.
     transactions_imported: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    transactions_duplicate: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    transactions_review_pending: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

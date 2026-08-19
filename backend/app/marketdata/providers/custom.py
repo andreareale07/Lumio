@@ -10,7 +10,7 @@ from decimal import Decimal, InvalidOperation
 
 import httpx
 
-from app.marketdata.base import AssetRef, MarketDataProviderError, Quote
+from app.marketdata.base import AssetProfile, AssetRef, FxQuote, MarketDataProviderError, PricePoint, Quote
 
 _TIMEOUT = 10.0
 
@@ -88,3 +88,22 @@ class CustomProvider:
         # best-effort, non garantisce che TUTTI gli asset configurati siano
         # risolvibili (va segnalato in UI).
         await self._get("AAPL")
+
+    async def fetch_history(self, asset: AssetRef, preset: str) -> list[PricePoint] | None:
+        # Un endpoint custom e' definito per una singola quotazione (un
+        # campo prezzo per risposta) — nessuna convenzione generica per uno
+        # storico su un servizio arbitrario configurato dall'utente.
+        return None
+
+    async def fetch_profile(self, asset: AssetRef) -> AssetProfile | None:
+        return None
+
+    async def fetch_fx_rate(self, from_currency: str, to_currency: str) -> FxQuote | None:
+        # Un endpoint custom e' definito per un asset (URL con {symbol}) —
+        # nessuna convenzione generica per una coppia di valute.
+        return None
+
+    async def fetch_fx_history(
+        self, from_currency: str, to_currency: str, preset: str
+    ) -> list[PricePoint] | None:
+        return None

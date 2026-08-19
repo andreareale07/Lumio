@@ -9,6 +9,7 @@ from app.api.v1 import (
     banks,
     categories,
     classification,
+    currencies,
     import_mappings,
     imports,
     integrations_google,
@@ -22,6 +23,7 @@ from app.api.v1 import (
     system_settings,
     transaction_type_mappings,
     transactions,
+    workspace,
 )
 from app.core.config import get_settings
 
@@ -46,6 +48,8 @@ api_router.include_router(system_settings.router)
 api_router.include_router(jobs.router)
 api_router.include_router(classification.router)
 api_router.include_router(activity.router)
+api_router.include_router(currencies.router)
+api_router.include_router(workspace.router)
 
 # Milestone 10: isolamento reale, non solo un check a runtime (ROADMAP DoD
 # "con GOOGLE_ENABLED=false nessuna funzionalita' core e' impattata") — con

@@ -19,6 +19,7 @@ from app.schemas.investment_transactions import (
     InvestmentTransactionUpdate,
 )
 from app.services.investment_backfill import backfill_investment_transactions
+from app.services.portfolio_scope import resolve_account_ids
 from app.services.position_service import recompute_position
 
 router = APIRouter(prefix="/investment-transactions", tags=["portfolio"])
@@ -105,6 +106,8 @@ async def list_investment_transactions(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
     financial_account_id: uuid.UUID | None = None,
+    portfolio_id: uuid.UUID | None = None,
+    unassigned: bool = False,
     asset_id: uuid.UUID | None = None,
     type: str | None = None,
     date_from: date | None = None,
@@ -112,7 +115,17 @@ async def list_investment_transactions(
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[InvestmentTransaction]:
+    """`portfolio_id`/`unassigned` (redesign Investimenti, sezione Movimenti
+    scoped a un portfolio) e `financial_account_id` si INTERSECANO (AND),
+    mai l'uno sostituisce l'altro — bug reale evitato: prima di questo
+    filtro server-side, il frontend scaricava sempre le prime `limit`
+    righe globali e filtrava lato client, rendendo la lista di un
+    portfolio silenziosamente incompleta oltre quel limite."""
     query = select(InvestmentTransaction).where(InvestmentTransaction.workspace_id == workspace_id)
+    if portfolio_id is not None or unassigned:
+        scope_account_ids = await resolve_account_ids(db, workspace_id, portfolio_id, unassigned)
+        if scope_account_ids is not None:
+            query = query.where(InvestmentTransaction.financial_account_id.in_(scope_account_ids))
     if financial_account_id is not None:
         query = query.where(InvestmentTransaction.financial_account_id == financial_account_id)
     if asset_id is not None:

@@ -14,8 +14,9 @@ sola — qui la "riga" e' un asset).
 import logging
 import uuid
 from dataclasses import dataclass
+from datetime import date, timedelta
 
-from sqlalchemy import or_, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import async_session_factory
@@ -24,6 +25,10 @@ from app.marketdata.base import AssetRef, MarketDataProviderError
 from app.marketdata.registry import build_provider
 from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
+from app.models.financial_account import FinancialAccount
+from app.models.fx_rate import FxRate
+from app.models.workspace import Workspace
+from app.services import fx_rate_service
 from app.services.job_run_tracker import tracked_job_run
 from app.services.market_data_profile_service import get_active_profile
 from app.services.system_settings_service import is_job_enabled
@@ -37,12 +42,106 @@ JOB_KIND = "market_data_refresh"
 class RefreshSummary:
     checked: int
     updated: int
+    fx_updated: int = 0
 
 
 def _refresh_message(summary: RefreshSummary) -> str:
-    if summary.checked == 0:
+    if summary.checked == 0 and summary.fx_updated == 0:
         return "Nessun asset da aggiornare (nessun provider attivo o nessun asset con simbolo/ISIN)."
-    return f"{summary.updated} prezzi aggiornati su {summary.checked} asset."
+    message = f"{summary.updated} prezzi aggiornati su {summary.checked} asset."
+    if summary.fx_updated:
+        message += f" {summary.fx_updated} tassi di cambio aggiornati."
+    return message
+
+
+async def _refresh_fx_rates(
+    db: AsyncSession, workspace_id: uuid.UUID, provider, base_currency: str, source: str
+) -> int:
+    """Aggiorna `fx_rates` per le valute EFFETTIVAMENTE in uso nel workspace
+    verso la `base_currency` — mai tutte le combinazioni possibili, stesso
+    principio "un solo asset per volta" gia' usato per i prezzi qui sopra.
+    Stesso profilo attivo dell'asset market data, nessun concetto di
+    "provider FX" separato (SPEC sistema di valute).
+
+    "In uso" include sia la valuta DICHIARATA di asset/conti sia quella
+    EFFETTIVA delle quotazioni gia' scaricate (`AssetPrice.currency`): un
+    asset puo' essere registrato in EUR (come l'ha comprato l'utente) ma
+    quotato da Yahoo in una valuta diversa (es. un ISIN giapponese in JPY)
+    — senza questa seconda fonte quella valuta non verrebbe mai riconosciuta
+    come "in uso" e il tasso di cambio necessario a convertirla non
+    verrebbe mai scaricato, lasciando la posizione bloccata sul fallback a
+    costo storico anche a bug di etichettatura gia' corretto."""
+    asset_currencies = (
+        await db.execute(select(Asset.currency).where(Asset.workspace_id == workspace_id).distinct())
+    ).scalars().all()
+    account_currencies = (
+        await db.execute(
+            select(FinancialAccount.currency).where(FinancialAccount.workspace_id == workspace_id).distinct()
+        )
+    ).scalars().all()
+    price_currencies = (
+        await db.execute(
+            select(AssetPrice.currency).where(AssetPrice.workspace_id == workspace_id).distinct()
+        )
+    ).scalars().all()
+    foreign_currencies = {
+        c for c in (*asset_currencies, *account_currencies, *price_currencies) if c != base_currency
+    }
+
+    updated = 0
+    for currency in foreign_currencies:
+        try:
+            quote = await provider.fetch_fx_rate(currency, base_currency)
+        except MarketDataProviderError as exc:
+            logger.warning("tasso di cambio non raggiungibile per %s->%s: %s", currency, base_currency, exc)
+            continue
+        if quote is None:
+            continue
+        await fx_rate_service.upsert_rate(db, currency, base_currency, quote.as_of, quote.rate, source)
+        updated += 1
+        updated += await _backfill_fx_history(db, provider, currency, base_currency, source)
+    return updated
+
+
+# Copertura minima oltre la quale non ha senso richiedere di nuovo l'intero
+# storico ("Max") ogni giorno: se la riga piu' vecchia gia' salvata risale a
+# piu' di due anni fa, la coppia e' considerata sufficientemente storicizzata.
+_FX_HISTORY_COVERAGE_DAYS = 730
+
+
+async def _backfill_fx_history(
+    db: AsyncSession, provider, from_currency: str, to_currency: str, source: str
+) -> int:
+    """Scarica lo storico completo del cambio (non solo il tasso di OGGI,
+    gia' gestito sopra) la prima volta che una coppia valuta viene vista —
+    bug reale osservato dall'utente: cambiando `base_currency`, ogni
+    transazione/posizione PASSATA restava senza un tasso applicabile (la
+    conversione cerca il tasso non piu' recente della data della riga,
+    `fx_rate_expr`/`get_rate`: un solo tasso datato oggi non copre nessuna
+    transazione precedente) — le sezioni entrate/uscite e i grafici storici
+    risultavano completamente vuoti, non solo "parzialmente incompleti".
+    Richiamato ad ogni refresh ma innocuo se la copertura c'e' gia'
+    (`_FX_HISTORY_COVERAGE_DAYS`), per non rifare un fetch "Max" ogni giorno
+    una volta storicizzata la coppia."""
+    earliest = (
+        await db.execute(
+            select(func.min(FxRate.rate_date)).where(
+                FxRate.from_currency == from_currency, FxRate.to_currency == to_currency
+            )
+        )
+    ).scalar_one_or_none()
+    if earliest is not None and earliest <= date.today() - timedelta(days=_FX_HISTORY_COVERAGE_DAYS):
+        return 0
+    try:
+        points = await provider.fetch_fx_history(from_currency, to_currency, "Max")
+    except MarketDataProviderError as exc:
+        logger.warning("storico cambio non raggiungibile per %s->%s: %s", from_currency, to_currency, exc)
+        return 0
+    if not points:
+        return 0
+    for point in points:
+        await fx_rate_service.upsert_rate(db, from_currency, to_currency, point.at.date(), point.price, source)
+    return len(points)
 
 
 async def list_workspace_owners() -> list[tuple[uuid.UUID, uuid.UUID]]:
@@ -98,7 +197,10 @@ async def _refresh_workspace(db: AsyncSession, workspace_id: uuid.UUID) -> Refre
         price_row.source = profile.provider
         updated += 1
 
-    return RefreshSummary(checked=len(assets), updated=updated)
+    base_currency = (await db.execute(select(Workspace.base_currency).where(Workspace.id == workspace_id))).scalar_one()
+    fx_updated = await _refresh_fx_rates(db, workspace_id, provider, base_currency, profile.provider)
+
+    return RefreshSummary(checked=len(assets), updated=updated, fx_updated=fx_updated)
 
 
 async def refresh_market_data_job(ctx) -> None:

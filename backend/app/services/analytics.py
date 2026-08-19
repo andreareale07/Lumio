@@ -4,14 +4,14 @@ l'API (`app/api/v1/analytics.py`) e le tabelle `financial_accounts` /
 le regole. La matematica pura (bucket temporali, ricostruzione della serie
 storica, periodo di confronto) vive in `app/services/analytics_calc.py`.
 
-Vincolo di prodotto (M08, confermato con l'utente): nessuna conversione
-valutaria, in nessun punto di questo modulo. `resolve_currency` e' l'UNICO
-posto che decide "quale valuta" per una richiesta — quando arrivera' un
-tasso di cambio (con il `MarketDataProvider` di M09) il cambiamento resta
-confinato qui piu' un passo di conversione esplicito, non sparso in ogni
-query. Nota per M09: un `MarketDataProvider` che esponga solo il tasso
-*attuale* non basterebbe per un grafico patrimonio storico multi-valuta —
-serve anche lo storico dei tassi, non solo l'ultimo.
+Sistema di valute: una transazione/conto in valuta diversa da quella
+richiesta viene CONVERTITO (via `fx_rate_service.fx_rate_expr`, inline in
+ogni query di aggregazione — un'unica query, non un round-trip Python per
+riga su potenzialmente migliaia di transazioni), non piu' escluso in
+silenzio (limite precedente, M08). `resolve_currency` resta l'UNICO punto
+che decide "quale valuta" per una richiesta non esplicita — ora legge
+`Workspace.base_currency` (impostazione esplicita dell'utente in
+Impostazioni), non piu' un'euristica calcolata al volo.
 
 Modello del saldo conto (SPEC §18: `financial_accounts` non ha una colonna
 `balance`): "ancora + delta". Per ogni conto si prende come ancora
@@ -20,6 +20,8 @@ di import lo popolano, vedi `csv_import.py`) e si somma il delta delle
 transazioni successive; se il conto non ha nessuna ancora, il saldo e'
 semplicemente la somma di tutte le transazioni (`amount` e' gia' firmato:
 negativo per i debiti, vedi `csv_import.py:_resolve_amount_and_direction`).
+Il saldo di un conto in valuta diversa viene convertito PRIMA di sommare
+l'ancora col delta (stesso tasso per entrambi, alla data `as_of` richiesta).
 """
 import uuid
 from dataclasses import dataclass
@@ -28,14 +30,14 @@ from decimal import Decimal
 
 from sqlalchemy import Date as SA_Date
 from sqlalchemy import DateTime as SA_DateTime
-from sqlalchemy import String as SA_String
 from sqlalchemy import bindparam, case, cast, func, or_, select, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
-from app.models.financial_account import FinancialAccount
 from app.models.transaction import Transaction
+from app.models.workspace import Workspace
+from app.services import fx_rate_service
 from app.services.analytics_calc import (
     GRANULARITIES,
     generate_buckets,
@@ -76,32 +78,31 @@ class AccountBalances:
     debt_total: Decimal
     investment_total: Decimal
     has_investments: bool
+    # Sistema di valute: True se almeno un conto in valuta diversa da
+    # quella richiesta e' stato escluso per mancanza di un tasso di cambio
+    # (mai un'esclusione invisibile, vedi `fx_rate_service`).
+    has_unconverted_rows: bool = False
 
 
 @dataclass
 class IncomeExpenses:
     income: Decimal
     expenses: Decimal
+    has_unconverted_rows: bool = False
 
 
 async def resolve_currency(
     db: AsyncSession, workspace_id: uuid.UUID, requested: str | None = None
 ) -> str:
     """Unico punto di decisione della valuta per gli analytics (vedi
-    docstring di modulo). Se non richiesta esplicitamente, usa la valuta
-    prevalente del workspace (quella con piu' conti); "EUR" se il workspace
-    non ha ancora nessun conto."""
+    docstring di modulo). Se non richiesta esplicitamente, usa la
+    `base_currency` del workspace — impostazione esplicita dell'utente
+    (Impostazioni > Valuta), non piu' un'euristica calcolata al volo su
+    quanti conti esistono in ciascuna valuta."""
     if requested:
         return requested.upper()
-    result = await db.execute(
-        select(FinancialAccount.currency, func.count().label("n"))
-        .where(FinancialAccount.workspace_id == workspace_id)
-        .group_by(FinancialAccount.currency)
-        .order_by(func.count().desc())
-        .limit(1)
-    )
-    row = result.first()
-    return row.currency if row else "EUR"
+    result = await db.execute(select(Workspace.base_currency).where(Workspace.id == workspace_id))
+    return result.scalar_one()
 
 
 # "Ancora + delta": DISTINCT ON per prendere, per ogni conto, l'ultima riga
@@ -143,12 +144,12 @@ _ACCOUNT_BALANCES_SQL = text(
         fa.id AS financial_account_id,
         fa.name AS name,
         fa.account_type AS account_type,
+        fa.currency AS currency,
         COALESCE(a.anchor_balance, 0) + COALESCE(d.delta_sum, 0) AS balance
     FROM financial_accounts fa
     LEFT JOIN anchors a ON a.financial_account_id = fa.id
     LEFT JOIN deltas d ON d.financial_account_id = fa.id
     WHERE fa.workspace_id = :workspace_id
-      AND fa.currency = :currency
       AND fa.is_active = true
       AND (:financial_account_id IS NULL OR fa.id = :financial_account_id)
     ORDER BY fa.name
@@ -156,7 +157,6 @@ _ACCOUNT_BALANCES_SQL = text(
 ).bindparams(
     bindparam("workspace_id", type_=PG_UUID(as_uuid=True)),
     bindparam("as_of", type_=SA_Date),
-    bindparam("currency", type_=SA_String),
     bindparam("financial_account_id", type_=PG_UUID(as_uuid=True)),
 )
 
@@ -174,15 +174,24 @@ async def account_balances(
         {
             "workspace_id": workspace_id,
             "as_of": resolved_as_of,
-            "currency": currency,
             "financial_account_id": financial_account_id,
         },
     )
+    cents = Decimal("0.01")
     accounts: list[AccountBalanceRow] = []
     liquidity_total = Decimal("0")
     debt_total = Decimal("0")
+    has_unconverted_rows = False
     for row in result.mappings().all():
-        balance = Decimal(row["balance"])
+        fx_rate = await fx_rate_service.get_rate(db, row["currency"], currency, resolved_as_of)
+        if fx_rate is None:
+            has_unconverted_rows = True
+            continue
+        # Accumula i totali dal valore NON arrotondato (evita di sommare
+        # errori di arrotondamento riga per riga su piu' conti); il
+        # quantize a 2 decimali avviene solo in uscita, sia per riga sia sui
+        # totali (sotto) — stessa convenzione di `portfolio_analytics.py`.
+        balance = Decimal(row["balance"]) * fx_rate
         account_type = row["account_type"]
         if account_type in LIQUIDITY_ACCOUNT_TYPES:
             liquidity_total += balance
@@ -193,9 +202,11 @@ async def account_balances(
                 financial_account_id=row["financial_account_id"],
                 name=row["name"],
                 account_type=account_type,
-                balance=balance,
+                balance=balance.quantize(cents),
             )
         )
+    liquidity_total = liquidity_total.quantize(cents)
+    debt_total = debt_total.quantize(cents)
 
     # M09b: valore REALE delle posizioni (prima sempre 0/False in M08, vedi
     # storia del commento su LIQUIDITY_ACCOUNT_TYPES). Import locale per
@@ -217,6 +228,7 @@ async def account_balances(
         debt_total=debt_total,
         investment_total=valuation.market_value,
         has_investments=valuation.has_holdings,
+        has_unconverted_rows=has_unconverted_rows or valuation.has_missing_fx_rate,
     )
 
 
@@ -266,15 +278,15 @@ async def balance_history(
 ) -> list[dict]:
     current_total = await _total_balance(db, workspace_id, currency, date_to, financial_account_id)
 
+    fx_rate = fx_rate_service.fx_rate_expr(Transaction.currency, Transaction.transaction_date, currency)
     bucket_expr = _bucket_expr(granularity)
     query = (
         select(
             bucket_expr.label("bucket"),
-            func.coalesce(func.sum(Transaction.amount), 0).label("delta"),
+            func.coalesce(func.sum(Transaction.amount * fx_rate), 0).label("delta"),
         )
         .where(
             Transaction.workspace_id == workspace_id,
-            Transaction.currency == currency,
             Transaction.transaction_date >= date_from,
             Transaction.transaction_date <= date_to,
         )
@@ -284,7 +296,7 @@ async def balance_history(
         query = query.where(Transaction.financial_account_id == financial_account_id)
 
     rows = (await db.execute(query)).all()
-    deltas = {r.bucket.date(): Decimal(r.delta) for r in rows}
+    deltas = {r.bucket.date(): Decimal(r.delta).quantize(Decimal("0.01")) for r in rows}
     buckets = generate_buckets(date_from, date_to, granularity)
     series = reconstruct_running_series(buckets, deltas, current_total)
     return [{"period": period, "balance": balance} for period, balance in series]
@@ -298,12 +310,21 @@ async def _income_expenses(
     date_to: date,
     financial_account_id: uuid.UUID | None,
 ) -> IncomeExpenses:
+    fx_rate = fx_rate_service.fx_rate_expr(Transaction.currency, Transaction.transaction_date, currency)
+    converted_amount = Transaction.amount * fx_rate
     query = select(
-        func.coalesce(func.sum(func.greatest(Transaction.amount, 0)), 0).label("income"),
-        func.coalesce(-func.sum(func.least(Transaction.amount, 0)), 0).label("expenses"),
+        func.coalesce(func.sum(func.greatest(converted_amount, 0)), 0).label("income"),
+        func.coalesce(-func.sum(func.least(converted_amount, 0)), 0).label("expenses"),
+        func.coalesce(
+            func.bool_or(
+                fx_rate_service.has_unconverted_expr(
+                    Transaction.currency, Transaction.transaction_date, currency
+                )
+            ),
+            False,
+        ).label("has_unconverted"),
     ).where(
         Transaction.workspace_id == workspace_id,
-        Transaction.currency == currency,
         Transaction.transaction_type.notin_(_EXCLUDED_FROM_CASH_FLOW),
         Transaction.transaction_date >= date_from,
         Transaction.transaction_date <= date_to,
@@ -311,7 +332,12 @@ async def _income_expenses(
     if financial_account_id is not None:
         query = query.where(Transaction.financial_account_id == financial_account_id)
     row = (await db.execute(query)).one()
-    return IncomeExpenses(income=Decimal(row.income), expenses=Decimal(row.expenses))
+    cents = Decimal("0.01")
+    return IncomeExpenses(
+        income=Decimal(row.income).quantize(cents),
+        expenses=Decimal(row.expenses).quantize(cents),
+        has_unconverted_rows=row.has_unconverted,
+    )
 
 
 async def summary(
@@ -351,6 +377,7 @@ async def summary(
         "previous_income": previous.income,
         "previous_expenses": previous.expenses,
         "previous_net_cash_flow": previous.income - previous.expenses,
+        "has_unconverted_rows": balances.has_unconverted_rows or current.has_unconverted_rows,
     }
 
 
@@ -364,16 +391,17 @@ async def cash_flow(
     financial_account_id: uuid.UUID | None = None,
     category_id: uuid.UUID | None = None,
 ) -> list[dict]:
+    fx_rate = fx_rate_service.fx_rate_expr(Transaction.currency, Transaction.transaction_date, currency)
+    converted_amount = Transaction.amount * fx_rate
     bucket_expr = _bucket_expr(granularity)
     query = (
         select(
             bucket_expr.label("bucket"),
-            func.coalesce(func.sum(func.greatest(Transaction.amount, 0)), 0).label("income"),
-            func.coalesce(-func.sum(func.least(Transaction.amount, 0)), 0).label("expenses"),
+            func.coalesce(func.sum(func.greatest(converted_amount, 0)), 0).label("income"),
+            func.coalesce(-func.sum(func.least(converted_amount, 0)), 0).label("expenses"),
         )
         .where(
             Transaction.workspace_id == workspace_id,
-            Transaction.currency == currency,
             Transaction.transaction_type.notin_(_EXCLUDED_FROM_CASH_FLOW),
             Transaction.transaction_date >= date_from,
             Transaction.transaction_date <= date_to,
@@ -392,7 +420,10 @@ async def cash_flow(
         )
 
     rows = (await db.execute(query)).all()
-    by_bucket = {r.bucket.date(): (Decimal(r.income), Decimal(r.expenses)) for r in rows}
+    cents = Decimal("0.01")
+    by_bucket = {
+        r.bucket.date(): (Decimal(r.income).quantize(cents), Decimal(r.expenses).quantize(cents)) for r in rows
+    }
     buckets = generate_buckets(date_from, date_to, granularity)
     result = []
     for bucket in buckets:
@@ -419,24 +450,25 @@ async def by_category(
     category_id=...)` (SPEC_FE §30 raggruppa per merchant, non per
     sottocategoria)."""
     amount_filter = Transaction.amount < 0 if direction == "expense" else Transaction.amount > 0
+    fx_rate = fx_rate_service.fx_rate_expr(Transaction.currency, Transaction.transaction_date, currency)
+    converted_abs_amount = func.abs(Transaction.amount * fx_rate)
     group_key = func.coalesce(Category.parent_id, Transaction.category_id)
     query = (
         select(
             group_key.label("group_id"),
-            func.sum(func.abs(Transaction.amount)).label("total"),
+            func.sum(converted_abs_amount).label("total"),
             func.count().label("transactions_count"),
         )
         .outerjoin(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.workspace_id == workspace_id,
-            Transaction.currency == currency,
             Transaction.transaction_type.notin_(_EXCLUDED_FROM_CASH_FLOW),
             amount_filter,
             Transaction.transaction_date >= date_from,
             Transaction.transaction_date <= date_to,
         )
         .group_by(group_key)
-        .order_by(func.sum(func.abs(Transaction.amount)).desc())
+        .order_by(func.sum(converted_abs_amount).desc())
     )
     if financial_account_id is not None:
         query = query.where(Transaction.financial_account_id == financial_account_id)
@@ -462,7 +494,7 @@ async def _label_category_rows(db: AsyncSession, rows) -> list[dict]:
             {
                 "category_id": r.group_id,
                 "name": names.get(r.group_id, "Senza categoria"),
-                "total": total,
+                "total": total.quantize(Decimal("0.01")),
                 "share": total / total_all,
                 "transactions_count": r.transactions_count,
             }
@@ -481,22 +513,23 @@ async def by_merchant(
     category_id: uuid.UUID | None = None,
 ) -> list[dict]:
     amount_filter = Transaction.amount < 0 if direction == "expense" else Transaction.amount > 0
+    fx_rate = fx_rate_service.fx_rate_expr(Transaction.currency, Transaction.transaction_date, currency)
+    converted_abs_amount = func.abs(Transaction.amount * fx_rate)
     query = (
         select(
             Transaction.merchant,
-            func.sum(func.abs(Transaction.amount)).label("total"),
+            func.sum(converted_abs_amount).label("total"),
             func.count().label("transactions_count"),
         )
         .where(
             Transaction.workspace_id == workspace_id,
-            Transaction.currency == currency,
             Transaction.transaction_type.notin_(_EXCLUDED_FROM_CASH_FLOW),
             amount_filter,
             Transaction.transaction_date >= date_from,
             Transaction.transaction_date <= date_to,
         )
         .group_by(Transaction.merchant)
-        .order_by(func.sum(func.abs(Transaction.amount)).desc())
+        .order_by(func.sum(converted_abs_amount).desc())
     )
     if financial_account_id is not None:
         query = query.where(Transaction.financial_account_id == financial_account_id)
@@ -521,7 +554,7 @@ async def by_merchant(
         result.append(
             {
                 "merchant": r.merchant or "Senza merchant",
-                "total": total,
+                "total": total.quantize(Decimal("0.01")),
                 "share": total / total_all,
                 "transactions_count": r.transactions_count,
             }

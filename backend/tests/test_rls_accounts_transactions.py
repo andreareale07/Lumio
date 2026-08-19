@@ -110,8 +110,9 @@ async def test_user_cannot_select_another_workspace_transaction_via_rls():
                 text(
                     "INSERT INTO transactions "
                     "(workspace_id, financial_account_id, transaction_date, description_raw, "
-                    " amount, currency, direction, transaction_type) "
-                    "VALUES (:w, :a, CURRENT_DATE, 'Spesa', -10.00, 'EUR', 'debit', 'expense') "
+                    " amount, currency, direction, transaction_type, dedup_fingerprint) "
+                    "VALUES (:w, :a, CURRENT_DATE, 'Spesa', -10.00, 'EUR', 'debit', 'expense', "
+                    " 'rls-test-fingerprint') "
                     "RETURNING id"
                 ),
                 {"w": str(workspace_b), "a": str(account_b)},
@@ -144,8 +145,9 @@ async def test_transaction_cannot_reference_account_of_another_workspace():
                 text(
                     "INSERT INTO transactions "
                     "(workspace_id, financial_account_id, transaction_date, description_raw, "
-                    " amount, currency, direction, transaction_type) "
-                    "VALUES (:w, :a, CURRENT_DATE, 'Spesa', -10.00, 'EUR', 'debit', 'expense')"
+                    " amount, currency, direction, transaction_type, dedup_fingerprint) "
+                    "VALUES (:w, :a, CURRENT_DATE, 'Spesa', -10.00, 'EUR', 'debit', 'expense', "
+                    " 'rls-test-fingerprint')"
                 ),
                 {"w": str(workspace_a), "a": str(account_b)},
             )
@@ -182,8 +184,9 @@ async def test_transaction_cannot_reference_category_of_another_workspace():
                 text(
                     "INSERT INTO transactions "
                     "(workspace_id, financial_account_id, category_id, transaction_date, "
-                    " description_raw, amount, currency, direction, transaction_type) "
-                    "VALUES (:w, :a, :c, CURRENT_DATE, 'Spesa', -10.00, 'EUR', 'debit', 'expense')"
+                    " description_raw, amount, currency, direction, transaction_type, dedup_fingerprint) "
+                    "VALUES (:w, :a, :c, CURRENT_DATE, 'Spesa', -10.00, 'EUR', 'debit', 'expense', "
+                    " 'rls-test-fingerprint')"
                 ),
                 {"w": str(workspace_a), "a": str(account_a), "c": str(category_b)},
             )

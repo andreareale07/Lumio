@@ -31,30 +31,22 @@ import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
 
 from app.core.config import get_settings
 from app.db.rls import rls_session
 from app.models.bank_parser import BankParser as BankParserRow
-from app.models.classification import Classification
 from app.models.import_ import Import
-from app.models.investment_transaction import InvestmentTransaction
-from app.models.transaction import Transaction
+from app.models.transaction_review_item import TransactionReviewItem
 from app.parsers import get_parser
 from app.services import job_events
-from app.services.ai_profile_service import get_active_profile
-from app.services.asset_matching import get_or_create_asset_by_isin
+from app.services.ai_classification_trigger import prepare_ai_classification_trigger
 from app.services.audit_log_service import log_event
 from app.services.classification_loader import load_pipeline_context
-from app.services.classification_pipeline import ClassifiableRow, classify_deterministic
-from app.services.confidence import needs_review as score_needs_review
 from app.services.csv_import import MappingConfig, ParsedRow, parse_rows
 from app.services.import_paths import original_file_path
-from app.services.merchant_extraction import extract_merchant
-from app.services.position_service import recompute_position
-from app.services.system_classification import is_ai_eligible
 from app.services.system_settings_service import get_setting_value
-from app.services.trade_parsing import ParsedTrade, parse_trade_description
+from app.services.transaction_dedup import RowDedupOutcome, run_transaction_dedup
+from app.services.transaction_persistence import finalize_prepared_transactions, prepare_transaction_row
 from app.services.transaction_type_mapping_service import resolve_transaction_type
 from app.services.transfer_recognition import is_internal_transfer
 from app.storage import get_storage
@@ -241,6 +233,44 @@ async def _process_pdf(import_uuid: uuid.UUID, user_uuid: uuid.UUID) -> None:
     )
 
 
+def _build_review_item(
+    workspace_id: uuid.UUID,
+    import_id: uuid.UUID,
+    financial_account_id: uuid.UUID,
+    outcome: RowDedupOutcome,
+    row: ParsedRow,
+    *,
+    status: str,
+    auto_resolved: bool = False,
+    decided_at: datetime | None = None,
+) -> TransactionReviewItem:
+    return TransactionReviewItem(
+        workspace_id=workspace_id,
+        import_id=import_id,
+        financial_account_id=financial_account_id,
+        row_index=outcome.index,
+        transaction_date=row.transaction_date,
+        value_date=row.value_date,
+        description_raw=row.description_raw,
+        description_normalized=row.description_normalized,
+        amount=row.amount,
+        currency=row.currency,
+        direction=row.direction,
+        transaction_type=row.transaction_type,
+        source_type_raw=row.source_type_raw,
+        reference=row.reference,
+        balance_after=row.balance_after,
+        counterparty_name=row.counterparty_name,
+        counterparty_iban=row.counterparty_iban,
+        new_fingerprint=outcome.fingerprint,
+        candidate_existing_transaction_id=outcome.candidate_existing_transaction_id,
+        status=status,
+        auto_resolved=auto_resolved,
+        dedup_decision_id=outcome.dedup_decision_id,
+        decided_at=decided_at,
+    )
+
+
 async def _insert_transactions_and_complete(
     import_uuid: uuid.UUID,
     user_uuid: uuid.UUID,
@@ -269,157 +299,95 @@ async def _insert_transactions_and_complete(
         # solo per il tempo totale speso a interrogare il provider in
         # sequenza. Le righe non classificate qui vengono lasciate
         # `category_id IS NULL` e classificate DOPO, da un job separato con
-        # un proprio timeout (vedi ai_classification_job.py, accodato in
-        # fondo a questa funzione) — l'import stesso non aspetta piu' l'AI
-        # per completarsi.
+        # un proprio timeout (vedi ai_classification_job.py) — l'import
+        # stesso non aspetta piu' l'AI per completarsi.
         pipeline_ctx = await load_pipeline_context(db, workspace_id)
-        active_ai_profile = await get_active_profile(db, workspace_id)
         needs_review_threshold = float(await get_setting_value(_NEEDS_REVIEW_THRESHOLD_KEY, 0.6))
 
-        transactions: list[Transaction] = []
-        matched_categories: dict[int, uuid.UUID] = {}
-        matched_methods: dict[int, str] = {}
-        matched_scores: dict[int, Decimal] = {}
-        matched_explanations: dict[int, str | None] = {}
-        # Milestone 09c: se la DESCRIZIONE matcha il formato Trade Republic
-        # per i movimenti "Commercio" (verificato sui dati reali dell'utente,
-        # vedi docstring di trade_parsing.py), si deriva automaticamente un
-        # InvestmentTransaction — indipendente dal canale/parser, il check e'
-        # solo sul testo della descrizione.
-        parsed_trades: dict[int, ParsedTrade] = {}
-        for index, row in enumerate(rows):
-            # Rework pipeline: merchant risvegliato (colonna esistente dalla
-            # milestone 03, mai valorizzata finora). La controparte di un
-            # bonifico (se riconosciuta) VINCE sempre sull'estrazione
-            # generica, non il contrario: `extract_merchant` su una
-            # descrizione tipo "Outgoing transfer for Luca Bianchi
-            # (IT99...)" produce un frammento di frase troncato
-            # ("Outgoing Transfer For Luca", i primi 4 token), perche'
-            # non riconosce quel formato come rumore da scartare — mentre
-            # `counterparty_name` viene da un match strutturato preciso
-            # (nome+IBAN tra parentesi) ed e' sempre piu' affidabile quando
-            # disponibile. `extract_merchant` resta il fallback per tutto
-            # cio' che non e' un bonifico riconosciuto.
-            row.merchant = row.counterparty_name or extract_merchant(row.description_raw)
+        # Transaction Deduplication Engine (docs/SPEC_DEDUP_TRANSACTION.md):
+        # gira PRIMA di qualunque side-effect per riga. Una riga DUPLICATE
+        # non deve mai essere classificata ne' generare un
+        # InvestmentTransaction (SPEC §20); una riga REVIEW non deve
+        # generare nulla finche' l'utente non decide (SPEC §14: mai un
+        # "automatic duplicate" su un match incerto, ma nemmeno un insert
+        # automatico).
+        dedup_result = await run_transaction_dedup(db, workspace_id, financial_account_id, rows)
 
-            classifiable_row = ClassifiableRow(
-                description_raw=row.description_raw,
-                description_normalized=row.description_normalized,
-                merchant=row.merchant,
-                transaction_type=row.transaction_type,
-            )
-            outcome = classify_deterministic(pipeline_ctx, classifiable_row)
-            matched_category_id = outcome.category_id if outcome is not None else None
+        now = datetime.now(UTC)
+        prepared = []
+        auto_new_links = []
 
-            transaction = Transaction(
-                workspace_id=workspace_id,
-                financial_account_id=financial_account_id,
-                import_id=import_row.id,
-                transaction_date=row.transaction_date,
-                value_date=row.value_date,
-                description_raw=row.description_raw,
-                description_normalized=row.description_normalized,
-                merchant=row.merchant,
-                counterparty_name=row.counterparty_name,
-                counterparty_iban=row.counterparty_iban,
-                reference=row.reference,
-                amount=row.amount,
-                currency=row.currency,
-                direction=row.direction,
-                transaction_type=row.transaction_type,
-                source_type_raw=row.source_type_raw,
-                balance_after=row.balance_after,
-                category_id=matched_category_id,
-            )
-            db.add(transaction)
-            transactions.append(transaction)
-            if outcome is not None:
-                matched_categories[index] = outcome.category_id
-                matched_methods[index] = outcome.method
-                matched_scores[index] = outcome.score
-                matched_explanations[index] = outcome.explanation
-                transaction.needs_review = score_needs_review(outcome.score, needs_review_threshold)
+        for outcome in dedup_result.outcomes:
+            row = rows[outcome.index]
 
-            parsed_trade = parse_trade_description(row.description_raw)
-            if parsed_trade is not None:
-                parsed_trades[index] = parsed_trade
-
-        if matched_categories or parsed_trades:
-            # Serve un flush per ottenere gli id (server-generated) delle
-            # transazioni appena aggiunte, prima di poterli referenziare da
-            # `classifications.transaction_id` — un solo commit resta alla
-            # fine della funzione (invariante gia' esistente in M04/M05).
-            await db.flush()
-            for index, category_id in matched_categories.items():
+            if outcome.outcome == "review":
                 db.add(
-                    Classification(
-                        transaction_id=transactions[index].id,
-                        method=matched_methods[index],
-                        category_id=category_id,
-                        score=matched_scores[index],
-                        explanation=matched_explanations[index],
+                    _build_review_item(
+                        workspace_id, import_row.id, financial_account_id, outcome, row, status="pending"
                     )
                 )
-            # Milestone 09c: un InvestmentTransaction per ogni riga
-            # riconosciuta, collegata alla transazione bancaria via
-            # `transaction_id` (link opzionale, qui popolato perche' e'
-            # esattamente il movimento che ha generato quel cash flow — mai
-            # una seconda scrittura di cassa duplicata). Prezzo = importo
-            # assoluto / quantita' (commissione spalmata, vedi
-            # trade_parsing.py); asset auto-riconosciuto/creato per ISIN.
-            touched_assets: dict[uuid.UUID, str] = {}
-            for index, trade in parsed_trades.items():
-                transaction = transactions[index]
-                asset = await get_or_create_asset_by_isin(
-                    db, workspace_id, trade.isin, trade.asset_name, transaction.currency
-                )
-                price = abs(transaction.amount) / trade.quantity
-                db.add(
-                    InvestmentTransaction(
-                        workspace_id=workspace_id,
-                        financial_account_id=financial_account_id,
-                        asset_id=asset.id,
-                        transaction_id=transaction.id,
-                        trade_date=transaction.transaction_date,
-                        type=trade.type,
-                        quantity=trade.quantity,
-                        price=price,
-                        amount=transaction.amount,
-                        currency=transaction.currency,
-                        source_type_raw=trade.source_type_raw,
-                    )
-                )
-                touched_assets[asset.id] = transaction.currency
+                continue
 
-            for asset_id, currency in touched_assets.items():
-                await recompute_position(db, workspace_id, financial_account_id, asset_id, currency)
+            review_item = None
+            if outcome.auto_resolved:
+                # Una TransactionDedupDecision precedente (SPEC §17) risolve
+                # questo caso senza chiedere di nuovo — persistito comunque
+                # come TransactionReviewItem gia' risolto, per audit (SPEC
+                # §33): resta l'esito di una decisione umana, solo applicata
+                # automaticamente a un caso equivalente.
+                review_item = _build_review_item(
+                    workspace_id,
+                    import_row.id,
+                    financial_account_id,
+                    outcome,
+                    row,
+                    status="confirmed_new" if outcome.outcome == "new" else "confirmed_duplicate",
+                    auto_resolved=True,
+                    decided_at=now,
+                )
+                db.add(review_item)
 
-        import_row.status = "completed"
+            if outcome.outcome == "new":
+                prepared_row = prepare_transaction_row(
+                    pipeline_ctx,
+                    workspace_id=workspace_id,
+                    financial_account_id=financial_account_id,
+                    import_id=import_row.id,
+                    row=row,
+                    needs_review_threshold=needs_review_threshold,
+                )
+                prepared.append(prepared_row)
+                if review_item is not None:
+                    auto_new_links.append((review_item, prepared_row))
+            # outcome.outcome == "duplicate": nessun'altra azione oltre
+            # all'eventuale review_item di audit gia' aggiunto sopra.
+
+        await finalize_prepared_transactions(db, workspace_id, financial_account_id, prepared)
+        for review_item, prepared_row in auto_new_links:
+            review_item.resolved_transaction_id = prepared_row.transaction.id
+
         import_row.transactions_found = len(rows)
-        import_row.transactions_imported = len(rows)
+        import_row.transactions_imported = dedup_result.new_count
+        import_row.transactions_duplicate = dedup_result.duplicate_count
+        import_row.transactions_review_pending = dedup_result.review_count
         if rows:
             dates = [r.transaction_date for r in rows]
             import_row.period_start = min(dates)
             import_row.period_end = max(dates)
-        import_row.completed_at = datetime.now(UTC)
+        import_row.completed_at = now
 
-        # Righe non classificate deterministicamente E ammesse all'AI (vedi
-        # system_classification.is_ai_eligible): un investimento/
-        # trasferimento/dividendo/interesse/tassa/commissione rimasto senza
-        # categoria (es. quella attesa e' stata disattivata dall'utente) non
-        # va comunque all'AI — la guardia negativa in
-        # ai_classification_job.py lo escluderebbe comunque dalla query, ma
-        # l'indicatore "x/N" mostrato in UI deve gia' riflettere solo cio'
-        # che il job classifichera' davvero, non un conteggio piu' ampio che
-        # includerebbe righe mai destinate all'AI.
-        unclassified_ai_eligible_count = sum(
-            1
-            for index in range(len(transactions))
-            if index not in matched_categories and is_ai_eligible(rows[index].transaction_type)
-        )
-        should_enqueue_ai_job = active_ai_profile is not None and unclassified_ai_eligible_count > 0
-        import_row.ai_classification_status = "pending" if should_enqueue_ai_job else "skipped"
-        import_row.ai_transactions_total = unclassified_ai_eligible_count if should_enqueue_ai_job else 0
+        should_enqueue_ai_job = False
+        if dedup_result.review_count > 0:
+            # SPEC §19: non dichiarare "completed" se restano decisioni
+            # obbligatorie — stato dedicato gia' previsto dal CHECK
+            # constraint di Import.status (vedi migration 0004/0033).
+            # L'enqueue della classificazione AI resta posticipato a quando
+            # l'ultima review viene decisa (POST /imports/{id}/review-items/
+            # {item_id}/decision), mai mentre l'import e' in questo stato.
+            import_row.status = "ready_for_review"
+        else:
+            import_row.status = "completed"
+            should_enqueue_ai_job = await prepare_ai_classification_trigger(db, workspace_id, import_row)
 
         await log_event(
             db,
@@ -428,7 +396,11 @@ async def _insert_transactions_and_complete(
             "IMPORT_COMPLETED",
             entity_type="import",
             entity_id=import_row.id,
-            metadata={"transactions_imported": len(rows)},
+            metadata={
+                "transactions_imported": dedup_result.new_count,
+                "transactions_duplicate": dedup_result.duplicate_count,
+                "transactions_review_pending": dedup_result.review_count,
+            },
         )
         await db.commit()
 
@@ -437,7 +409,9 @@ async def _insert_transactions_and_complete(
         "job.completed",
         stage="completed",
         progress=100,
-        transactions_imported=len(rows),
+        transactions_imported=dedup_result.new_count,
+        transactions_duplicate=dedup_result.duplicate_count,
+        transactions_review_pending=dedup_result.review_count,
     )
 
     if should_enqueue_ai_job:

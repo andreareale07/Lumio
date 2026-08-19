@@ -7,13 +7,17 @@ import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
 import { Input } from "../../components/ui/Input";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
+import { CurrencyPicker } from "../settings/currency/CurrencyPicker";
 import type { Portfolio } from "../../types/api";
 import { useCreatePortfolio, useUpdatePortfolio } from "./api";
 
 const schema = z.object({
   name: z.string().min(1, "Inserisci un nome"),
   description: z.string().optional(),
-  currency: z.string().length(3, "Codice valuta a 3 lettere (es. EUR)"),
+  // Sistema di valute: il codice viene scelto da CurrencyPicker (sempre
+  // valido, mai digitato) — stesso principio gia' applicato ad
+  // AccountFormDialog/AssetFormDialog, mancava solo qui.
+  currency: z.string().min(2, "Seleziona una valuta"),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -78,13 +82,7 @@ export function PortfolioFormDialog({ open, onClose, portfolio }: PortfolioFormD
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
         <Input label="Nome" error={errors.name?.message} {...register("name")} />
         <Input label="Descrizione (opzionale)" {...register("description")} />
-        <Input
-          label="Valuta"
-          maxLength={3}
-          className="uppercase"
-          error={errors.currency?.message}
-          {...register("currency")}
-        />
+        <CurrencyPicker error={errors.currency?.message} {...register("currency")} />
         {formError && (
           <p role="alert" className="text-sm text-danger">
             {formError}

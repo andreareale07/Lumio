@@ -12,8 +12,9 @@ import { SkeletonRows } from "../../components/ui/Skeleton";
 import { useAccounts } from "../accounts/api";
 import { formatDateTime } from "../../lib/format";
 import { useTransactionReviewSummary } from "../transactions/api";
-import { importsKey, useImports } from "./api";
+import { importsKey, useImportReviewSummary, useImports } from "./api";
 import { AiClassificationProgress } from "./AiClassificationProgress";
+import { DuplicateReviewDrawer } from "./DuplicateReviewDrawer";
 import { ImportDeleteDialog } from "./ImportDeleteDialog";
 import { ImportFileViewerDrawer } from "./ImportFileViewerDrawer";
 import { ImportRowProgress } from "./ImportRowProgress";
@@ -41,6 +42,21 @@ function ImportReviewSummary({ importId }: { importId: string }) {
   );
 }
 
+/** Transaction Deduplication Engine (docs/SPEC_DEDUP_TRANSACTION.md): badge
+ * distinto dalla review di categorizzazione sopra — questa segnala
+ * candidati AMBIGUI trovati durante l'import stesso (l'import resta in
+ * 'ready_for_review' finche' non sono tutti decisi), non transazioni gia'
+ * importate ma incerte nella categoria. */
+function DuplicateReviewSummaryBadge({ importId, onClick }: { importId: string; onClick: () => void }) {
+  const { data: summary } = useImportReviewSummary(importId);
+  if (!summary || summary.pending === 0) return null;
+  return (
+    <button type="button" onClick={onClick} className="inline-flex w-fit">
+      <Badge tone="warning">⚠ {summary.pending} duplicati da verificare</Badge>
+    </button>
+  );
+}
+
 export function ImportsPage() {
   const { data: imports, isLoading, isError, refetch } = useImports();
   const { data: accounts } = useAccounts();
@@ -48,6 +64,7 @@ export function ImportsPage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [viewingImport, setViewingImport] = useState<ImportRecord | null>(null);
   const [deletingImport, setDeletingImport] = useState<ImportRecord | null>(null);
+  const [reviewingImport, setReviewingImport] = useState<ImportRecord | null>(null);
   const accountsById = new Map((accounts ?? []).map((a) => [a.id, a]));
 
   return (
@@ -93,6 +110,11 @@ export function ImportsPage() {
                   ) : (
                     <p className="text-sm text-text-muted">
                       {formatDateTime(importRecord.created_at)} · {importRecord.transactions_imported} movimenti
+                      {/* Un import con 0 nuovi (tutti gia' presenti) e' un
+                          esito corretto e comune del Deduplication Engine,
+                          non un errore — senza questo dettaglio la riga
+                          sembrerebbe "non ha fatto nulla". */}
+                      {importRecord.transactions_duplicate > 0 && ` · ${importRecord.transactions_duplicate} già presenti`}
                     </p>
                   )}
                   {importRecord.error_message && <p className="text-sm text-danger">{importRecord.error_message}</p>}
@@ -116,9 +138,13 @@ export function ImportsPage() {
                         Classificazione AI non riuscita: {importRecord.ai_classification_error_message}
                       </p>
                     )}
-                  {!isLive && !showAiProgress && (
-                    <div className="mt-1">
-                      <ImportReviewSummary importId={importRecord.id} />
+                  {!isLive && (
+                    <div className="mt-1 flex flex-col gap-1">
+                      <DuplicateReviewSummaryBadge
+                        importId={importRecord.id}
+                        onClick={() => setReviewingImport(importRecord)}
+                      />
+                      {!showAiProgress && <ImportReviewSummary importId={importRecord.id} />}
                     </div>
                   )}
                 </div>
@@ -161,6 +187,7 @@ export function ImportsPage() {
       <ImportWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
       <ImportFileViewerDrawer importRecord={viewingImport} onClose={() => setViewingImport(null)} />
       <ImportDeleteDialog importRecord={deletingImport} onClose={() => setDeletingImport(null)} />
+      <DuplicateReviewDrawer importRecord={reviewingImport} onClose={() => setReviewingImport(null)} />
     </div>
   );
 }

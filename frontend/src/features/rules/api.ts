@@ -1,7 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../lib/apiClient";
-import type { Rule, RuleField, RuleOperator, RuleSuggestion } from "../../types/api";
+import { streamSse } from "../imports/api";
+import type {
+  JobRun,
+  ReclassificationPreview,
+  ReclassificationScope,
+  ReclassifyTriggered,
+  Rule,
+  RuleField,
+  RuleOperator,
+  RuleSuggestion,
+} from "../../types/api";
 
 export const rulesKey = ["rules"] as const;
 export const ruleSuggestionsKey = ["rules", "suggestions"] as const;
@@ -58,4 +68,46 @@ export function useDeleteRule() {
     mutationFn: (id: string) => api.delete<void>(`/rules/${id}`),
     onSuccess: () => invalidateRules(queryClient),
   });
+}
+
+// --- Riclassificazione (riapplica regole/AI a transazioni già importate) --
+
+export function useReclassificationPreview(scope: ReclassificationScope) {
+  return useQuery({
+    queryKey: ["classification", "reclassify", "preview", scope] as const,
+    queryFn: () =>
+      api.get<ReclassificationPreview>(`/classification/reclassify/preview?scope=${scope}`),
+  });
+}
+
+export const reclassificationStatusKey = ["classification", "reclassify", "status"] as const;
+
+export function useReclassificationStatus() {
+  return useQuery({
+    queryKey: reclassificationStatusKey,
+    queryFn: () => api.get<JobRun | null>("/classification/reclassify/status"),
+  });
+}
+
+export function useTriggerReclassification() {
+  return useMutation({
+    mutationFn: (input: { scope: ReclassificationScope; run_ai: boolean }) =>
+      api.post<ReclassifyTriggered>("/classification/reclassify", input),
+  });
+}
+
+export interface ReclassificationProgressEvent {
+  event: string;
+  processed?: number;
+  total?: number;
+  detail?: string;
+}
+
+/** Stesso streamSse riusato da imports/api.ts (fetch()+ReadableStream, non
+ * EventSource — serve l'header Authorization). */
+export function streamReclassificationEvents(
+  onEvent: (event: ReclassificationProgressEvent) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  return streamSse("/classification/reclassify/events", onEvent, signal);
 }

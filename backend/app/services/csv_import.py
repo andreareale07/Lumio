@@ -132,7 +132,12 @@ def _normalize_amount(raw: str, config: MappingConfig) -> Decimal:
     return -amount if negative else amount
 
 
-def _collapse_whitespace(text: str) -> str:
+def collapse_whitespace(text: str) -> str:
+    """Pubblica (era privata al modulo): riusata anche da
+    app/api/v1/transactions.py per popolare description_normalized sulla
+    creazione/modifica manuale, cosi' il Transaction Deduplication Engine
+    (app/services/transaction_dedup.py) puo' contare su questo campo sempre
+    valorizzato per ogni percorso di scrittura, non solo per l'import."""
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -196,7 +201,7 @@ def parse_rows(text: str, config: MappingConfig) -> tuple[list[ParsedRow], list[
                 # negoziabile) — solo la versione normalizzata collassa gli
                 # spazi, per la ricerca/visualizzazione.
                 description_raw=description_raw,
-                description_normalized=_collapse_whitespace(description_raw),
+                description_normalized=collapse_whitespace(description_raw),
                 amount=amount,
                 currency=currency,
                 direction=direction,

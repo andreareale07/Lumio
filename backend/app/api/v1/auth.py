@@ -14,6 +14,7 @@ from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_member import WorkspaceMember
 from app.schemas.auth import LoginRequest, MeResponse, RegisterRequest, TokenResponse, UserOut
+from app.services.analytics import resolve_currency
 from app.services.audit_log_service import log_event
 from app.services.session import (
     create_refresh_token,
@@ -59,6 +60,7 @@ async def _build_token_response(db: AsyncSession, user: User) -> TokenResponse:
             **UserOut.model_validate(user).model_dump(),
             workspace_id=workspace_id,
             google_enabled=get_settings().google_enabled,
+            base_currency=await resolve_currency(db, workspace_id),
         ),
     )
 
@@ -103,6 +105,7 @@ async def register(
             **UserOut.model_validate(user).model_dump(),
             workspace_id=workspace.id,
             google_enabled=get_settings().google_enabled,
+            base_currency=workspace.base_currency,
         ),
     )
 
@@ -179,4 +182,5 @@ async def me(
         **UserOut.model_validate(user).model_dump(),
         workspace_id=workspace_id,
         google_enabled=get_settings().google_enabled,
+        base_currency=await resolve_currency(db, workspace_id),
     )

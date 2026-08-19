@@ -79,6 +79,7 @@ async def _seed_bonifico_transactions(workspace_id: uuid.UUID, user_id: uuid.UUI
                 direction="credit",
                 transaction_type="income",
                 source_type_raw="Bonifico",
+                dedup_fingerprint=uuid.uuid4().hex,
             )
         )
         db.add(
@@ -93,6 +94,7 @@ async def _seed_bonifico_transactions(workspace_id: uuid.UUID, user_id: uuid.UUI
                 direction="debit",
                 transaction_type="fee",  # non e' il default (expense): simula una correzione manuale
                 source_type_raw="Bonifico",
+                dedup_fingerprint=uuid.uuid4().hex,
             )
         )
         await db.commit()

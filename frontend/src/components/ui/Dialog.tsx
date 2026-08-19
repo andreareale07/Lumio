@@ -46,9 +46,15 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"
-        className="w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-lg"
+        // Un form lungo (molti campi, es. registrazione movimento) puo'
+        // superare l'altezza della viewport: senza un limite qui il pannello
+        // si estende oltre lo schermo, irraggiungibile perche' solo
+        // l'overlay esterno era scrollabile. `max-h-[90vh]` + `flex-col`
+        // tiene titolo e footer sempre visibili, mentre SOLO il contenuto
+        // centrale scorre.
+        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-xl border border-border bg-surface p-5 shadow-lg"
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex shrink-0 items-center justify-between">
           <h2 id="dialog-title" className="text-base font-semibold text-text">
             {title}
           </h2>
@@ -61,8 +67,8 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div>{children}</div>
-        {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
+        <div className="overflow-y-auto">{children}</div>
+        {footer && <div className="mt-5 flex shrink-0 justify-end gap-2">{footer}</div>}
       </div>
     </div>,
     document.body,

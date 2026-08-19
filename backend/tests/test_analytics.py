@@ -262,7 +262,11 @@ async def test_cash_flow_buckets_by_month(client):
     assert points["2026-08-01"]["expenses"] == "200.00"
     assert points["2026-08-01"]["net"] == "800.00"
     assert points["2026-09-01"]["income"] == "500.00"
-    assert points["2026-09-01"]["expenses"] == "0"
+    # Sistema di valute: ora sempre quantizzato a 2 decimali (prima "0" per
+    # un dettaglio incidentale del tipo NUMERIC restituito da Postgres,
+    # senza la moltiplicazione per il tasso di cambio) — formattazione piu'
+    # coerente, non piu' dipendente da quale ramo SQL ha prodotto lo zero.
+    assert points["2026-09-01"]["expenses"] == "0.00"
 
 
 async def test_cash_flow_buckets_by_semester(client):
@@ -379,3 +383,78 @@ async def test_analytics_do_not_leak_across_workspaces(client):
         headers=_auth_headers(token_a),
     )
     assert "SHOULD-NOT-LEAK" not in {i["merchant"] for i in by_merchant_a.json()["items"]}
+
+
+# --- Sistema di valute: conversione invece di esclusione -------------------
+
+
+async def test_cash_flow_converts_foreign_currency_transaction(client):
+    token = await _register(client, "cashflow-fx@example.com")
+    account_id = await _create_account(client, token, currency="USD")
+    await _create_transaction(
+        client, token, account_id, currency="USD",
+        amount="1000.00", direction="credit", transaction_type="income",
+    )
+    await client.put(
+        "/api/v1/currencies/rates",
+        json={"from_currency": "USD", "to_currency": "EUR", "rate_date": "2026-08-01", "rate": "0.90"},
+        headers=_auth_headers(token),
+    )
+
+    response = await client.get(
+        "/api/v1/analytics/cash-flow",
+        params={"date_from": "2026-08-01", "date_to": "2026-08-31", "granularity": "month", "currency": "EUR"},
+        headers=_auth_headers(token),
+    )
+    assert response.status_code == 200
+    points = response.json()["points"]
+    assert points[0]["income"] == "900.00"  # 1000 USD * 0.90
+
+
+async def test_by_category_converts_foreign_currency_transaction(client):
+    token = await _register(client, "by-category-fx@example.com")
+    account_id = await _create_account(client, token, currency="USD")
+    supermercato_id = await _category_id(client, token, "alimentari.supermercato")
+    await _create_transaction(
+        client, token, account_id, currency="USD", category_id=supermercato_id, amount="-100.00",
+    )
+    await client.put(
+        "/api/v1/currencies/rates",
+        json={"from_currency": "USD", "to_currency": "EUR", "rate_date": "2026-08-01", "rate": "0.90"},
+        headers=_auth_headers(token),
+    )
+
+    response = await client.get(
+        "/api/v1/analytics/by-category",
+        params={"date_from": "2026-08-01", "date_to": "2026-08-31", "direction": "expense", "currency": "EUR"},
+        headers=_auth_headers(token),
+    )
+    items = response.json()["items"]
+    assert len(items) == 1
+    assert items[0]["total"] == "90.00"  # 100 USD * 0.90
+
+
+async def test_resolve_currency_uses_workspace_base_currency_not_account_heuristic(client):
+    """Regressione: prima la valuta di default era quella con piu' conti nel
+    workspace (euristica automatica, avrebbe scelto USD qui sotto) — ora e'
+    sempre `Workspace.base_currency` (default 'EUR' per un workspace nuovo),
+    indipendentemente da quanti conti esistono in un'altra valuta.
+
+    Nota: cambiare `base_currency` via API (Step D, `PATCH /workspace`) non
+    e' ancora testabile qui — scrivendo questo test e' emerso che
+    `workspaces` non ha ancora NESSUNA policy RLS di UPDATE (solo SELECT/
+    INSERT, migration 0002): lo Step D dovra' aggiungerla."""
+    token = await _register(client, "resolve-currency-base@example.com")
+
+    # Due conti USD contro uno EUR: l'euristica precedente avrebbe risolto
+    # a USD, non piu' rilevante ora.
+    await _create_account(client, token, name="USD 1", currency="USD")
+    await _create_account(client, token, name="USD 2", currency="USD")
+    await _create_account(client, token, name="EUR", currency="EUR")
+
+    response = await client.get(
+        "/api/v1/analytics/summary",
+        params={"date_from": "2026-08-01", "date_to": "2026-08-31"},
+        headers=_auth_headers(token),
+    )
+    assert response.json()["currency"] == "EUR"

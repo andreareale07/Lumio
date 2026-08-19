@@ -39,7 +39,7 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
   const [progressError, setProgressError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const { data: importRecord } = useImport(uploadResult?.import.id ?? null);
+  const { data: importRecord, refetch: refetchImportRecord } = useImport(uploadResult?.import.id ?? null);
   const accountForSummary = accounts?.find((a) => a.id === accountId);
   const canLoadSummary = step === "done" && !!importRecord?.period_start;
   const { data: importedTransactions } = useTransactions(
@@ -116,7 +116,13 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
       }
       if (event.event === "job.completed") {
         setStagesDone({ preparazione: true, estrazione: true, salvataggio: true });
-        setStep("done");
+        // Il passo "done" mostra un messaggio diverso se l'import e'
+        // finito in 'ready_for_review' (Transaction Deduplication Engine —
+        // vedi l'effetto sotto, che decide lo step dal vero
+        // `importRecord.status`, mai da questo solo evento): un refetch
+        // immediato evita di aspettare fino a 3s del polling di fallback,
+        // il commit DB avviene sempre PRIMA che questo evento sia emesso.
+        void refetchImportRecord();
       }
       if (event.event === "job.failed") {
         setProgressError(event.message ?? "L'import non è riuscito.");
@@ -129,17 +135,21 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
     });
 
     return () => controller.abort();
-  }, [step, uploadResult]);
+  }, [step, uploadResult, refetchImportRecord]);
 
   // Fallback: se il polling di useImport() segnala completato/fallito prima
   // (o al posto) dello stream, riflette comunque lo stato nella UI.
   useEffect(() => {
-    if (!importRecord) return;
-    if (importRecord.status === "completed" && step === "progress") {
+    if (!importRecord || step !== "progress") return;
+    // "ready_for_review" (Transaction Deduplication Engine) conta come
+    // "il job ha finito di girare" tanto quanto "completed" — l'unica
+    // differenza e' il messaggio mostrato nello step "done" sotto, mai se
+    // uscire o meno dallo step "progress".
+    if (importRecord.status === "completed" || importRecord.status === "ready_for_review") {
       setStagesDone({ preparazione: true, estrazione: true, salvataggio: true });
       setStep("done");
     }
-    if (importRecord.status === "failed" && step === "progress") {
+    if (importRecord.status === "failed") {
       setProgressError(importRecord.error_message ?? "L'import non è riuscito.");
     }
   }, [importRecord, step]);
@@ -268,11 +278,34 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
 
       {step === "done" && importRecord && (
         <div className="flex flex-col gap-4">
-          <p className="text-lg font-semibold text-text">Import completato</p>
+          {importRecord.status === "ready_for_review" ? (
+            <p className="text-lg font-semibold text-text">Import da verificare</p>
+          ) : (
+            <p className="text-lg font-semibold text-text">Import completato</p>
+          )}
+          {/* SPEC §32: sempre analizzati/nuovi/duplicati/da verificare, non
+              solo "movimenti importati" — un import con 0 nuovi (tutti
+              duplicati, es. un estratto già coperto da import precedenti)
+              e' un esito comune e corretto del Deduplication Engine, non un
+              errore: senza questo dettaglio sembrerebbe che l'import non
+              abbia funzionato. */}
           <p className="text-sm text-text">
-            {importRecord.transactions_imported} movimenti importati su {accountForSummary?.name}
-            {importedTransactions ? ` — ${categorizedCount} classificati automaticamente` : ""}.
+            {importRecord.transactions_found} movimenti analizzati su {accountForSummary?.name}:{" "}
+            {importRecord.transactions_imported} nuovi
+            {importRecord.transactions_duplicate > 0 ? `, ${importRecord.transactions_duplicate} già presenti` : ""}
+            {importRecord.transactions_review_pending > 0
+              ? `, ${importRecord.transactions_review_pending} da verificare`
+              : ""}
+            .
           </p>
+          {importRecord.status === "ready_for_review" ? (
+            <p className="text-sm text-text-muted">
+              Trovi i movimenti da verificare nella lista Import, chiudendo questa finestra.
+            </p>
+          ) : (
+            importRecord.transactions_imported > 0 &&
+            importedTransactions && <p className="text-sm text-text-muted">{categorizedCount} classificati automaticamente.</p>
+          )}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={close}>
               Chiudi

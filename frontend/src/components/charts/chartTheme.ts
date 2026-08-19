@@ -54,3 +54,11 @@ export function useChartTheme(): ChartTheme {
 
   return theme;
 }
+
+/** Unico punto che sceglie il colore categorico N — usato SIA dalle fette
+ * del donut SIA dagli swatch della sua legenda (`ChartLegend`), cosi' i
+ * due non possono mai divergere (prima la formula `theme.categorical[i %
+ * len]` era duplicata inline in ogni chiamante). */
+export function categoricalColor(theme: ChartTheme, index: number): string {
+  return theme.categorical[index % theme.categorical.length];
+}

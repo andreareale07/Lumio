@@ -124,6 +124,15 @@ class Transaction(Base):
     # colonna non la popolano.
     source_type_raw: Mapped[str | None] = mapped_column(String, nullable=True)
     balance_after: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    # Transaction Deduplication Engine (docs/SPEC_DEDUP_TRANSACTION.md,
+    # migration 0033): SHA-256 deterministico dei campi di identita'
+    # (workspace+account+data+importo+currency+descrizione normalizzata+
+    # tipo), calcolato da app.services.transaction_dedup.
+    # compute_dedup_fingerprint. Indicizzato (ix_transactions_workspace_
+    # account_fingerprint) ma MAI UNIQUE (SPEC §3): due transazioni
+    # legittimamente identiche devono poter coesistere, il matching e' per
+    # occorrenze, non per esistenza del fingerprint.
+    dedup_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'confirmed'"))
     # Due soli scrittori (SPEC §43, "8 da verificare"): la pipeline di
     # classificazione la alza quando lo score della Classification appena

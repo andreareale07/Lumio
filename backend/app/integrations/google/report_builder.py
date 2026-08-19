@@ -354,9 +354,9 @@ async def _build_portfolio_sheet(
     options: ReportOptions,
     valuation,
 ) -> None:
-    positions = await portfolio_analytics.list_position_valuations(
-        db, workspace_id, None, options.date_to, currency
-    )
+    positions = (
+        await portfolio_analytics.list_position_valuations(db, workspace_id, None, options.date_to, currency)
+    ).items
     header_row = sheet.add_table(
         ["Asset", "Quantità", "Costo medio", "Valore corrente", "P&L non realizzato", "P&L realizzato"],
         [

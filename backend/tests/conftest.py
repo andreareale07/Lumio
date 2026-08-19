@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.core.redis import redis_client
 from app.db.base import async_session_factory, engine
 from app.main import app
+from app.services.currency_catalog import SEED_CURRENCIES
 from app.worker import queue as arq_queue
 
 # Radici e figli separati una volta sola a import-time: la FK di
@@ -55,32 +56,34 @@ def _bulk_insert_sql(rows: list, *, parent_ids: list[str] | None) -> tuple[str, 
 async def _clean_tables():
     # TRUNCATE non e' soggetto a RLS (agisce a livello di tabella, non di
     # riga) quindi funziona indipendentemente da app.current_user_id. Nota:
-    # troncare `workspaces` con CASCADE svuota anche `categories` per intero
-    # (ha una FK su workspace_id), comprese le system category seedate dalla
+    # troncare `workspaces` con CASCADE svuota anche `categories`/`currencies`
+    # per intero (entrambe hanno una FK su workspace_id, `fx_rates` a
+    # cascata da `currencies`), comprese le righe di sistema seedate dalla
     # migration — non e' possibile troncare solo le righe workspace-scoped,
-    # quindi le si reinserisce subito dopo con la tassonomia viva
-    # (app/classification/taxonomy.py, stessa fonte usata dalla migration
-    # 0022 di produzione).
+    # quindi le si reinseriscono subito dopo con la stessa fonte viva usata
+    # dalla migration di produzione (`app/classification/taxonomy.py` per le
+    # categorie, `app/services/currency_catalog.py` per le valute).
     async with async_session_factory() as session:
         await session.execute(
             text(
                 "TRUNCATE users, workspaces, workspace_members, "
-                "financial_accounts, transactions, categories, "
+                "financial_accounts, transactions, categories, currencies, fx_rates, "
                 "imports, import_mappings, rules, classifications, ai_profiles, "
                 "assets, portfolios, portfolio_accounts, investment_transactions, positions, "
                 "market_data_profiles, asset_prices, portfolio_snapshots, net_worth_snapshots, "
                 "job_runs, transaction_type_mappings, financial_account_iban_history, "
+                "transaction_dedup_decisions, transaction_review_items, "
                 "google_integrations, audit_log CASCADE"
             )
         )
-        # La policy INSERT su categories richiede workspace_id NOT NULL (per
-        # design: l'app non deve mai poter creare una falsa system category),
-        # quindi lumio_app non puo' reinserire queste righe sotto RLS. SET
-        # ROLE lumio_rls_helper (concesso a lumio_app dall'init script, vedi
-        # db/postgres-init/01-create-app-role.sh) e' BYPASSRLS: stesso
-        # meccanismo usato in produzione dalle funzioni SECURITY DEFINER,
-        # qui applicato al reseed di dati che sono comunque immutabili per
-        # l'app stessa. I trigger `enforce_category_kind`/
+        # La policy INSERT su categories/currencies richiede workspace_id NOT
+        # NULL (per design: l'app non deve mai poter creare una falsa riga di
+        # sistema), quindi lumio_app non puo' reinserire queste righe sotto
+        # RLS. SET ROLE lumio_rls_helper (concesso a lumio_app dall'init
+        # script, vedi db/postgres-init/01-create-app-role.sh) e' BYPASSRLS:
+        # stesso meccanismo usato in produzione dalle funzioni SECURITY
+        # DEFINER, qui applicato al reseed di dati che sono comunque
+        # immutabili per l'app stessa. I trigger `enforce_category_kind`/
         # `check_category_code_not_shadowing_system` (migration 0021)
         # restano attivi durante questo INSERT: e' voluto, verificano che il
         # seed stesso sia internamente coerente (kind ereditato, nessun code
@@ -93,6 +96,27 @@ async def _clean_tables():
         child_parent_ids = [_ROOT_ID_BY_CODE[c.parent_code] for c in _CHILDREN]
         children_sql, children_params = _bulk_insert_sql(_CHILDREN, parent_ids=child_parent_ids)
         await session.execute(text(children_sql), children_params)
+
+        # Reseed valute di sistema — deve avvenire PRIMA che un test crei un
+        # workspace: `workspaces.base_currency` ha un default 'EUR' con FK su
+        # `currencies.code`, che a questo punto e' stata appena svuotata.
+        currency_values_sql = ", ".join(
+            f"(:code_{i}, NULL, :name_{i}, :symbol_{i}, :digits_{i}, true)"
+            for i in range(len(SEED_CURRENCIES))
+        )
+        currency_params = {}
+        for i, c in enumerate(SEED_CURRENCIES):
+            currency_params[f"code_{i}"] = c.code
+            currency_params[f"name_{i}"] = c.name
+            currency_params[f"symbol_{i}"] = c.symbol
+            currency_params[f"digits_{i}"] = c.decimal_digits
+        await session.execute(
+            text(
+                "INSERT INTO currencies (code, workspace_id, name, symbol, decimal_digits, is_system) "
+                "VALUES " + currency_values_sql
+            ),
+            currency_params,
+        )
 
         await session.execute(text("RESET ROLE"))
         await session.commit()

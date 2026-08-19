@@ -257,6 +257,7 @@ async def test_reapply_recognizes_transfer_after_iban_is_added_later():
             direction="credit",
             transaction_type="income",  # ancora al default: nessuna correzione manuale
             source_type_raw="Bonifico",
+            dedup_fingerprint=uuid.uuid4().hex,
         )
         db.add(txn)
         await db.commit()
@@ -296,6 +297,7 @@ async def test_reapply_skips_manually_edited_transactions():
             direction="credit",
             transaction_type="dividend",  # corretta a mano: diverge dal default (income)
             source_type_raw="Bonifico",
+            dedup_fingerprint=uuid.uuid4().hex,
         )
         db.add(txn)
         await db.commit()

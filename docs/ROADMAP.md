@@ -1122,7 +1122,11 @@ per net worth e performance, analytics portfolio (allocation, P/L, performance n
 **DoD**:
 - posizione multi-conto aggregata correttamente in un portfolio
 - app funziona anche senza market data provider configurato (nessun crash, dato assente gestito)
-- storico patrimonio consultabile via snapshot, non ricalcolato da zero ogni volta
+- storico patrimonio (liquidità+debiti+investimenti) consultabile via snapshot, non ricalcolato da zero ogni volta
+- storico "Andamento del valore" di un portfolio/ambito investimenti (revisione post-M09, redesign Investimenti):
+  ricostruito on-demand dal libro movimenti + storico prezzi (`compute_historical_series`), non da uno snapshot
+  congelato — scelta diversa da quella originale sopra, per riflettere correttamente backdating/correzioni e per
+  funzionare anche su ambiti senza una riga di snapshot propria (es. "Asset senza portfolio")
 
 ---
 

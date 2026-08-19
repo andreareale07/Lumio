@@ -23,7 +23,7 @@ from decimal import Decimal, InvalidOperation
 
 import httpx
 
-from app.marketdata.base import AssetRef, MarketDataProviderError, Quote
+from app.marketdata.base import AssetProfile, AssetRef, FxQuote, MarketDataProviderError, PricePoint, Quote
 
 _QUOTE_ENDPOINT = "https://stooq.com/q/l/"
 _TIMEOUT = 10.0
@@ -63,3 +63,22 @@ class StooqProvider:
                 response.raise_for_status()
         except httpx.HTTPError as exc:
             raise MarketDataProviderError(f"Stooq non raggiungibile: {exc}") from exc
+
+    async def fetch_history(self, asset: AssetRef, preset: str) -> list[PricePoint] | None:
+        # L'endpoint CSV di Stooq usato per la quotazione corrente non offre
+        # uno storico — non implementato (a differenza di Yahoo, non c'e' un
+        # endpoint "chart" pubblico equivalente gia' verificato).
+        return None
+
+    async def fetch_profile(self, asset: AssetRef) -> AssetProfile | None:
+        return None
+
+    async def fetch_fx_rate(self, from_currency: str, to_currency: str) -> FxQuote | None:
+        # Nessun endpoint FX pubblico di Stooq verificato (stesso limite
+        # gia' accettato per fetch_history) — non implementato.
+        return None
+
+    async def fetch_fx_history(
+        self, from_currency: str, to_currency: str, preset: str
+    ) -> list[PricePoint] | None:
+        return None

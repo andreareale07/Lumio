@@ -151,14 +151,14 @@ export function NetWorthPage() {
               {/* Il saldo dei conti titoli conta gia' come Liquidita' sopra
                   — questa riga e' il valore delle POSIZIONI (asset
                   posseduti), un dato distinto, mai un doppio conteggio.
-                  Link diretto invece di un drawer: il breakdown ricco
-                  (per tipo di strumento, per asset, PAC vs Investimenti)
-                  vive gia' in Investimenti > Allocation, duplicarlo qui
-                  sarebbe manutenzione doppia per lo stesso dato. */}
+                  Link diretto invece di un drawer: la composizione (per
+                  tipo di asset, per valuta) e' gia' visibile in cima alla
+                  Panoramica Investimenti, duplicarla qui sarebbe
+                  manutenzione doppia per lo stesso dato. */}
               {balances.data.has_investments && (
                 <li>
                   <Link
-                    to="/investments?tab=allocation"
+                    to="/investments"
                     className="flex items-center justify-between rounded-md p-1 hover:bg-surface-hover"
                   >
                     <span className="text-text">Investimenti</span>

@@ -61,3 +61,10 @@ class AssetPrice(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     source: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # A differenza di `created_at` (mai toccato da un upsert successivo),
+    # questo riflette l'ultimo fetch/salvataggio riuscito — usato per la
+    # cache-first di GET /assets/{id}/price-history (TTL 15 minuti prima di
+    # ricontattare Yahoo per lo stesso giorno).
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

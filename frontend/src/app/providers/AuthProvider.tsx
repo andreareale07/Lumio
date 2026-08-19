@@ -13,6 +13,10 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Ri-scarica /auth/me (es. dopo aver cambiato base_currency in
+   * Impostazioni > Valuta) — evita che `user` resti con un valore stantio
+   * fino al prossimo refresh del token. */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -93,9 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [clearSession]);
 
+  const refreshUser = useCallback(async () => {
+    const me = await api.get<Me>("/auth/me");
+    setUser(me);
+  }, []);
+
   const value = useMemo(
-    () => ({ status, user, login, register, logout }),
-    [status, user, login, register, logout],
+    () => ({ status, user, login, register, logout, refreshUser }),
+    [status, user, login, register, logout, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

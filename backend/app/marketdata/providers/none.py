@@ -2,7 +2,7 @@
 configurato, l'applicazione deve continuare a funzionare"). Sempre
 disponibile, nessuna configurazione richiesta — stesso ruolo di
 `NoAIClassifier` in M07."""
-from app.marketdata.base import AssetRef, Quote
+from app.marketdata.base import AssetProfile, AssetRef, FxQuote, PricePoint, Quote
 
 
 class NoMarketDataProvider:
@@ -12,4 +12,18 @@ class NoMarketDataProvider:
         return None
 
     async def test_connection(self) -> None:
+        return None
+
+    async def fetch_history(self, asset: AssetRef, preset: str) -> list[PricePoint] | None:
+        return None
+
+    async def fetch_profile(self, asset: AssetRef) -> AssetProfile | None:
+        return None
+
+    async def fetch_fx_rate(self, from_currency: str, to_currency: str) -> FxQuote | None:
+        return None
+
+    async def fetch_fx_history(
+        self, from_currency: str, to_currency: str, preset: str
+    ) -> list[PricePoint] | None:
         return None

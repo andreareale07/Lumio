@@ -82,6 +82,18 @@ async def test_me_returns_current_user(client):
     assert response.json()["email"] == "dana@example.com"
 
 
+async def test_register_and_me_expose_default_base_currency(client):
+    # Sistema di valute: EUR di default per un workspace nuovo, letta una
+    # volta al login/register (stesso pattern di google_enabled) senza una
+    # chiamata dedicata.
+    register_response = await _register(client, "currency-default@example.com")
+    assert register_response.json()["user"]["base_currency"] == "EUR"
+
+    token = register_response.json()["access_token"]
+    me_response = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me_response.json()["base_currency"] == "EUR"
+
+
 async def test_refresh_issues_new_token_and_rotates_old_one(client):
     await _register(client, "erin@example.com")
     old_cookie = client.cookies.get("refresh_token")

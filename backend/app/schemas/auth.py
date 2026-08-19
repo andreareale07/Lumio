@@ -30,6 +30,10 @@ class MeResponse(UserOut):
     # nascondere nav/pagina Google Sheets senza una request che fallisce
     # quando l'istanza gira con GOOGLE_ENABLED=false.
     google_enabled: bool
+    # Sistema di valute: letta una volta al login/refresh (stesso pattern
+    # di google_enabled), cosi' ogni pagina che ne ha bisogno (default dei
+    # form, picker) non deve fare una chiamata dedicata.
+    base_currency: str
 
 
 class TokenResponse(BaseModel):

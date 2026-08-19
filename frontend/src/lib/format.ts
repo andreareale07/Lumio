@@ -59,3 +59,28 @@ export function formatCompactMoney(amount: string | number, currency: string): s
     maximumFractionDigits: 1,
   }).format(value);
 }
+
+const _LARGE_MONEY_TIERS: [number, string][] = [
+  [1e12, "T"],
+  [1e9, "B"],
+  [1e6, "M"],
+];
+
+/** Valori molto grandi (patrimonio di un fondo, capitalizzazione) con
+ * unità M/B/T (milione/bilione/trilione) — a differenza di
+ * `formatCompactMoney`, non usa l'abbreviazione italiana di Intl
+ * ("mln"/"mld"), sempre queste tre lettere per richiesta esplicita. */
+export function formatLargeMoney(amount: string | number, currency: string): string {
+  const value = typeof amount === "string" ? Number(amount) : amount;
+  const tier = _LARGE_MONEY_TIERS.find(([threshold]) => Math.abs(value) >= threshold);
+  if (!tier) return formatMoney(value, currency);
+  const [divisor, suffix] = tier;
+  const scaled = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(
+    value / divisor,
+  );
+  const symbol =
+    new Intl.NumberFormat("it-IT", { style: "currency", currency, currencyDisplay: "narrowSymbol" })
+      .formatToParts(0)
+      .find((p) => p.type === "currency")?.value ?? currency;
+  return `${scaled} ${suffix} ${symbol}`;
+}

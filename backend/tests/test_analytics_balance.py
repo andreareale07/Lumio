@@ -115,8 +115,12 @@ async def test_balance_as_of_past_date_ignores_later_transactions(client):
     assert await _balance_of(client, token, account_id, as_of="2026-01-20") == "100.00"
 
 
-async def test_balances_filtered_by_currency(client):
-    token = await _register(client, "balance-currency@example.com")
+async def test_balances_without_fx_rate_excludes_and_flags_foreign_currency_account(client):
+    # Nessun tasso USD->EUR persistito in questo test: il conto USD resta
+    # onestamente escluso dal totale (nessun tasso disponibile), ma
+    # `has_unconverted_rows` lo segnala — a differenza del vecchio
+    # comportamento (esclusione muta, mai un flag).
+    token = await _register(client, "balance-currency-no-rate@example.com")
     eur_account = await _create_account(client, token, name="EUR", currency="EUR")
     usd_account = await _create_account(client, token, name="USD", currency="USD")
 
@@ -126,5 +130,38 @@ async def test_balances_filtered_by_currency(client):
     response = await client.get(
         "/api/v1/analytics/balances", params={"currency": "EUR"}, headers=_auth_headers(token)
     )
-    account_ids = {a["financial_account_id"] for a in response.json()["accounts"]}
+    body = response.json()
+    account_ids = {a["financial_account_id"] for a in body["accounts"]}
     assert account_ids == {eur_account}
+    assert body["has_unconverted_rows"] is True
+
+
+async def test_balances_converts_foreign_currency_account_when_fx_rate_available(client):
+    token = await _register(client, "balance-currency-with-rate@example.com")
+    eur_account = await _create_account(client, token, name="EUR", currency="EUR")
+    usd_account = await _create_account(client, token, name="USD", currency="USD")
+
+    await _create_transaction(client, token, eur_account, amount="-10.00", currency="EUR")
+    await _create_transaction(
+        client, token, usd_account, amount="1000.00", currency="USD",
+        direction="credit", transaction_type="income",
+    )
+    await client.put(
+        "/api/v1/currencies/rates",
+        json={"from_currency": "USD", "to_currency": "EUR", "rate_date": "2026-08-01", "rate": "0.90"},
+        headers=_auth_headers(token),
+    )
+
+    response = await client.get(
+        "/api/v1/analytics/balances",
+        params={"currency": "EUR", "as_of": "2026-08-01"},
+        headers=_auth_headers(token),
+    )
+    body = response.json()
+    assert body["has_unconverted_rows"] is False
+    account_ids = {a["financial_account_id"] for a in body["accounts"]}
+    assert account_ids == {eur_account, usd_account}
+    usd_balance = next(a for a in body["accounts"] if a["financial_account_id"] == usd_account)
+    assert usd_balance["balance"] == "900.00"  # 1000 USD * 0.90
+    # Il conto USD ora contribuisce al totale di liquidita', convertito.
+    assert body["liquidity_total"] == "890.00"  # -10 EUR + 900 EUR

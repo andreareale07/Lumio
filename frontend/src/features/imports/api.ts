@@ -3,6 +3,42 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, getAccessToken } from "../../lib/apiClient";
 import type { ImportRecord, ImportUploadResponse, MappingConfig } from "../../types/api";
 
+export interface DuplicateReviewCandidate {
+  id: string;
+  transaction_date: string;
+  description_raw: string;
+  description_normalized: string | null;
+  amount: string;
+  currency: string;
+  transaction_type: string;
+  balance_after: string | null;
+}
+
+export interface DuplicateReviewItem {
+  id: string;
+  import_id: string;
+  financial_account_id: string;
+  row_index: number;
+  transaction_date: string;
+  description_raw: string;
+  description_normalized: string | null;
+  amount: string;
+  currency: string;
+  transaction_type: string;
+  balance_after: string | null;
+  status: "pending" | "confirmed_new" | "confirmed_duplicate";
+  auto_resolved: boolean;
+  decided_at: string | null;
+  created_at: string;
+  candidate: DuplicateReviewCandidate | null;
+}
+
+export interface DuplicateReviewSummary {
+  pending: number;
+  confirmed_new: number;
+  confirmed_duplicate: number;
+}
+
 export const importsKey = ["imports"] as const;
 
 export function useImports() {
@@ -101,8 +137,52 @@ export function useImport(importId: string | null) {
       // Fallback polling (SPEC_FE §42) se lo stream SSE non e' disponibile:
       // finche' l'import non e' in uno stato terminale, ricontrolla.
       const status = query.state.data?.status;
-      if (!status || status === "completed" || status === "failed" || status === "cancelled") return false;
+      // "ready_for_review" ferma il polling di stato del JOB (l'esecuzione
+      // asincrona e' comunque terminata, resta solo la decisione
+      // dell'utente sui candidati ambigui) — vedi useImportReviewSummary/
+      // useImportReviewItems per lo stato della revisione stessa.
+      if (
+        !status ||
+        status === "completed" ||
+        status === "failed" ||
+        status === "cancelled" ||
+        status === "ready_for_review"
+      )
+        return false;
       return 3000;
+    },
+  });
+}
+
+/** SPEC §15/§31: elenco dei candidati ambigui (default solo i 'pending') con
+ * il record esistente a confronto, per la UI di revisione duplicati. */
+export function useImportReviewItems(importId: string | null, status: string = "pending") {
+  return useQuery({
+    queryKey: ["imports", importId, "review-items", status],
+    queryFn: () =>
+      api.get<DuplicateReviewItem[]>(`/imports/${importId}/review-items?status=${status}`),
+    enabled: !!importId,
+  });
+}
+
+export function useImportReviewSummary(importId: string | null) {
+  return useQuery({
+    queryKey: ["imports", importId, "review-summary"],
+    queryFn: () => api.get<DuplicateReviewSummary>(`/imports/${importId}/review-summary`),
+    enabled: !!importId,
+  });
+}
+
+export function useDecideImportReviewItem(importId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, decision }: { itemId: string; decision: "keep_new" | "mark_duplicate" }) =>
+      api.post<DuplicateReviewItem>(`/imports/${importId}/review-items/${itemId}/decision`, { decision }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["imports", importId, "review-items"] });
+      queryClient.invalidateQueries({ queryKey: ["imports", importId, "review-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["imports", importId] });
+      queryClient.invalidateQueries({ queryKey: importsKey });
     },
   });
 }

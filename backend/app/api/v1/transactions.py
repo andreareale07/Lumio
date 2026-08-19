@@ -23,9 +23,11 @@ from app.schemas.transactions import (
 )
 from app.services.audit_log_service import log_event
 from app.services.confidence import needs_review as score_needs_review
+from app.services.csv_import import collapse_whitespace
 from app.services.rule_loader import load_active_rule_specs
 from app.services.rules_engine import Probe, evaluate
 from app.services.system_settings_service import get_setting_value
+from app.services.transaction_dedup import compute_dedup_fingerprint
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -69,6 +71,24 @@ async def create_transaction(
 ) -> Transaction:
     await _assert_account_in_workspace(db, workspace_id, payload.financial_account_id)
     data = payload.model_dump()
+
+    # Transaction Deduplication Engine (docs/SPEC_DEDUP_TRANSACTION.md):
+    # description_normalized non e' un campo di TransactionCreate (l'utente
+    # non lo compila a mano) ma deve SEMPRE essere valorizzata — e' un
+    # input del fingerprint, e il fallback a description_raw dentro
+    # compute_dedup_fingerprint e' pensato solo per dati legacy/backfill,
+    # mai per una riga creata da qui in avanti.
+    data["description_normalized"] = collapse_whitespace(data["description_raw"])
+    data["dedup_fingerprint"] = compute_dedup_fingerprint(
+        workspace_id=workspace_id,
+        financial_account_id=data["financial_account_id"],
+        transaction_date=data["transaction_date"],
+        amount=data["amount"],
+        currency=data["currency"],
+        description_normalized=data["description_normalized"],
+        description_raw=data["description_raw"],
+        transaction_type=data["transaction_type"],
+    )
 
     # Se il chiamante non fornisce esplicitamente una categoria, prova il
     # motore regole (SPEC §23: prima di qualsiasi AI, che in M06 non esiste
@@ -217,8 +237,28 @@ async def update_transaction(
     # method='user'): e' lo storico da cui parte la proposta di regola
     # automatica dopo correzioni ripetute (SPEC §29, vedi /rules/suggestions).
     category_corrected = "category_id" in updates and updates["category_id"] != transaction.category_id
+    # Campi di identita' del fingerprint esposti da TransactionUpdate
+    # (amount/currency/financial_account_id non sono modificabili da questo
+    # endpoint): se uno di questi cambia, il dedup_fingerprint persistito
+    # resterebbe stale rispetto al contenuto reale della transazione,
+    # producendo falsi (non-)match nei futuri import — vedi
+    # docs/SPEC_DEDUP_TRANSACTION.md e il piano approvato.
+    fingerprint_fields = {"transaction_date", "description_normalized", "transaction_type"}
+    identity_changed = bool(fingerprint_fields & updates.keys())
     for field, value in updates.items():
         setattr(transaction, field, value)
+
+    if identity_changed:
+        transaction.dedup_fingerprint = compute_dedup_fingerprint(
+            workspace_id=transaction.workspace_id,
+            financial_account_id=transaction.financial_account_id,
+            transaction_date=transaction.transaction_date,
+            amount=transaction.amount,
+            currency=transaction.currency,
+            description_normalized=transaction.description_normalized,
+            description_raw=transaction.description_raw,
+            transaction_type=transaction.transaction_type,
+        )
 
     if category_corrected:
         # Una correzione manuale chiude SEMPRE la review, incondizionatamente

@@ -153,8 +153,9 @@ async def test_transaction_cannot_reference_import_of_another_workspace():
                 text(
                     "INSERT INTO transactions "
                     "(workspace_id, financial_account_id, import_id, transaction_date, "
-                    " description_raw, amount, currency, direction, transaction_type) "
-                    "VALUES (:w, :a, :i, CURRENT_DATE, 'Spesa', -10.00, 'EUR', 'debit', 'expense')"
+                    " description_raw, amount, currency, direction, transaction_type, dedup_fingerprint) "
+                    "VALUES (:w, :a, :i, CURRENT_DATE, 'Spesa', -10.00, 'EUR', 'debit', 'expense', "
+                    " 'rls-test-fingerprint')"
                 ),
                 {"w": str(workspace_a), "a": str(account_a), "i": str(import_b)},
             )

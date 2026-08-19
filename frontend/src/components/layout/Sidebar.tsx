@@ -2,6 +2,7 @@ import {
   Activity,
   ArrowLeftRight,
   Banknote,
+  Coins,
   FolderTree,
   LayoutDashboard,
   Landmark,
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { to: "/settings/rules", label: "Regole", icon: Wand2 },
   { to: "/settings/ai", label: "AI", icon: Sparkles },
   { to: "/settings/market-data", label: "Market Data", icon: LineChart },
+  { to: "/settings/currency", label: "Valuta", icon: Coins },
   { to: "/settings/transaction-types", label: "Tipi di transazione", icon: Tags },
   { to: "/settings/jobs", label: "Job di sistema", icon: ListChecks },
 ];

@@ -17,6 +17,7 @@ class M:
     amount: Decimal = Decimal("0")
     fees: Decimal = Decimal("0")
     tax: Decimal = Decimal("0")
+    source_type_raw: str | None = None
 
 
 def test_single_buy_sets_quantity_and_average_cost():
@@ -166,6 +167,97 @@ def test_adjustment_delta_on_top_of_existing_position():
     )
     assert state.quantity == Decimal("8")
     assert state.average_cost == Decimal("100")
+
+
+# --- strategy_cost (PAC vs una tantum, ripartizione del costo ATTUALE) ----
+
+
+def test_single_buy_tags_strategy_cost():
+    state = compute_position(
+        [M("buy", quantity=Decimal("10"), price=Decimal("100"), source_type_raw="Buy trade")]
+    )
+    assert state.strategy_cost == {"one_off": Decimal("1000")}
+
+
+def test_two_buys_different_strategies_tracked_separately():
+    state = compute_position(
+        [
+            M("buy", quantity=Decimal("10"), price=Decimal("100"), source_type_raw="Buy trade"),
+            M("buy", quantity=Decimal("5"), price=Decimal("100"), source_type_raw="Savings plan execution"),
+        ]
+    )
+    assert state.strategy_cost == {"one_off": Decimal("1000"), "recurring_plan": Decimal("500")}
+    assert sum(state.strategy_cost.values()) == state.quantity * state.average_cost
+
+
+def test_full_sell_resets_strategy_cost_like_average_cost():
+    state = compute_position(
+        [
+            M("buy", quantity=Decimal("10"), price=Decimal("100"), source_type_raw="Buy trade"),
+            M("sell", quantity=Decimal("10"), price=Decimal("150")),
+        ]
+    )
+    assert state.strategy_cost == {}
+
+
+def test_partial_sell_scales_strategy_cost_proportionally():
+    # Vende il 40% delle unita': il capitale attribuito alla strategia scende
+    # della stessa proporzione (nessuna identita' di lotto, stesso principio
+    # del costo medio ponderato che non cambia su una vendita parziale).
+    state = compute_position(
+        [
+            M("buy", quantity=Decimal("10"), price=Decimal("100"), source_type_raw="Buy trade"),
+            M("sell", quantity=Decimal("4"), price=Decimal("150")),
+        ]
+    )
+    assert state.strategy_cost == {"one_off": Decimal("600")}
+    assert sum(state.strategy_cost.values()) == state.quantity * state.average_cost
+
+
+def test_buy_sell_all_rebuy_cycle_does_not_blend_strategy_cost_across_cycles():
+    # Scenario reale segnalato dall'utente: compra-compra-compra, vendi
+    # tutto, ricompra, vendi tutto, ricompra una terza volta — ogni ciclo
+    # deve ripartire pulito, mai sommato ai cicli gia' chiusi.
+    state = compute_position(
+        [
+            M("buy", quantity=Decimal("5"), price=Decimal("100"), source_type_raw="Buy trade"),
+            M("buy", quantity=Decimal("5"), price=Decimal("120"), source_type_raw="Buy trade"),
+            M("sell", quantity=Decimal("10"), price=Decimal("150")),
+            M("buy", quantity=Decimal("3"), price=Decimal("200"), source_type_raw="Savings plan execution"),
+            M("sell", quantity=Decimal("3"), price=Decimal("210")),
+            M("buy", quantity=Decimal("2"), price=Decimal("90"), source_type_raw="Buy trade"),
+        ]
+    )
+    # Solo il TERZO ciclo (2 unita' a 90) deve comparire: i primi due, gia'
+    # chiusi, non devono contribuire nulla.
+    assert state.strategy_cost == {"one_off": Decimal("180")}
+    assert sum(state.strategy_cost.values()) == state.quantity * state.average_cost
+
+
+def test_split_does_not_change_strategy_cost():
+    state = compute_position(
+        [
+            M("buy", quantity=Decimal("10"), price=Decimal("100"), source_type_raw="Buy trade"),
+            M("split", quantity=Decimal("2")),
+        ]
+    )
+    assert state.strategy_cost == {"one_off": Decimal("1000")}
+    assert sum(state.strategy_cost.values()) == state.quantity * state.average_cost
+
+
+def test_adjustment_without_prior_history_falls_back_to_other():
+    state = compute_position([M("adjustment", quantity=Decimal("100"), price=Decimal("42"))])
+    assert state.strategy_cost == {"other": Decimal("4200")}
+
+
+def test_adjustment_delta_scales_existing_strategy_cost():
+    state = compute_position(
+        [
+            M("buy", quantity=Decimal("10"), price=Decimal("100"), source_type_raw="Buy trade"),
+            M("adjustment", quantity=Decimal("-2"), price=None),
+        ]
+    )
+    assert state.strategy_cost == {"one_off": Decimal("800")}
 
 
 def test_idempotent_same_input_same_output():

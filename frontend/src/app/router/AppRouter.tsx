@@ -13,9 +13,12 @@ import { CategoriesSettingsPage } from "../../features/categories/CategoriesSett
 import { RegisterPage } from "../../features/auth/RegisterPage";
 import { DashboardPage } from "../../features/dashboard/DashboardPage";
 import { ImportsPage } from "../../features/imports/ImportsPage";
-import { InvestmentsPage } from "../../features/portfolio/InvestmentsPage";
+import { AssetDetailPage } from "../../features/portfolio/AssetDetailPage";
+import { InvestmentsOverviewPage } from "../../features/portfolio/InvestmentsOverviewPage";
+import { PortfolioDetailPage } from "../../features/portfolio/PortfolioDetailPage";
 import { RulesPage } from "../../features/rules/RulesPage";
 import { AISettingsPage } from "../../features/settings/ai/AISettingsPage";
+import { CurrencySettingsPage } from "../../features/settings/currency/CurrencySettingsPage";
 import { IntegrationsSettingsPage } from "../../features/settings/integrations/IntegrationsSettingsPage";
 import { JobsSettingsPage } from "../../features/settings/jobs/JobsSettingsPage";
 import { MarketDataSettingsPage } from "../../features/settings/market-data/MarketDataSettingsPage";
@@ -51,7 +54,9 @@ export function AppRouter() {
       <Route path="/expenses" element={<Protected><ExpensesPage /></Protected>} />
       <Route path="/income" element={<Protected><IncomePage /></Protected>} />
       <Route path="/net-worth" element={<Protected><NetWorthPage /></Protected>} />
-      <Route path="/investments" element={<Protected><InvestmentsPage /></Protected>} />
+      <Route path="/investments" element={<Protected><InvestmentsOverviewPage /></Protected>} />
+      <Route path="/investments/portfolios/:portfolioId" element={<Protected><PortfolioDetailPage /></Protected>} />
+      <Route path="/investments/assets/:assetId" element={<Protected><AssetDetailPage /></Protected>} />
       <Route path="/accounts" element={<Protected><AccountsPage /></Protected>} />
       <Route path="/accounts/:accountId" element={<Protected><AccountDetailPage /></Protected>} />
       <Route path="/transactions" element={<Protected><TransactionsPage /></Protected>} />
@@ -61,6 +66,7 @@ export function AppRouter() {
       <Route path="/settings/rules" element={<Protected><RulesPage /></Protected>} />
       <Route path="/settings/ai" element={<Protected><AISettingsPage /></Protected>} />
       <Route path="/settings/market-data" element={<Protected><MarketDataSettingsPage /></Protected>} />
+      <Route path="/settings/currency" element={<Protected><CurrencySettingsPage /></Protected>} />
       <Route path="/settings/transaction-types" element={<Protected><TransactionTypeMappingsPage /></Protected>} />
       <Route path="/settings/jobs" element={<Protected><JobsSettingsPage /></Protected>} />
       <Route

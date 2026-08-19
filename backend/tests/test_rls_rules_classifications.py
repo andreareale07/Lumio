@@ -74,8 +74,9 @@ async def _create_transaction(user_id: uuid.UUID, workspace_id: uuid.UUID, accou
                 text(
                     "INSERT INTO transactions "
                     "(workspace_id, financial_account_id, transaction_date, description_raw, "
-                    " amount, currency, direction, transaction_type) "
-                    "VALUES (:w, :a, CURRENT_DATE, 'Spesa', -10.00, 'EUR', 'debit', 'expense') "
+                    " amount, currency, direction, transaction_type, dedup_fingerprint) "
+                    "VALUES (:w, :a, CURRENT_DATE, 'Spesa', -10.00, 'EUR', 'debit', 'expense', "
+                    " 'rls-test-fingerprint') "
                     "RETURNING id"
                 ),
                 {"w": str(workspace_id), "a": str(account_id)},

@@ -3,11 +3,12 @@ import hashlib
 import io
 import logging
 import uuid
+from datetime import UTC, datetime
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +22,8 @@ from app.models.import_ import Import
 from app.models.import_mapping import ImportMapping
 from app.models.investment_transaction import InvestmentTransaction
 from app.models.transaction import Transaction
+from app.models.transaction_dedup_decision import TransactionDedupDecision
+from app.models.transaction_review_item import TransactionReviewItem
 from app.models.user import User
 from app.parsers import detect_parser
 from app.schemas.imports import (
@@ -33,13 +36,25 @@ from app.schemas.imports import (
     ImportTransactionsCountOut,
     ImportUploadResponse,
 )
+from app.schemas.transaction_review import (
+    DuplicateReviewCandidateOut,
+    DuplicateReviewDecisionRequest,
+    DuplicateReviewItemOut,
+    DuplicateReviewSummaryOut,
+)
 from app.services import job_events, upload_validation
+from app.services.ai_classification_trigger import prepare_ai_classification_trigger
 from app.services.audit_log_service import log_event
-from app.services.csv_import import MappingConfig, detect_mapping
+from app.services.classification_loader import load_pipeline_context
+from app.services.csv_import import MappingConfig, ParsedRow, collapse_whitespace, detect_mapping
 from app.services.import_paths import import_dir_prefix, original_file_path
 from app.services.position_service import recompute_position
+from app.services.system_settings_service import get_setting_value
+from app.services.transaction_persistence import finalize_prepared_transactions, prepare_transaction_row
 from app.storage import get_storage
-from app.worker.queue import enqueue_import_job
+from app.worker.queue import enqueue_classify_import_job, enqueue_import_job
+
+_NEEDS_REVIEW_THRESHOLD_KEY = "classification.needs_review_threshold"
 
 logger = logging.getLogger(__name__)
 
@@ -681,6 +696,237 @@ async def get_import_file_content(
         truncated=len(all_rows) > MAX_VIEWER_ROWS,
         total_rows=len(all_rows),
     )
+
+
+def _review_item_to_parsed_row(item: TransactionReviewItem) -> ParsedRow:
+    return ParsedRow(
+        transaction_date=item.transaction_date,
+        value_date=item.value_date,
+        description_raw=item.description_raw,
+        # description_normalized e' nullable sulla riga (mirror di
+        # Transaction) solo per dati legacy/backfill — per una review
+        # generata da questo motore e' sempre gia' valorizzata; il fallback
+        # qui e' la stessa misura di compatibilita' documentata in
+        # app.services.transaction_dedup.compute_dedup_fingerprint.
+        description_normalized=item.description_normalized or collapse_whitespace(item.description_raw),
+        amount=item.amount,
+        currency=item.currency,
+        direction=item.direction,
+        transaction_type=item.transaction_type,
+        source_type_raw=item.source_type_raw,
+        reference=item.reference,
+        balance_after=item.balance_after,
+        counterparty_name=item.counterparty_name,
+        counterparty_iban=item.counterparty_iban,
+    )
+
+
+async def _to_review_item_out(
+    db: AsyncSession, workspace_id: uuid.UUID, item: TransactionReviewItem
+) -> DuplicateReviewItemOut:
+    candidate_out: DuplicateReviewCandidateOut | None = None
+    if item.candidate_existing_transaction_id is not None:
+        candidate = await db.get(Transaction, item.candidate_existing_transaction_id)
+        if candidate is not None and candidate.workspace_id == workspace_id:
+            candidate_out = DuplicateReviewCandidateOut.model_validate(candidate)
+    return DuplicateReviewItemOut(
+        id=item.id,
+        import_id=item.import_id,
+        financial_account_id=item.financial_account_id,
+        row_index=item.row_index,
+        transaction_date=item.transaction_date,
+        description_raw=item.description_raw,
+        description_normalized=item.description_normalized,
+        amount=item.amount,
+        currency=item.currency,
+        transaction_type=item.transaction_type,
+        balance_after=item.balance_after,
+        status=item.status,
+        auto_resolved=item.auto_resolved,
+        decided_at=item.decided_at,
+        created_at=item.created_at,
+        candidate=candidate_out,
+    )
+
+
+@router.get("/{import_id}/review-items", response_model=list[DuplicateReviewItemOut])
+async def list_import_review_items(
+    import_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+    status_filter: str | None = Query(default="pending", alias="status"),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> list[DuplicateReviewItemOut]:
+    """SPEC §15/§31: elenco dei candidati ambigui di un import, con il
+    record esistente a confronto — default solo i 'pending' (cio' su cui
+    l'utente deve ancora decidere), passare `status` per vedere lo storico
+    delle voci gia' risolte (incluse quelle auto-risolte da una decisione
+    precedente)."""
+    await _get_import_or_404(db, workspace_id, import_id)
+    query = select(TransactionReviewItem).where(
+        TransactionReviewItem.workspace_id == workspace_id,
+        TransactionReviewItem.import_id == import_id,
+    )
+    if status_filter is not None:
+        query = query.where(TransactionReviewItem.status == status_filter)
+    query = query.order_by(TransactionReviewItem.row_index).limit(limit).offset(offset)
+    result = await db.execute(query)
+    items = list(result.scalars().all())
+    return [await _to_review_item_out(db, workspace_id, item) for item in items]
+
+
+@router.get("/{import_id}/review-summary", response_model=DuplicateReviewSummaryOut)
+async def get_import_review_summary(
+    import_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> DuplicateReviewSummaryOut:
+    await _get_import_or_404(db, workspace_id, import_id)
+    result = await db.execute(
+        select(TransactionReviewItem.status, func.count())
+        .where(
+            TransactionReviewItem.workspace_id == workspace_id,
+            TransactionReviewItem.import_id == import_id,
+        )
+        .group_by(TransactionReviewItem.status)
+    )
+    counts = {status_value: count for status_value, count in result.all()}
+    return DuplicateReviewSummaryOut(
+        pending=counts.get("pending", 0),
+        confirmed_new=counts.get("confirmed_new", 0),
+        confirmed_duplicate=counts.get("confirmed_duplicate", 0),
+    )
+
+
+@router.post("/{import_id}/review-items/{item_id}/decision", response_model=DuplicateReviewItemOut)
+async def decide_import_review_item(
+    import_id: uuid.UUID,
+    item_id: uuid.UUID,
+    payload: DuplicateReviewDecisionRequest,
+    user: User = Depends(get_current_user),
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> DuplicateReviewItemOut:
+    """SPEC §16/§17: 'keep_new' = "IMPORTA COMUNQUE" (i due record sono
+    transazioni distinte, si persiste la nuova con la STESSA pipeline usata
+    per le righe NEW di un import normale — vedi
+    app/services/transaction_persistence.py, verifica esplicita del piano
+    approvato §6). 'mark_duplicate' = "NON IMPORTARE" (il record scartato,
+    mai una Transaction creata). In entrambi i casi si persiste la relazione
+    in `transaction_dedup_decisions` — mai una modifica del fingerprint —
+    cosi' lo stesso caso ambiguo non viene riproposto in un futuro import.
+    """
+    import_row = await _get_import_or_404(db, workspace_id, import_id)
+    item = await db.get(TransactionReviewItem, item_id)
+    if item is None or item.workspace_id != workspace_id or item.import_id != import_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Review item not found")
+    if item.status != "pending":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Questa voce di revisione e' gia' stata decisa")
+
+    now = datetime.now(UTC)
+
+    if payload.decision == "keep_new":
+        pipeline_ctx = await load_pipeline_context(db, workspace_id)
+        needs_review_threshold = float(await get_setting_value(_NEEDS_REVIEW_THRESHOLD_KEY, 0.6))
+        prepared_row = prepare_transaction_row(
+            pipeline_ctx,
+            workspace_id=workspace_id,
+            financial_account_id=item.financial_account_id,
+            import_id=item.import_id,
+            row=_review_item_to_parsed_row(item),
+            needs_review_threshold=needs_review_threshold,
+        )
+        await finalize_prepared_transactions(db, workspace_id, item.financial_account_id, [prepared_row])
+        item.resolved_transaction_id = prepared_row.transaction.id
+        item.status = "confirmed_new"
+    else:
+        item.status = "confirmed_duplicate"
+
+    item.decided_by_user_id = user.id
+    item.decided_at = now
+
+    if item.candidate_existing_transaction_id is not None:
+        decision_value = "confirmed_distinct" if payload.decision == "keep_new" else "confirmed_duplicate"
+        existing_decision = await db.execute(
+            select(TransactionDedupDecision).where(
+                TransactionDedupDecision.workspace_id == workspace_id,
+                TransactionDedupDecision.financial_account_id == item.financial_account_id,
+                TransactionDedupDecision.existing_transaction_id == item.candidate_existing_transaction_id,
+                TransactionDedupDecision.new_fingerprint == item.new_fingerprint,
+            )
+        )
+        dedup_decision = existing_decision.scalar_one_or_none()
+        if dedup_decision is None:
+            dedup_decision = TransactionDedupDecision(
+                workspace_id=workspace_id,
+                financial_account_id=item.financial_account_id,
+                existing_transaction_id=item.candidate_existing_transaction_id,
+                new_fingerprint=item.new_fingerprint,
+                decision=decision_value,
+                decided_by_user_id=user.id,
+                source_import_id=item.import_id,
+            )
+            db.add(dedup_decision)
+            await db.flush()
+        item.dedup_decision_id = dedup_decision.id
+
+    # Contatori dell'import: update SQL atomico (mai lettura+incremento in
+    # memoria), perche' piu' voci dello stesso import possono essere decise
+    # da richieste diverse in rapida sequenza.
+    await db.execute(
+        update(Import)
+        .where(Import.id == import_id)
+        .values(
+            transactions_review_pending=Import.transactions_review_pending - 1,
+            transactions_imported=Import.transactions_imported
+            + (1 if payload.decision == "keep_new" else 0),
+            transactions_duplicate=Import.transactions_duplicate
+            + (1 if payload.decision == "mark_duplicate" else 0),
+        )
+    )
+
+    await log_event(
+        db,
+        workspace_id,
+        user.id,
+        "TRANSACTION_DEDUP_DECISION",
+        entity_type="transaction_review_item",
+        entity_id=item.id,
+        metadata={"decision": payload.decision},
+    )
+
+    # Autorevole (COUNT fresco, non un contatore decrementato in memoria):
+    # transizione ready_for_review -> completed solo quando non resta
+    # nessuna voce pending per questo import (SPEC §19).
+    remaining_result = await db.execute(
+        select(func.count())
+        .select_from(TransactionReviewItem)
+        .where(
+            TransactionReviewItem.workspace_id == workspace_id,
+            TransactionReviewItem.import_id == import_id,
+            TransactionReviewItem.status == "pending",
+        )
+    )
+    remaining_pending = remaining_result.scalar_one()
+    should_enqueue_ai_job = False
+    if remaining_pending == 0 and import_row.status == "ready_for_review":
+        import_row.status = "completed"
+        import_row.completed_at = now
+        should_enqueue_ai_job = await prepare_ai_classification_trigger(db, workspace_id, import_row)
+
+    # Costruito PRIMA del commit: `app.current_user_id` e' impostato solo
+    # per la transazione corrente (SET LOCAL, vedi app/db/rls.py) e scade al
+    # commit — una query RLS-dipendente (il fetch del candidato qui sotto)
+    # eseguita dopo girerebbe senza identita' impostata.
+    response = await _to_review_item_out(db, workspace_id, item)
+
+    await db.commit()
+
+    if should_enqueue_ai_job:
+        await enqueue_classify_import_job(import_row.id, import_row.created_by_user_id)
+
+    return response
 
 
 @router.get("/{import_id}/events")

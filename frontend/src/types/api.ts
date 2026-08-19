@@ -20,6 +20,28 @@ export interface Me extends User {
    * direzione (nav, pagina, endpoint) — l'istanza gira con
    * GOOGLE_ENABLED=false, stato di default. */
   google_enabled: boolean;
+  /** Sistema di valute: valuta di riferimento del workspace, letta una
+   * volta al login/refresh (stesso pattern di google_enabled) — default
+   * dei form di creazione conto/asset, mai il valore convertito al posto
+   * dell'originale (vedi CurrencyPicker). */
+  base_currency: string;
+}
+
+/** Elenco valute (di sistema + eventuali custom del workspace) — l'utente
+ * sceglie da qui, non digita piu' un codice a 3 lettere a mano. */
+export interface Currency {
+  code: string;
+  name: string;
+  symbol: string;
+  decimal_digits: number;
+  is_system: boolean;
+}
+
+export interface Workspace {
+  id: Uuid;
+  name: string;
+  base_currency: string;
+  created_at: IsoDateTime;
 }
 
 export interface TokenResponse {
@@ -164,6 +186,31 @@ export interface RuleSuggestion {
   transaction_ids: Uuid[];
 }
 
+export const RECLASSIFICATION_SCOPES = ["uncategorized", "all_except_manual"] as const;
+export type ReclassificationScope = (typeof RECLASSIFICATION_SCOPES)[number];
+
+export interface ReclassificationBreakdownItem {
+  category_id: Uuid;
+  category_code: string;
+  category_name: string;
+  count: number;
+  examples: string[];
+}
+
+/** Anteprima sincrona (nessuna scrittura) di `POST /classification/reclassify`
+ * — serve a mostrare l'impatto prima di lanciare il job vero, che può
+ * scorrere migliaia di transazioni. */
+export interface ReclassificationPreview {
+  scope: ReclassificationScope;
+  total_candidates: number;
+  would_change: number;
+  breakdown: ReclassificationBreakdownItem[];
+}
+
+export interface ReclassifyTriggered {
+  job_id: string;
+}
+
 export const AI_PROVIDERS = ["ollama", "openai", "anthropic", "custom"] as const;
 export type AIProvider = (typeof AI_PROVIDERS)[number];
 
@@ -223,6 +270,10 @@ export type ImportStatus =
   | "queued"
   | "processing"
   | "parsing"
+  // Transaction Deduplication Engine: il job ha trovato candidati ambigui
+  // (stesso conto/data/importo/tipo, descrizione diversa) e attende che
+  // l'utente decida — vedi useImportReviewItems/useDecideImportReviewItem.
+  | "ready_for_review"
   | "completed"
   | "failed"
   | "cancelled";
@@ -281,6 +332,8 @@ export interface ImportRecord {
   period_end: IsoDate | null;
   transactions_found: number;
   transactions_imported: number;
+  transactions_duplicate: number;
+  transactions_review_pending: number;
   error_message: string | null;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
@@ -344,6 +397,7 @@ export interface AnalyticsSummary {
   previous_income: string;
   previous_expenses: string;
   previous_net_cash_flow: string;
+  has_unconverted_rows: boolean;
 }
 
 export interface AccountBalance {
@@ -361,6 +415,7 @@ export interface AnalyticsBalances {
   debt_total: string;
   investment_total: string;
   has_investments: boolean;
+  has_unconverted_rows: boolean;
 }
 
 export interface BalanceHistoryPoint {
@@ -435,6 +490,11 @@ export interface Asset {
   notes: string | null;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
+  /** Nome "pulito" secondo il market data provider (es. "Apple Inc."),
+   * dalla cache di arricchimento (Step 3) — `null` finche' il dettaglio
+   * dell'asset non e' mai stato aperto. MAI il dato grezzo sovrascritto:
+   * usa `display_name ?? name` in UI, mai modificare `name` stesso. */
+  display_name: string | null;
 }
 
 export interface Portfolio {
@@ -550,6 +610,45 @@ export interface AssetPrice {
   created_at: IsoDateTime;
 }
 
+export const HISTORY_PRESETS = ["1G", "1S", "1M", "3M", "6M", "1A", "5A", "Max"] as const;
+export type HistoryPreset = (typeof HISTORY_PRESETS)[number];
+
+/** Sottoinsieme di `HISTORY_PRESETS` per l'andamento di un intero ambito
+ * investimenti (`PortfolioSummaryBlock`) — mai "1G"/"1S": non esistono
+ * quotazioni intraday per un aggregato multi-asset, solo prezzi giornalieri
+ * ricostruiti dal libro movimenti (`compute_historical_series`). */
+export const PORTFOLIO_HISTORY_PRESETS = ["1M", "3M", "6M", "1A", "5A", "Max"] as const;
+export type PortfolioHistoryPreset = (typeof PORTFOLIO_HISTORY_PRESETS)[number];
+
+export interface PricePoint {
+  at: IsoDateTime;
+  price: string;
+}
+
+/** Risposta di `GET /assets/{id}/price-history` — `supports_history: false`
+ * ("questo provider non fa storico") e' distinto da `points: []` ("il
+ * provider lo supporta ma non ha dati per questo range"). */
+export interface PriceHistory {
+  preset: HistoryPreset;
+  supports_history: boolean;
+  currency: string;
+  points: PricePoint[];
+}
+
+export const DISTRIBUTION_POLICIES = ["accumulating", "distributing"] as const;
+export type DistributionPolicy = (typeof DISTRIBUTION_POLICIES)[number];
+
+/** Arricchimento best-effort (Step 3) — ogni campo puo' essere `null` (dato
+ * non disponibile, mai mostrato come "N/A"). `fetched_at: null` significa
+ * "nessun dato mai ottenuto per questo asset". */
+export interface AssetProfile {
+  issuer: string | null;
+  category: string | null;
+  aum: string | null;
+  distribution_policy: DistributionPolicy | null;
+  fetched_at: IsoDateTime | null;
+}
+
 export interface PortfolioValuation {
   currency: string;
   as_of: IsoDate;
@@ -559,6 +658,28 @@ export interface PortfolioValuation {
   realized_pl: string;
   has_market_data: boolean;
   has_holdings: boolean;
+  has_missing_fx_rate: boolean;
+}
+
+/** Rendimento per singolo asset (card "Rendimento" del dettaglio), sempre
+ * convertito nella valuta richiesta anche quando prezzo e posizione sono
+ * quotati in valute diverse — vedi GET /assets/{id}/valuation. */
+export interface AssetValuation {
+  currency: string;
+  quantity: string;
+  cost_basis: string;
+  market_value: string;
+  unrealized_pl: string;
+  realized_pl: string;
+  has_market_data: boolean;
+  has_missing_fx_rate: boolean;
+  // Prezzo per unita' convertito in `currency` (null se nessun prezzo o
+  // tasso disponibile) + l'originale del provider, sempre presente quando
+  // un prezzo esiste — mai perso dietro la conversione (mostrato al
+  // passaggio del mouse sul prezzo convertito).
+  price: string | null;
+  price_native: string | null;
+  price_native_currency: string | null;
 }
 
 export interface AllocationItem {
@@ -572,9 +693,14 @@ export interface PortfolioAllocation {
   currency: string;
   as_of: IsoDate;
   has_market_data: boolean;
+  has_missing_fx_rate: boolean;
   by_asset_type: AllocationItem[];
   by_asset: AllocationItem[];
   by_account: AllocationItem[];
+  /** Sistema di valute: ogni voce e' una valuta ORIGINALE (`key`/`label` =
+   * codice, es. "USD"), ma `value` e' gia' convertito in `currency` — la
+   * somma delle fette torna col totale aggregato. */
+  by_currency: AllocationItem[];
   by_strategy: AllocationItem[];
 }
 
@@ -590,6 +716,54 @@ export interface PortfolioSnapshotPoint {
 export interface PortfolioPerformance {
   currency: string;
   points: PortfolioSnapshotPoint[];
+}
+
+/** Riepilogo di un singolo Portfolio (lista della Panoramica Investimenti,
+ * redesign) — una riga per Portfolio, mai una chiamata separata per
+ * ciascuno. */
+export interface PortfolioSummaryItem {
+  portfolio_id: Uuid;
+  name: string;
+  account_count: number;
+  currency: string;
+  market_value: string;
+  cost_basis: string;
+  unrealized_pl: string;
+  has_market_data: boolean;
+  has_holdings: boolean;
+}
+
+export interface PortfolioSummaryList {
+  as_of: IsoDate;
+  items: PortfolioSummaryItem[];
+}
+
+/** Valore attuale e rendimento per SINGOLA posizione (tabella Posizioni,
+ * redesign) — a differenza del calcolo client-side precedente, sempre
+ * corretto anche quando prezzo e posizione sono in valute diverse. */
+export interface PositionValuation {
+  position_id: Uuid;
+  asset_id: Uuid;
+  asset_label: string;
+  financial_account_id: Uuid;
+  account_label: string;
+  quantity: string;
+  average_cost: string;
+  currency: string;
+  currency_native: string;
+  cost_basis: string;
+  market_value: string;
+  unrealized_pl: string;
+  realized_pl: string;
+  has_market_data: boolean;
+}
+
+export interface PortfolioPositions {
+  currency: string;
+  as_of: IsoDate;
+  has_market_data: boolean;
+  has_missing_fx_rate: boolean;
+  positions: PositionValuation[];
 }
 
 export interface NetWorthSnapshotPoint {

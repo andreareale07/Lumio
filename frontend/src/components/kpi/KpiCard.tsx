@@ -1,7 +1,7 @@
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 import { Card } from "../ui/Card";
-import { formatMoney, formatPercent } from "../../lib/format";
+import { formatMoney, formatPercent, formatSignedMoney } from "../../lib/format";
 import { Sparkline } from "../charts/Sparkline";
 
 interface KpiCardProps {
@@ -17,6 +17,11 @@ interface KpiCardProps {
    * KPI ha oggi un endpoint che ne calcoli lo storico (es. Investimenti,
    * Debiti), meglio ometterlo che inventare un trend con un solo punto. */
   sparklineValues?: number[];
+  /** Mostra il segno esplicito (+/-) sul valore principale, mai affidato
+   * solo al colore (SPEC_FE §66) — per KPI che sono gia' una differenza
+   * (Rendimento, Utile realizzato), non un totale assoluto. Default
+   * `false`, comportamento invariato per ogni chiamante esistente. */
+  signed?: boolean;
   onClick?: () => void;
 }
 
@@ -29,6 +34,7 @@ export function KpiCard({
   comparisonLabel,
   positiveIsGood = true,
   sparklineValues,
+  signed = false,
   onClick,
 }: KpiCardProps) {
   const current = Number(value);
@@ -44,7 +50,9 @@ export function KpiCard({
         <span className="text-sm text-text-muted">{title}</span>
         {sparklineValues && <Sparkline values={sparklineValues} tone={sparklineTone} />}
       </div>
-      <span className="font-numeric text-2xl font-semibold text-text">{formatMoney(current, currency)}</span>
+      <span className="font-numeric text-2xl font-semibold text-text">
+        {signed ? formatSignedMoney(current, currency) : formatMoney(current, currency)}
+      </span>
       {trend !== "flat" && change !== undefined && (
         <div className="flex flex-wrap items-center gap-1 text-sm">
           <span className={`flex items-center gap-0.5 ${isGood ? "text-success" : "text-danger"}`}>

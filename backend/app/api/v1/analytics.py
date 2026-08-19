@@ -82,6 +82,7 @@ async def get_summary(
         previous_income=result["previous_income"],
         previous_expenses=result["previous_expenses"],
         previous_net_cash_flow=result["previous_net_cash_flow"],
+        has_unconverted_rows=result["has_unconverted_rows"],
     )
 
 
@@ -113,6 +114,7 @@ async def get_balances(
         debt_total=balances.debt_total,
         investment_total=balances.investment_total,
         has_investments=balances.has_investments,
+        has_unconverted_rows=balances.has_unconverted_rows,
     )
 
 
