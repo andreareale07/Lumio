@@ -3,5 +3,13 @@
     "it": "Italian",
     "en": "English",
     "toggle": "Change language"
-  }
+  },
+  "theme": {
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+    "label": "Theme: {{value}}"
+  },
+  "logout": "Log out",
+  "loading": "Loading…"
 }

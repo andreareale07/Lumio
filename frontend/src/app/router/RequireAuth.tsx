@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../providers/AuthProvider";
 
@@ -7,11 +8,12 @@ import { useAuth } from "../providers/AuthProvider";
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { status } = useAuth();
   const location = useLocation();
+  const { t } = useTranslation("common");
 
   if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg text-text-muted">
-        Caricamento…
+        {t("loading")}
       </div>
     );
   }

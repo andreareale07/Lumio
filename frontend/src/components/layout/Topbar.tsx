@@ -41,8 +41,8 @@ export function Topbar() {
         <button
           type="button"
           onClick={cycleTheme}
-          aria-label={`Tema: ${theme}`}
-          title={`Tema: ${theme}`}
+          aria-label={t("theme.label", { value: t(`theme.${theme}`) })}
+          title={t("theme.label", { value: t(`theme.${theme}`) })}
           className="rounded-md p-2 text-text-muted hover:bg-surface-hover hover:text-text"
         >
           <ThemeIcon className="h-4 w-4" />
@@ -51,8 +51,8 @@ export function Topbar() {
         <button
           type="button"
           onClick={() => void logout()}
-          aria-label="Esci"
-          title="Esci"
+          aria-label={t("logout")}
+          title={t("logout")}
           className="rounded-md p-2 text-text-muted hover:bg-surface-hover hover:text-text"
         >
           <LogOut className="h-4 w-4" />
