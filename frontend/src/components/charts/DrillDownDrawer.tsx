@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Drawer } from "../ui/Drawer";
 import { Skeleton } from "../ui/Skeleton";
 import { formatDate, formatMoney, formatPercent, formatSignedMoney } from "../../lib/format";
+import { calculatePeriodComparison } from "../../lib/period";
 import { AreaTrendChart, type TrendPoint } from "./AreaTrendChart";
 
 export interface DrillDownBreakdownItem {
@@ -73,10 +74,11 @@ export function DrillDownDrawer({
   viewAllHref,
   viewAllLabel = "Vedi tutte le transazioni",
 }: DrillDownDrawerProps) {
-  const change =
-    comparison && comparison.previous !== 0 ? (comparison.current - comparison.previous) / Math.abs(comparison.previous) : undefined;
-  const isIncrease = change !== undefined && change > 0;
-  const isGoodChange = comparison && change !== undefined && change !== 0 ? (comparison.higherIsGood ? isIncrease : !isIncrease) : null;
+  const { change, isGood: isGoodChange } = calculatePeriodComparison(
+    comparison?.current ?? 0,
+    comparison?.previous,
+    comparison?.higherIsGood ?? true,
+  );
 
   const maxBreakdownValue = breakdown?.reduce((max, item) => Math.max(max, item.value), 0) ?? 0;
 

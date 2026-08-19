@@ -1,7 +1,12 @@
 import type { AnalyticsGranularity } from "../../types/api";
+import { quarterOrSemesterLabel } from "../../lib/period";
 
 /** Etichetta leggibile di un bucket temporale per assi/tabelle dei grafici,
- * coerente con la granularita' scelta (SPEC_FE §67 Charts). */
+ * coerente con la granularita' scelta (SPEC_FE §67 Charts). Resta piu'
+ * compatta di `period.ts::periodLabel` (usata dal navigatore periodo) per
+ * giorno/settimana/mese — stesso spazio limitato di un'etichetta d'asse —
+ * ma condivide con essa il calcolo di trimestre/semestre, identico nelle
+ * due formattazioni (SPEC_FE_REDESIGN §21). */
 export function formatBucketLabel(period: string, granularity: AnalyticsGranularity): string {
   const date = new Date(`${period}T00:00:00`);
   switch (granularity) {
@@ -11,9 +16,8 @@ export function formatBucketLabel(period: string, granularity: AnalyticsGranular
     case "month":
       return new Intl.DateTimeFormat("it-IT", { month: "short", year: "numeric" }).format(date);
     case "quarter":
-      return `T${Math.floor(date.getMonth() / 3) + 1} ${date.getFullYear()}`;
     case "semester":
-      return `S${date.getMonth() < 6 ? 1 : 2} ${date.getFullYear()}`;
+      return quarterOrSemesterLabel(granularity, date);
     case "year":
       return String(date.getFullYear());
   }

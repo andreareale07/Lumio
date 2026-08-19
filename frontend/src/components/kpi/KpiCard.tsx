@@ -2,6 +2,7 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 import { Card } from "../ui/Card";
 import { formatMoney, formatPercent, formatSignedMoney } from "../../lib/format";
+import { calculatePeriodComparison } from "../../lib/period";
 import { Sparkline } from "../charts/Sparkline";
 
 interface KpiCardProps {
@@ -39,9 +40,7 @@ export function KpiCard({
 }: KpiCardProps) {
   const current = Number(value);
   const previous = previousValue !== undefined ? Number(previousValue) : undefined;
-  const change = previous !== undefined && previous !== 0 ? (current - previous) / Math.abs(previous) : undefined;
-  const trend: "up" | "down" | "flat" = !change ? "flat" : change > 0 ? "up" : "down";
-  const isGood = trend === "flat" ? null : positiveIsGood ? trend === "up" : trend === "down";
+  const { change, trend, isGood } = calculatePeriodComparison(current, previous, positiveIsGood);
   const sparklineTone = trend === "flat" ? "primary" : isGood ? "success" : "danger";
 
   const content = (

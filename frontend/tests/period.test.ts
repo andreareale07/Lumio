@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   bucketStart,
+  calculatePeriodComparison,
   migrateLegacyPeriodParams,
   nextBucketStart,
   periodForAnchor,
@@ -186,6 +187,58 @@ describe("migrateLegacyPeriodParams", () => {
     expect(
       migrateLegacyPeriodParams(new URLSearchParams("period=custom&from=2026-01-01&to=2026-01-31"), TODAY),
     ).toEqual({ mode: "custom", from: "2026-01-01", to: "2026-01-31" });
+  });
+});
+
+describe("calculatePeriodComparison", () => {
+  // Rework Temporal (SPEC_FE_REDESIGN §16): logica prima duplicata in
+  // KpiCard.tsx e DrillDownDrawer.tsx, ora centralizzata qui.
+  it("aumento su una metrica dove salire e' un bene (es. Entrate) e' positivo", () => {
+    expect(calculatePeriodComparison(120, 100, true)).toEqual({
+      change: 0.2,
+      trend: "up",
+      isGood: true,
+    });
+  });
+
+  it("aumento su una metrica dove salire e' un male (es. Spese) e' negativo", () => {
+    expect(calculatePeriodComparison(120, 100, false)).toEqual({
+      change: 0.2,
+      trend: "up",
+      isGood: false,
+    });
+  });
+
+  it("diminuzione inverte trend e giudizio rispetto ad un aumento", () => {
+    expect(calculatePeriodComparison(80, 100, true)).toEqual({
+      change: -0.2,
+      trend: "down",
+      isGood: false,
+    });
+  });
+
+  it("nessun valore precedente: nessun confronto possibile", () => {
+    expect(calculatePeriodComparison(100, undefined, true)).toEqual({
+      change: undefined,
+      trend: "flat",
+      isGood: null,
+    });
+  });
+
+  it("valore precedente zero: confronto contro zero non e' una percentuale sensata", () => {
+    expect(calculatePeriodComparison(100, 0, true)).toEqual({
+      change: undefined,
+      trend: "flat",
+      isGood: null,
+    });
+  });
+
+  it("valore invariato: variazione zero, nessun giudizio", () => {
+    expect(calculatePeriodComparison(100, 100, true)).toEqual({
+      change: 0,
+      trend: "flat",
+      isGood: null,
+    });
   });
 });
 

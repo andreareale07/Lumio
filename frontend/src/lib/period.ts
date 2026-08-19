@@ -2,6 +2,8 @@
  * unit-testabile: nessuna dipendenza da React/router. `today` e'
  * parametrizzato per i test — di default e' "adesso". */
 
+import type { AnalyticsGranularity } from "../types/api";
+
 export interface Period {
   date_from: string;
   date_to: string;
@@ -46,7 +48,11 @@ export const DEFAULT_PERIOD_PRESET: PeriodPresetKey = "this_month";
 // alla volta (vedi `usePeriodNavigator.ts`). I preset restano per la
 // migrazione di eventuali URL/bookmark vecchi (`migrateLegacyPeriodParams`).
 
-export type Granularity = "day" | "week" | "month" | "quarter" | "semester" | "year";
+// Alias del tipo canonico del contratto API (`types/api.ts`, mirror degli
+// schemi Pydantic) invece di una seconda dichiarazione con gli stessi
+// letterali — rework Navigation/Temporal (SPEC_FE_REDESIGN §21), evita che
+// le due liste possano divergere in silenzio.
+export type Granularity = AnalyticsGranularity;
 
 export const GRANULARITY_ORDER: Granularity[] = ["day", "week", "month", "quarter", "semester", "year"];
 
@@ -184,6 +190,17 @@ const MONTH_YEAR_FORMAT = new Intl.DateTimeFormat("it-IT", { month: "long", year
 const DAY_MONTH_FORMAT = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short" });
 const DAY_MONTH_YEAR_FORMAT = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", year: "numeric" });
 
+/** "Tn AAAA"/"Sn AAAA" — l'unica parte di formattazione IDENTICA fra
+ * `periodLabel` (etichetta piena del navigatore) e
+ * `chartData.ts::formatBucketLabel` (etichetta compatta per gli assi dei
+ * grafici, SPEC_FE_REDESIGN §21): per giorno/settimana/mese le due restano
+ * deliberatamente diverse (piena vs compatta), qui si condivide solo il
+ * calcolo che sarebbe altrimenti copiato identico in due file. */
+export function quarterOrSemesterLabel(granularity: "quarter" | "semester", d: Date): string {
+  if (granularity === "quarter") return `T${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
+  return `S${d.getMonth() < 6 ? 1 : 2} ${d.getFullYear()}`;
+}
+
 /** Etichetta leggibile del bucket corrente, coerente con lo stile gia' in
  * uso per gli assi dei grafici (`chartData.ts::formatBucketLabel`, minuscolo
  * per i nomi di mese come da convenzione italiana). */
@@ -197,9 +214,8 @@ export function periodLabel(granularity: Granularity, anchor: Date): string {
     case "month":
       return MONTH_YEAR_FORMAT.format(start);
     case "quarter":
-      return `T${Math.floor(start.getMonth() / 3) + 1} ${start.getFullYear()}`;
     case "semester":
-      return `S${start.getMonth() < 6 ? 1 : 2} ${start.getFullYear()}`;
+      return quarterOrSemesterLabel(granularity, start);
     case "year":
       return String(start.getFullYear());
   }
@@ -274,4 +290,31 @@ export function migrateLegacyPeriodParams(
       return { mode: "custom", from: resolved.date_from, to: resolved.date_to };
     }
   }
+}
+
+export interface PeriodComparison {
+  /** Variazione relativa (`current`/`previous` - 1), `undefined` se manca
+   * un valore precedente o e' zero (un confronto contro zero non e' una
+   * percentuale sensata). */
+  change: number | undefined;
+  trend: "up" | "down" | "flat";
+  /** `null` quando `trend` e' "flat" (nessuna direzione da giudicare). */
+  isGood: boolean | null;
+}
+
+/** "vs periodo precedente" (SPEC_FE_REDESIGN §16), centralizzato invece di
+ * essere ricalcolato in ogni componente che mostra un confronto — prima
+ * duplicato quasi identico in `KpiCard.tsx` e `DrillDownDrawer.tsx`.
+ * `higherIsGood` distingue una metrica dove salire e' un bene (Entrate,
+ * Cash Flow) da una dove salire e' un male (Spese): determina solo il
+ * colore/giudizio, mai la direzione della variazione stessa. */
+export function calculatePeriodComparison(
+  current: number,
+  previous: number | undefined,
+  higherIsGood: boolean,
+): PeriodComparison {
+  const change = previous !== undefined && previous !== 0 ? (current - previous) / Math.abs(previous) : undefined;
+  const trend: "up" | "down" | "flat" = !change ? "flat" : change > 0 ? "up" : "down";
+  const isGood = trend === "flat" ? null : higherIsGood ? trend === "up" : trend === "down";
+  return { change, trend, isGood };
 }
