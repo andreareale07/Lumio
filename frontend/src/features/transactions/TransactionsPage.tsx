@@ -16,12 +16,13 @@ import { formatDate, formatSignedMoney } from "../../lib/format";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { TRANSACTION_TYPES, type Transaction } from "../../types/api";
 import { useTransactionReviewSummary, useTransactions } from "./api";
-import { TRANSACTION_TYPE_LABELS } from "./labels";
+import { useTransactionTypeLabel } from "./labels";
 import { TransactionDetailDrawer } from "./TransactionDetailDrawer";
 
 const PAGE_SIZE = 25;
 
 export function TransactionsPage() {
+  const transactionTypeLabel = useTransactionTypeLabel();
   const [searchParams, setSearchParams] = useSearchParams();
   const [offset, setOffset] = useState(0);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
@@ -129,7 +130,7 @@ export function TransactionsPage() {
           <option value="">Tutti i tipi</option>
           {TRANSACTION_TYPES.map((type) => (
             <option key={type} value={type}>
-              {TRANSACTION_TYPE_LABELS[type]}
+              {transactionTypeLabel(type)}
             </option>
           ))}
         </Select>
@@ -193,7 +194,7 @@ export function TransactionsPage() {
                         {transaction.needs_review && <Badge tone="warning">da verificare</Badge>}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-text-muted">{TRANSACTION_TYPE_LABELS[transaction.transaction_type]}</td>
+                    <td className="px-3 py-2 text-text-muted">{transactionTypeLabel(transaction.transaction_type)}</td>
                     <td className="font-numeric px-3 py-2 text-right text-text">
                       {formatSignedMoney(transaction.amount, transaction.currency)}
                     </td>

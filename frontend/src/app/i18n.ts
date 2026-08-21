@@ -2,9 +2,11 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
 import commonEn from "../locales/en/common.json";
+import enumsEn from "../locales/en/enums.json";
 import navigationEn from "../locales/en/navigation.json";
 import settingsEn from "../locales/en/settings.json";
 import commonIt from "../locales/it/common.json";
+import enumsIt from "../locales/it/enums.json";
 import navigationIt from "../locales/it/navigation.json";
 import settingsIt from "../locales/it/settings.json";
 
@@ -22,8 +24,8 @@ const STORAGE_KEY = "lumio-locale";
 // lazy-loading: "valutare lazy loading... se realmente necessario", non lo
 // e' oggi per un'app personale — SPEC_FE_REDESIGN §31).
 const resources = {
-  it: { common: commonIt, navigation: navigationIt, settings: settingsIt },
-  en: { common: commonEn, navigation: navigationEn, settings: settingsEn },
+  it: { common: commonIt, enums: enumsIt, navigation: navigationIt, settings: settingsIt },
+  en: { common: commonEn, enums: enumsEn, navigation: navigationEn, settings: settingsEn },
 };
 
 function readStoredLocale(): SupportedLocale | null {
@@ -46,7 +48,10 @@ void i18n.use(initReactI18next).init({
   lng: readStoredLocale() ?? detectBrowserLocale(),
   fallbackLng: DEFAULT_LOCALE,
   supportedLngs: SUPPORTED_LOCALES,
-  ns: ["common", "navigation", "settings"],
+  // "enums": un solo posto per le etichette degli enum del backend
+  // (SPEC_FE_REDESIGN §27), condiviso da tutte le feature che mostrano
+  // lo stesso enum invece di una mappa hardcoded per feature.
+  ns: ["common", "enums", "navigation", "settings"],
   defaultNS: "common",
   interpolation: { escapeValue: false },
   // In sviluppo una translation key mancante deve essere facilmente

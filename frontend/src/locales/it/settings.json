@@ -19,7 +19,29 @@
     "transactionTypes": {
       "label": "Tipi di transazione",
       "description": "Mappa le etichette grezze del tuo estratto conto sui tipi di transazione di Lumio.",
-      "pageDescription": "Per ogni etichetta grezza usata dal tuo estratto conto (es. \"Bonifico\"), scegli qui con quale tipo Lumio la deve trattare. Il cambiamento si applica anche alle transazioni già importate — tranne quelle che hai già corretto a mano, che restano intatte."
+      "pageDescription": "Per ogni etichetta grezza usata dal tuo estratto conto (es. \"Bonifico\"), scegli qui con quale tipo Lumio la deve trattare. Il cambiamento si applica anche alle transazioni già importate — tranne quelle che hai già corretto a mano, che restano intatte.",
+      "page": {
+        "parsersError": "Non siamo riusciti a caricare i parser.",
+        "labelsError": "Non siamo riusciti a caricare le etichette.",
+        "parserSelect": "Parser",
+        "noParsers": {
+          "title": "Nessuna etichetta ancora",
+          "description": "Questa pagina si popola dopo il primo import di un estratto conto PDF (es. Trade Republic)."
+        },
+        "noLabels": {
+          "title": "Nessuna etichetta osservata",
+          "description": "Nessuna transazione importata con questo parser ha ancora un'etichetta grezza."
+        },
+        "overrideActive": "Override attivo",
+        "removeOverride": "Rimuovi override",
+        "typeFor": "Tipo per \"{{label}}\"",
+        "currentSummary_one": "{{count}} transazione · attualmente {{summary}}",
+        "currentSummary_other": "{{count}} transazioni · attualmente {{summary}}",
+        "reapplied_one": "{{count}} transazione aggiornata.",
+        "reapplied_other": "{{count}} transazioni aggiornate.",
+        "reappliedWithSkipped_one": "{{count}} transazione aggiornata, {{skipped}} lasciate intatte perché modificate a mano.",
+        "reappliedWithSkipped_other": "{{count}} transazioni aggiornate, {{skipped}} lasciate intatte perché modificate a mano."
+      }
     },
     "currency": {
       "label": "Valuta",

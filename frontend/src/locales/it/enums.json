@@ -1,0 +1,14 @@
+{
+  "transactionType": {
+    "expense": "Spesa",
+    "income": "Entrata",
+    "transfer": "Trasferimento",
+    "investment": "Investimento",
+    "dividend": "Dividendo",
+    "interest": "Interesse",
+    "fee": "Commissione",
+    "tax": "Tassa",
+    "refund": "Rimborso",
+    "adjustment": "Rettifica"
+  }
+}

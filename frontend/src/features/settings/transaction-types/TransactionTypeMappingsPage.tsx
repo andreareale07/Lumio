@@ -9,7 +9,7 @@ import { EmptyState } from "../../../components/ui/EmptyState";
 import { ErrorState } from "../../../components/ui/ErrorState";
 import { Select } from "../../../components/ui/Select";
 import { SkeletonRows } from "../../../components/ui/Skeleton";
-import { TRANSACTION_TYPE_LABELS } from "../../transactions/labels";
+import { useTransactionTypeLabel } from "../../transactions/labels";
 import { TRANSACTION_TYPES, type TransactionType, type TransactionTypeLabel } from "../../../types/api";
 import { useDeleteTransactionTypeMapping, useTransactionTypeLabels, useUpsertTransactionTypeMapping, useUsedParserTypes } from "./api";
 import { parserTypeLabel } from "./labels";
@@ -42,20 +42,20 @@ export function TransactionTypeMappingsPage() {
 
       {isLoading && <SkeletonRows rows={3} />}
       {isError && (
-        <ErrorState message="Non siamo riusciti a caricare i parser." onRetry={() => void refetch()} />
+        <ErrorState message={t("items.transactionTypes.page.parsersError")} onRetry={() => void refetch()} />
       )}
 
       {!isLoading && !isError && parserTypes && parserTypes.length === 0 && (
         <EmptyState
           icon={Tags}
-          title="Nessuna etichetta ancora"
-          description="Questa pagina si popola dopo il primo import di un estratto conto PDF (es. Trade Republic)."
+          title={t("items.transactionTypes.page.noParsers.title")}
+          description={t("items.transactionTypes.page.noParsers.description")}
         />
       )}
 
       {!isLoading && !isError && parserTypes && parserTypes.length > 1 && (
         <Select
-          label="Parser"
+          label={t("items.transactionTypes.page.parserSelect")}
           value={selectedParser ?? ""}
           onChange={(e) => setSelectedParser(e.target.value)}
         >
@@ -73,18 +73,19 @@ export function TransactionTypeMappingsPage() {
 }
 
 function LabelsList({ parserType }: { parserType: string }) {
+  const { t } = useTranslation("settings");
   const { data: labels, isLoading, isError, refetch } = useTransactionTypeLabels(parserType);
 
   if (isLoading) return <SkeletonRows rows={3} />;
   if (isError) {
-    return <ErrorState message="Non siamo riusciti a caricare le etichette." onRetry={() => void refetch()} />;
+    return <ErrorState message={t("items.transactionTypes.page.labelsError")} onRetry={() => void refetch()} />;
   }
   if (!labels || labels.length === 0) {
     return (
       <EmptyState
         icon={Tags}
-        title="Nessuna etichetta osservata"
-        description="Nessuna transazione importata con questo parser ha ancora un'etichetta grezza."
+        title={t("items.transactionTypes.page.noLabels.title")}
+        description={t("items.transactionTypes.page.noLabels.description")}
       />
     );
   }
@@ -99,6 +100,8 @@ function LabelsList({ parserType }: { parserType: string }) {
 }
 
 function LabelRow({ parserType, label }: { parserType: string; label: TransactionTypeLabel }) {
+  const { t } = useTranslation(["settings", "common"]);
+  const transactionTypeLabel = useTransactionTypeLabel();
   const upsert = useUpsertTransactionTypeMapping(parserType);
   const remove = useDeleteTransactionTypeMapping(parserType);
   const [selectedType, setSelectedType] = useState<TransactionType>(
@@ -109,11 +112,16 @@ function LabelRow({ parserType, label }: { parserType: string; label: Transactio
   const onSave = async () => {
     setResultMessage(null);
     const result = await upsert.mutateAsync({ sourceTypeRaw: label.source_type_raw, transactionType: selectedType });
+    // Due frasi complete invece di un suffisso concatenato: il numero di
+    // transazioni lasciate intatte cambia la struttura della frase, non solo
+    // una coda appiccicata alla fine.
     setResultMessage(
-      `${result.reapply.updated} transazioni aggiornate` +
-        (result.reapply.skipped > 0
-          ? `, ${result.reapply.skipped} lasciate intatte perché modificate a mano.`
-          : "."),
+      result.reapply.skipped > 0
+        ? t("items.transactionTypes.page.reappliedWithSkipped", {
+            count: result.reapply.updated,
+            skipped: result.reapply.skipped,
+          })
+        : t("items.transactionTypes.page.reapplied", { count: result.reapply.updated }),
     );
   };
 
@@ -123,7 +131,7 @@ function LabelRow({ parserType, label }: { parserType: string; label: Transactio
   };
 
   const currentSummary = label.current_types
-    .map((tc) => `${TRANSACTION_TYPE_LABELS[tc.transaction_type]} (${tc.count})`)
+    .map((tc) => `${transactionTypeLabel(tc.transaction_type)} (${tc.count})`)
     .join(", ");
 
   return (
@@ -132,30 +140,33 @@ function LabelRow({ parserType, label }: { parserType: string; label: Transactio
         <div>
           <p className="font-medium text-text">{label.source_type_raw}</p>
           <p className="text-sm text-text-muted">
-            {label.total_count} transazioni · attualmente {currentSummary}
+            {t("items.transactionTypes.page.currentSummary", {
+              count: label.total_count,
+              summary: currentSummary,
+            })}
           </p>
         </div>
-        {label.override && <Badge tone="primary">Override attivo</Badge>}
+        {label.override && <Badge tone="primary">{t("items.transactionTypes.page.overrideActive")}</Badge>}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <Select
           value={selectedType}
           onChange={(e) => setSelectedType(e.target.value as TransactionType)}
-          aria-label={`Tipo per "${label.source_type_raw}"`}
+          aria-label={t("items.transactionTypes.page.typeFor", { label: label.source_type_raw })}
         >
           {TRANSACTION_TYPES.map((type) => (
             <option key={type} value={type}>
-              {TRANSACTION_TYPE_LABELS[type]}
+              {transactionTypeLabel(type)}
             </option>
           ))}
         </Select>
         <Button size="sm" loading={upsert.isPending} onClick={() => void onSave()}>
-          Salva
+          {t("common:actions.save")}
         </Button>
         {label.override && (
           <Button size="sm" variant="ghost" loading={remove.isPending} onClick={() => void onRemove()}>
-            Rimuovi override
+            {t("items.transactionTypes.page.removeOverride")}
           </Button>
         )}
       </div>

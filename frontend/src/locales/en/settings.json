@@ -19,7 +19,29 @@
     "transactionTypes": {
       "label": "Transaction types",
       "description": "Map the raw labels from your bank statement to Lumio's transaction types.",
-      "pageDescription": "For each raw label used by your bank statement (e.g. \"Transfer\"), choose here which type Lumio should treat it as. The change also applies to already-imported transactions — except the ones you've already corrected by hand, which stay untouched."
+      "pageDescription": "For each raw label used by your bank statement (e.g. \"Transfer\"), choose here which type Lumio should treat it as. The change also applies to already-imported transactions — except the ones you've already corrected by hand, which stay untouched.",
+      "page": {
+        "parsersError": "We couldn't load the parsers.",
+        "labelsError": "We couldn't load the labels.",
+        "parserSelect": "Parser",
+        "noParsers": {
+          "title": "No labels yet",
+          "description": "This page fills up after your first PDF bank statement import (e.g. Trade Republic)."
+        },
+        "noLabels": {
+          "title": "No labels observed",
+          "description": "No transaction imported with this parser carries a raw label yet."
+        },
+        "overrideActive": "Override active",
+        "removeOverride": "Remove override",
+        "typeFor": "Type for \"{{label}}\"",
+        "currentSummary_one": "{{count}} transaction · currently {{summary}}",
+        "currentSummary_other": "{{count}} transactions · currently {{summary}}",
+        "reapplied_one": "{{count}} transaction updated.",
+        "reapplied_other": "{{count}} transactions updated.",
+        "reappliedWithSkipped_one": "{{count}} transaction updated, {{skipped}} left untouched because edited by hand.",
+        "reappliedWithSkipped_other": "{{count}} transactions updated, {{skipped}} left untouched because edited by hand."
+      }
     },
     "currency": {
       "label": "Currency",
