@@ -1,0 +1,87 @@
+{
+  "greeting": {
+    "morning": "Buongiorno",
+    "afternoon": "Buon pomeriggio",
+    "evening": "Buonasera"
+  },
+  "subtitle": "Panoramica finanziaria",
+  "loadError": "Non siamo riusciti a caricare la panoramica.",
+  "kpi": {
+    "netWorth": "Patrimonio totale",
+    "liquidity": "Liquidità",
+    "investments": "Investimenti",
+    "debt": "Debiti",
+    "income": "Entrate",
+    "expenses": "Spese",
+    "cashFlow": "Cash Flow",
+    "comparisonLabel": "vs {{period}}"
+  },
+  "cashFlowChart": {
+    "title": "Entrate vs Uscite",
+    "chartError": "Grafico non disponibile.",
+    "empty": {
+      "title": "Nessun movimento in questo periodo",
+      "description": "Importa un estratto conto per vedere entrate e uscite.",
+      "action": "Importa estratto conto"
+    },
+    "tableCaption": "Entrate e uscite per mese",
+    "tableHeaders": [
+      "Periodo",
+      "Entrate",
+      "Uscite"
+    ]
+  },
+  "byCategoryChart": {
+    "title": "Spese per categoria",
+    "chartError": "Grafico non disponibile.",
+    "empty": {
+      "title": "Nessuna spesa in questo periodo",
+      "description": "Le spese classificate appariranno qui, raggruppate per categoria."
+    },
+    "tableCaption": "Spese per categoria",
+    "tableHeaders": [
+      "Categoria",
+      "Totale",
+      "Quota"
+    ]
+  },
+  "recentTransactions": {
+    "title": "Ultimi movimenti",
+    "loadError": "Movimenti non disponibili.",
+    "empty": {
+      "title": "Nessun movimento",
+      "description": "I movimenti importati o creati manualmente appariranno qui."
+    }
+  },
+  "actions": {
+    "importStatement": "Importa estratto conto",
+    "addAccount": "Aggiungi conto",
+    "viewTransactions": "Visualizza movimenti"
+  },
+  "categoryDrawer": {
+    "breakdownTitle": "Top merchant",
+    "noMerchant": "Senza merchant"
+  },
+  "bucketDrawer": {
+    "breakdownTitle": "Entrate vs Uscite",
+    "income": "Entrate",
+    "expenses": "Uscite"
+  },
+  "portfolioWidget": {
+    "title": "Investimenti",
+    "loadError": "Portfolio non disponibile.",
+    "empty": {
+      "title": "Non hai ancora aggiunto investimenti",
+      "description": "Registra i tuoi acquisti in Investimenti per vederne qui il valore e la composizione."
+    },
+    "goToInvestments": "Vai a Investimenti"
+  },
+  "drillDown": {
+    "comparisonSuffix": "vs periodo precedente",
+    "trendTitle": "Andamento",
+    "defaultBreakdownTitle": "Dettaglio",
+    "transactionsTitle": "Transazioni recenti",
+    "noTransactions": "Nessuna transazione.",
+    "viewAll": "Vedi tutte le transazioni"
+  }
+}

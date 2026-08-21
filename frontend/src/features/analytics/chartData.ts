@@ -23,8 +23,13 @@ export function formatBucketLabel(period: string, granularity: AnalyticsGranular
   }
 }
 
-export function greetingForHour(hour: number): string {
-  if (hour < 12) return "Buongiorno";
-  if (hour < 18) return "Buon pomeriggio";
-  return "Buonasera";
+export type GreetingBucket = "morning" | "afternoon" | "evening";
+
+/** Solo la fascia oraria: il testo vive in dashboard:greeting.<bucket>
+ * (namespace i18next), non qui — questo modulo non e' un componente React
+ * e non ha accesso a `t()`. */
+export function greetingBucketForHour(hour: number): GreetingBucket {
+  if (hour < 12) return "morning";
+  if (hour < 18) return "afternoon";
+  return "evening";
 }

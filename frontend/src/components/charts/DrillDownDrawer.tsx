@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Drawer } from "../ui/Drawer";
 import { Skeleton } from "../ui/Skeleton";
@@ -72,8 +73,9 @@ export function DrillDownDrawer({
   breakdown,
   transactions,
   viewAllHref,
-  viewAllLabel = "Vedi tutte le transazioni",
+  viewAllLabel,
 }: DrillDownDrawerProps) {
+  const { t } = useTranslation("dashboard");
   const { change, isGood: isGoodChange } = calculatePeriodComparison(
     comparison?.current ?? 0,
     comparison?.previous,
@@ -100,7 +102,7 @@ export function DrillDownDrawer({
             </span>
             {change !== undefined && change !== 0 && (
               <span className={`text-sm ${isGoodChange ? "text-success" : "text-danger"}`}>
-                {formatPercent(change, { signed: true })} vs periodo precedente
+                {formatPercent(change, { signed: true })} {t("drillDown.comparisonSuffix")}
               </span>
             )}
           </div>
@@ -108,7 +110,7 @@ export function DrillDownDrawer({
 
         {!isLoading && trend && trend.length > 0 && (
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-text">Andamento</h3>
+            <h3 className="mb-2 text-sm font-semibold text-text">{t("drillDown.trendTitle")}</h3>
             <div className="h-32">
               <AreaTrendChart data={trend} currency={currency} />
             </div>
@@ -117,7 +119,7 @@ export function DrillDownDrawer({
 
         {!isLoading && breakdown && breakdown.length > 0 && (
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-text">{breakdownTitle ?? "Dettaglio"}</h3>
+            <h3 className="mb-2 text-sm font-semibold text-text">{breakdownTitle ?? t("drillDown.defaultBreakdownTitle")}</h3>
             <ul className="flex flex-col gap-2">
               {breakdown.map((item) => (
                 <li key={item.key} className="flex flex-col gap-1">
@@ -139,17 +141,17 @@ export function DrillDownDrawer({
 
         {!isLoading && transactions && (
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-text">Transazioni recenti</h3>
-            {transactions.length === 0 && <p className="text-sm text-text-muted">Nessuna transazione.</p>}
+            <h3 className="mb-2 text-sm font-semibold text-text">{t("drillDown.transactionsTitle")}</h3>
+            {transactions.length === 0 && <p className="text-sm text-text-muted">{t("drillDown.noTransactions")}</p>}
             {transactions.length > 0 && (
               <ul className="flex flex-col gap-2">
-                {transactions.map((t) => (
-                  <li key={t.id} className="flex items-center justify-between rounded-lg border border-border p-2.5 text-sm">
+                {transactions.map((txn) => (
+                  <li key={txn.id} className="flex items-center justify-between rounded-lg border border-border p-2.5 text-sm">
                     <div className="flex flex-col">
-                      <span className="text-text">{t.label}</span>
-                      <span className="text-text-muted">{formatDate(t.date)}</span>
+                      <span className="text-text">{txn.label}</span>
+                      <span className="text-text-muted">{formatDate(txn.date)}</span>
                     </div>
-                    <span className="font-numeric text-text">{formatSignedMoney(t.amount, t.currency)}</span>
+                    <span className="font-numeric text-text">{formatSignedMoney(txn.amount, txn.currency)}</span>
                   </li>
                 ))}
               </ul>
@@ -163,7 +165,7 @@ export function DrillDownDrawer({
             onClick={onClose}
             className="flex items-center justify-center gap-1.5 rounded-lg border border-border p-2.5 text-sm font-medium text-primary hover:bg-surface-hover"
           >
-            {viewAllLabel}
+            {viewAllLabel ?? t("drillDown.viewAll")}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         )}

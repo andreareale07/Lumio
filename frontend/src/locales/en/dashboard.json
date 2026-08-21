@@ -1,0 +1,87 @@
+{
+  "greeting": {
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening"
+  },
+  "subtitle": "Financial overview",
+  "loadError": "We couldn't load the overview.",
+  "kpi": {
+    "netWorth": "Total net worth",
+    "liquidity": "Liquidity",
+    "investments": "Investments",
+    "debt": "Debt",
+    "income": "Income",
+    "expenses": "Expenses",
+    "cashFlow": "Cash Flow",
+    "comparisonLabel": "vs {{period}}"
+  },
+  "cashFlowChart": {
+    "title": "Income vs Expenses",
+    "chartError": "Chart unavailable.",
+    "empty": {
+      "title": "No transactions in this period",
+      "description": "Import a bank statement to see income and expenses.",
+      "action": "Import bank statement"
+    },
+    "tableCaption": "Income and expenses by month",
+    "tableHeaders": [
+      "Period",
+      "Income",
+      "Expenses"
+    ]
+  },
+  "byCategoryChart": {
+    "title": "Expenses by category",
+    "chartError": "Chart unavailable.",
+    "empty": {
+      "title": "No expenses in this period",
+      "description": "Classified expenses will appear here, grouped by category."
+    },
+    "tableCaption": "Expenses by category",
+    "tableHeaders": [
+      "Category",
+      "Total",
+      "Share"
+    ]
+  },
+  "recentTransactions": {
+    "title": "Recent transactions",
+    "loadError": "Transactions unavailable.",
+    "empty": {
+      "title": "No transactions",
+      "description": "Imported or manually created transactions will appear here."
+    }
+  },
+  "actions": {
+    "importStatement": "Import bank statement",
+    "addAccount": "Add account",
+    "viewTransactions": "View transactions"
+  },
+  "categoryDrawer": {
+    "breakdownTitle": "Top merchant",
+    "noMerchant": "No merchant"
+  },
+  "bucketDrawer": {
+    "breakdownTitle": "Income vs Expenses",
+    "income": "Income",
+    "expenses": "Expenses"
+  },
+  "portfolioWidget": {
+    "title": "Investments",
+    "loadError": "Portfolio unavailable.",
+    "empty": {
+      "title": "You haven't added any investments yet",
+      "description": "Record your purchases in Investments to see their value and composition here."
+    },
+    "goToInvestments": "Go to Investments"
+  },
+  "drillDown": {
+    "comparisonSuffix": "vs previous period",
+    "trendTitle": "Trend",
+    "defaultBreakdownTitle": "Detail",
+    "transactionsTitle": "Recent transactions",
+    "noTransactions": "No transactions.",
+    "viewAll": "View all transactions"
+  }
+}

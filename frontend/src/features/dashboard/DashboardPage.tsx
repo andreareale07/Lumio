@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Landmark, PiggyBank, UploadCloud, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { BarComparisonChart, type CashFlowBarPoint } from "../../components/charts/BarComparisonChart";
 import { ChartCard } from "../../components/charts/ChartCard";
@@ -24,10 +25,11 @@ import {
   useAnalyticsCashFlow,
   useAnalyticsSummary,
 } from "../analytics/api";
-import { formatBucketLabel, greetingForHour } from "../analytics/chartData";
+import { formatBucketLabel, greetingBucketForHour } from "../analytics/chartData";
 import { usePortfolioAllocation, usePortfolioValuation } from "../portfolio/api";
 
 export function DashboardPage() {
+  const { t } = useTranslation("dashboard");
   const { granularity, currentPeriod, trendWindow } = usePeriodNavigator({
     granularities: ["month", "quarter", "year"],
   });
@@ -42,7 +44,9 @@ export function DashboardPage() {
 
   const currency = summary.data?.currency ?? "EUR";
   const comparisonLabel = summary.data
-    ? `vs ${formatPeriodLabel(summary.data.comparison_period.date_from, summary.data.comparison_period.date_to)}`
+    ? t("kpi.comparisonLabel", {
+        period: formatPeriodLabel(summary.data.comparison_period.date_from, summary.data.comparison_period.date_to),
+      })
     : undefined;
   const cashFlowIsEmpty = cashFlow.data?.points.every((p) => p.income === "0" && p.expenses === "0") ?? false;
   const cashFlowPoints = cashFlow.data?.points ?? [];
@@ -97,14 +101,16 @@ export function DashboardPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-text">{greetingForHour(new Date().getHours())}</h1>
-          <p className="text-sm text-text-muted">Panoramica finanziaria</p>
+          <h1 className="text-lg font-semibold text-text">
+            {t(`greeting.${greetingBucketForHour(new Date().getHours())}`)}
+          </h1>
+          <p className="text-sm text-text-muted">{t("subtitle")}</p>
         </div>
         <PeriodNavigator granularities={["month", "quarter", "year"]} />
       </div>
 
       {summary.isError && (
-        <ErrorState message="Non siamo riusciti a caricare la panoramica." onRetry={() => void summary.refetch()} />
+        <ErrorState message={t("loadError")} onRetry={() => void summary.refetch()} />
       )}
 
       {summary.isLoading && (
@@ -117,17 +123,17 @@ export function DashboardPage() {
 
       {summary.data && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard title="Patrimonio totale" value={summary.data.net_worth} currency={currency} />
+          <KpiCard title={t("kpi.netWorth")} value={summary.data.net_worth} currency={currency} />
           <KpiCard
-            title="Liquidità"
+            title={t("kpi.liquidity")}
             value={summary.data.liquidity}
             currency={currency}
             sparklineValues={liquiditySparkline.length > 1 ? liquiditySparkline : undefined}
           />
-          <KpiCard title="Investimenti" value={summary.data.investments} currency={currency} />
-          <KpiCard title="Debiti" value={summary.data.debt} currency={currency} positiveIsGood={false} />
+          <KpiCard title={t("kpi.investments")} value={summary.data.investments} currency={currency} />
+          <KpiCard title={t("kpi.debt")} value={summary.data.debt} currency={currency} positiveIsGood={false} />
           <KpiCard
-            title="Entrate"
+            title={t("kpi.income")}
             value={summary.data.income}
             previousValue={summary.data.previous_income}
             comparisonLabel={comparisonLabel}
@@ -135,7 +141,7 @@ export function DashboardPage() {
             sparklineValues={incomeSparkline.length > 1 ? incomeSparkline : undefined}
           />
           <KpiCard
-            title="Spese"
+            title={t("kpi.expenses")}
             value={summary.data.expenses}
             previousValue={summary.data.previous_expenses}
             comparisonLabel={comparisonLabel}
@@ -144,7 +150,7 @@ export function DashboardPage() {
             sparklineValues={expensesSparkline.length > 1 ? expensesSparkline : undefined}
           />
           <KpiCard
-            title="Cash Flow"
+            title={t("kpi.cashFlow")}
             value={summary.data.net_cash_flow}
             previousValue={summary.data.previous_net_cash_flow}
             comparisonLabel={comparisonLabel}
@@ -158,23 +164,27 @@ export function DashboardPage() {
         <div className="lg:col-span-2">
           {cashFlow.isLoading && <Skeleton className="h-72 w-full" />}
           {cashFlow.isError && (
-            <ErrorState message="Grafico non disponibile." onRetry={() => void cashFlow.refetch()} />
+            <ErrorState message={t("cashFlowChart.chartError")} onRetry={() => void cashFlow.refetch()} />
           )}
           {cashFlow.data && (
             <ChartCard
-              title="Entrate vs Uscite"
+              title={t("cashFlowChart.title")}
               subtitle={formatPeriodLabel(cashFlow.data.period.date_from, cashFlow.data.period.date_to)}
               empty={cashFlowIsEmpty}
               emptyState={
                 <EmptyState
                   icon={Wallet}
-                  title="Nessun movimento in questo periodo"
-                  description="Importa un estratto conto per vedere entrate e uscite."
-                  action={<LinkButton to="/imports" size="sm">Importa estratto conto</LinkButton>}
+                  title={t("cashFlowChart.empty.title")}
+                  description={t("cashFlowChart.empty.description")}
+                  action={
+                    <LinkButton to="/imports" size="sm">
+                      {t("cashFlowChart.empty.action")}
+                    </LinkButton>
+                  }
                 />
               }
-              tableCaption="Entrate e uscite per mese"
-              tableHeaders={["Periodo", "Entrate", "Uscite"]}
+              tableCaption={t("cashFlowChart.tableCaption")}
+              tableHeaders={t("cashFlowChart.tableHeaders", { returnObjects: true }) as string[]}
               tableRows={cashFlowPoints.map((p) => [
                 formatBucketLabel(p.period, cashFlowGranularity),
                 formatMoney(p.income, currency),
@@ -207,23 +217,23 @@ export function DashboardPage() {
         <div className="lg:col-span-2 flex flex-col gap-3">
           {byCategory.isLoading && <Skeleton className="h-72 w-full" />}
           {byCategory.isError && (
-            <ErrorState message="Grafico non disponibile." onRetry={() => void byCategory.refetch()} />
+            <ErrorState message={t("byCategoryChart.chartError")} onRetry={() => void byCategory.refetch()} />
           )}
           {byCategory.data && (
             <>
               <ChartCard
-                title="Spese per categoria"
+                title={t("byCategoryChart.title")}
                 subtitle={formatPeriodLabel(byCategory.data.period.date_from, byCategory.data.period.date_to)}
                 empty={byCategory.data.items.length === 0}
                 emptyState={
                   <EmptyState
                     icon={Landmark}
-                    title="Nessuna spesa in questo periodo"
-                    description="Le spese classificate appariranno qui, raggruppate per categoria."
+                    title={t("byCategoryChart.empty.title")}
+                    description={t("byCategoryChart.empty.description")}
                   />
                 }
-                tableCaption="Spese per categoria"
-                tableHeaders={["Categoria", "Totale", "Quota"]}
+                tableCaption={t("byCategoryChart.tableCaption")}
+                tableHeaders={t("byCategoryChart.tableHeaders", { returnObjects: true }) as string[]}
                 tableRows={byCategory.data.items.map((item) => [
                   item.name,
                   formatMoney(item.total, currency),
@@ -268,16 +278,16 @@ export function DashboardPage() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <h3 className="text-sm font-semibold text-text">Ultimi movimenti</h3>
+          <h3 className="text-sm font-semibold text-text">{t("recentTransactions.title")}</h3>
           {recentTransactions.isLoading && <SkeletonRows rows={4} />}
           {recentTransactions.isError && (
-            <ErrorState message="Movimenti non disponibili." onRetry={() => void recentTransactions.refetch()} />
+            <ErrorState message={t("recentTransactions.loadError")} onRetry={() => void recentTransactions.refetch()} />
           )}
           {recentTransactions.data && recentTransactions.data.length === 0 && (
             <EmptyState
               icon={Wallet}
-              title="Nessun movimento"
-              description="I movimenti importati o creati manualmente appariranno qui."
+              title={t("recentTransactions.empty.title")}
+              description={t("recentTransactions.empty.description")}
             />
           )}
           {recentTransactions.data && recentTransactions.data.length > 0 && (
@@ -304,13 +314,13 @@ export function DashboardPage() {
 
       <div className="flex flex-wrap gap-2">
         <LinkButton to="/imports">
-          <UploadCloud className="h-4 w-4" aria-hidden="true" /> Importa estratto conto
+          <UploadCloud className="h-4 w-4" aria-hidden="true" /> {t("actions.importStatement")}
         </LinkButton>
         <LinkButton to="/accounts" variant="secondary">
-          <Landmark className="h-4 w-4" aria-hidden="true" /> Aggiungi conto
+          <Landmark className="h-4 w-4" aria-hidden="true" /> {t("actions.addAccount")}
         </LinkButton>
         <LinkButton to="/transactions" variant="secondary">
-          <Wallet className="h-4 w-4" aria-hidden="true" /> Visualizza movimenti
+          <Wallet className="h-4 w-4" aria-hidden="true" /> {t("actions.viewTransactions")}
         </LinkButton>
       </div>
 
@@ -331,10 +341,10 @@ export function DashboardPage() {
             : undefined
         }
         trend={categoryDrawerTrend}
-        breakdownTitle="Top merchant"
+        breakdownTitle={t("categoryDrawer.breakdownTitle")}
         breakdown={(drawerMerchants.data?.items ?? []).map((m) => ({
           key: m.merchant ?? "senza-merchant",
-          label: m.merchant ?? "Senza merchant",
+          label: m.merchant ?? t("categoryDrawer.noMerchant"),
           value: Number(m.total),
         }))}
         transactions={(drawerCategoryTransactions.data ?? []).map((t) => ({
@@ -353,12 +363,12 @@ export function DashboardPage() {
         title={selectedBucket?.label ?? ""}
         currency={currency}
         isLoading={bucketTransactions.isLoading}
-        breakdownTitle="Entrate vs Uscite"
+        breakdownTitle={t("bucketDrawer.breakdownTitle")}
         breakdown={
           selectedBucket
             ? [
-                { key: "income", label: "Entrate", value: selectedBucket.income },
-                { key: "expenses", label: "Uscite", value: selectedBucket.expenses },
+                { key: "income", label: t("bucketDrawer.income"), value: selectedBucket.income },
+                { key: "expenses", label: t("bucketDrawer.expenses"), value: selectedBucket.expenses },
               ]
             : undefined
         }
@@ -382,6 +392,7 @@ export function DashboardPage() {
  * (SPEC §73). Aggregato su "tutti i conti" (nessun filtro portfolio qui,
  * la dashboard e' una vista d'insieme). */
 function PortfolioWidget() {
+  const { t } = useTranslation("dashboard");
   const valuation = usePortfolioValuation(null);
   const allocation = usePortfolioAllocation(null);
 
@@ -395,8 +406,8 @@ function PortfolioWidget() {
   if (valuation.isError) {
     return (
       <Card className="flex h-full flex-col gap-2">
-        <h3 className="text-sm font-semibold text-text">Investimenti</h3>
-        <ErrorState message="Portfolio non disponibile." onRetry={() => void valuation.refetch()} />
+        <h3 className="text-sm font-semibold text-text">{t("portfolioWidget.title")}</h3>
+        <ErrorState message={t("portfolioWidget.loadError")} onRetry={() => void valuation.refetch()} />
       </Card>
     );
   }
@@ -405,12 +416,16 @@ function PortfolioWidget() {
   if (!data || !data.has_holdings) {
     return (
       <Card className="flex h-full flex-col gap-2">
-        <h3 className="text-sm font-semibold text-text">Investimenti</h3>
+        <h3 className="text-sm font-semibold text-text">{t("portfolioWidget.title")}</h3>
         <EmptyState
           icon={PiggyBank}
-          title="Non hai ancora aggiunto investimenti"
-          description="Registra i tuoi acquisti in Investimenti per vederne qui il valore e la composizione."
-          action={<LinkButton to="/investments" size="sm">Vai a Investimenti</LinkButton>}
+          title={t("portfolioWidget.empty.title")}
+          description={t("portfolioWidget.empty.description")}
+          action={
+            <LinkButton to="/investments" size="sm">
+              {t("portfolioWidget.goToInvestments")}
+            </LinkButton>
+          }
         />
       </Card>
     );
@@ -423,7 +438,7 @@ function PortfolioWidget() {
   return (
     <Card className="flex h-full flex-col gap-3">
       <div>
-        <h3 className="text-sm font-semibold text-text">Investimenti</h3>
+        <h3 className="text-sm font-semibold text-text">{t("portfolioWidget.title")}</h3>
         <div className="flex items-baseline gap-2">
           <span className="font-numeric text-xl font-semibold text-text">
             {formatMoney(data.market_value, data.currency)}
@@ -446,7 +461,7 @@ function PortfolioWidget() {
         </ul>
       )}
       <Link to="/investments" className="text-sm font-medium text-primary hover:underline">
-        Vai a Investimenti
+        {t("portfolioWidget.goToInvestments")}
       </Link>
     </Card>
   );
