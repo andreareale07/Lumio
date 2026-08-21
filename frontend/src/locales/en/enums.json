@@ -10,5 +10,11 @@
     "tax": "Tax",
     "refund": "Refund",
     "adjustment": "Adjustment"
+  },
+  "aiProvider": {
+    "ollama": "Ollama (local)",
+    "openai": "OpenAI",
+    "anthropic": "Anthropic",
+    "custom": "Custom server"
   }
 }

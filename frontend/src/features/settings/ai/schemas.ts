@@ -1,13 +1,15 @@
 import { z } from "zod";
+import type { TFunction } from "i18next";
 
 import { AI_PROVIDERS, type AIProvider } from "../../../types/api";
 
-export const AI_PROVIDER_LABELS: Record<AIProvider, string> = {
-  ollama: "Ollama (locale)",
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  custom: "Server personalizzato",
-};
+/** Etichette provider: namespace "enums" (SPEC_FE_REDESIGN §27), condiviso
+ * con qualunque altro punto dell'app che mostri lo stesso enum invece di
+ * una mappa hardcoded per feature — stesso pattern di
+ * `useTransactionTypeLabel`. */
+export function aiProviderLabel(t: TFunction, provider: AIProvider): string {
+  return t(`enums:aiProvider.${provider}`);
+}
 
 export const CLOUD_PROVIDERS: readonly AIProvider[] = ["openai", "anthropic", "custom"];
 
@@ -22,10 +24,14 @@ export const MODEL_DISCOVERABLE_PROVIDERS: readonly AIProvider[] = ["ollama", "o
 // ollama, API key per openai/anthropic — a meno che il profilo esistente
 // abbia gia' una chiave salvata (`apiKeySet`, sempre `false` in creazione:
 // nulla e' ancora salvato).
-export function buildAIProfileSchema(apiKeySet: boolean) {
+//
+// `t` passato dal chiamante (non un hook qui: questo modulo non e' un
+// componente) — i messaggi vivono in settings:items.ai.page.form.validation,
+// stessa fonte usata dalla UI del dialog per il resto del form.
+export function buildAIProfileSchema(apiKeySet: boolean, t: TFunction) {
   return z
     .object({
-      name: z.string().min(1, "Inserisci un nome"),
+      name: z.string().min(1, t("settings:items.ai.page.form.validation.name")),
       provider: z.enum(AI_PROVIDERS),
       endpoint: z.string(),
       model: z.string(),
@@ -33,14 +39,26 @@ export function buildAIProfileSchema(apiKeySet: boolean) {
     })
     .superRefine((data, ctx) => {
       if ((data.provider === "ollama" || data.provider === "custom") && !data.endpoint.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endpoint"], message: "Inserisci l'endpoint" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["endpoint"],
+          message: t("settings:items.ai.page.form.validation.endpoint"),
+        });
       }
       if (data.provider === "ollama" && !data.model.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["model"], message: "Inserisci il modello" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["model"],
+          message: t("settings:items.ai.page.form.validation.model"),
+        });
       }
       if (data.provider === "openai" || data.provider === "anthropic") {
         if (!apiKeySet && !data.api_key.trim()) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["api_key"], message: "Inserisci una API key" });
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["api_key"],
+            message: t("settings:items.ai.page.form.validation.apiKey"),
+          });
         }
       }
     });

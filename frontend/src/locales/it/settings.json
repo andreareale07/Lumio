@@ -70,7 +70,59 @@
     "ai": {
       "label": "AI",
       "description": "Configura un provider AI opzionale per la classificazione automatica.",
-      "pageDescription": "L'AI è opzionale: le transazioni vengono comunque classificate dalle regole anche senza un profilo attivo. Puoi salvare più profili (anche dello stesso provider) e attivarne uno alla volta."
+      "pageDescription": "L'AI è opzionale: le transazioni vengono comunque classificate dalle regole anche senza un profilo attivo. Puoi salvare più profili (anche dello stesso provider) e attivarne uno alla volta.",
+      "page": {
+        "newProfile": "Nuovo profilo",
+        "loadError": "Non siamo riusciti a caricare i profili AI.",
+        "empty": {
+          "title": "Nessun profilo AI",
+          "description": "Crea un profilo per classificare automaticamente le transazioni che le regole non riconoscono."
+        },
+        "active": "Attivo",
+        "activate": "Attiva",
+        "deactivate": "Disattiva",
+        "edit": "Modifica",
+        "delete": "Elimina",
+        "noActiveProfile": "Nessun profilo attivo: l'AI è disabilitata.",
+        "deleteDialog": {
+          "title": "Eliminare il profilo?",
+          "body": "\"{{name}}\" verrà eliminato definitivamente.",
+          "activeWarning": "È il profilo attivo: dopo l'eliminazione l'AI resterà disabilitata."
+        },
+        "form": {
+          "editTitle": "Modifica profilo AI",
+          "createTitle": "Nuovo profilo AI",
+          "fields": {
+            "name": "Nome",
+            "provider": "Provider",
+            "endpoint": "Endpoint",
+            "model": "Modello",
+            "apiKey": "API key"
+          },
+          "endpointPlaceholderOllama": "http://ollama:11434",
+          "endpointPlaceholderOther": "https://il-tuo-server/v1",
+          "modelPlaceholderOllama": "gemma3:4b",
+          "refreshModels": "Aggiorna elenco",
+          "apiKeyPlaceholderSet": "•••••••••• (configurata)",
+          "apiKeyPlaceholderUnset": "sk-...",
+          "apiKeyHintSet": "Lascia vuoto per mantenere la chiave salvata.",
+          "cloudWarning": "Alcuni dati necessari alla classificazione potrebbero essere inviati al provider selezionato.",
+          "testConnection": "Verifica connessione",
+          "submitEdit": "Salva",
+          "submitCreate": "Crea profilo",
+          "validation": {
+            "name": "Inserisci un nome",
+            "endpoint": "Inserisci l'endpoint",
+            "model": "Inserisci il modello",
+            "apiKey": "Inserisci una API key"
+          },
+          "errors": {
+            "save": "Non è stato possibile salvare il profilo.",
+            "test": "Verifica non riuscita.",
+            "models": "Elenco modelli non disponibile."
+          }
+        }
+      }
     },
     "marketData": {
       "label": "Market Data",

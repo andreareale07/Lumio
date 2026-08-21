@@ -70,7 +70,59 @@
     "ai": {
       "label": "AI",
       "description": "Configure an optional AI provider for automatic classification.",
-      "pageDescription": "AI is optional: transactions are still classified by rules even without an active profile. You can save multiple profiles (even for the same provider) and activate one at a time."
+      "pageDescription": "AI is optional: transactions are still classified by rules even without an active profile. You can save multiple profiles (even for the same provider) and activate one at a time.",
+      "page": {
+        "newProfile": "New profile",
+        "loadError": "We couldn't load the AI profiles.",
+        "empty": {
+          "title": "No AI profile",
+          "description": "Create a profile to automatically classify transactions the rules don't recognize."
+        },
+        "active": "Active",
+        "activate": "Activate",
+        "deactivate": "Deactivate",
+        "edit": "Edit",
+        "delete": "Delete",
+        "noActiveProfile": "No active profile: AI is disabled.",
+        "deleteDialog": {
+          "title": "Delete this profile?",
+          "body": "\"{{name}}\" will be permanently deleted.",
+          "activeWarning": "This is the active profile: AI will be disabled after deletion."
+        },
+        "form": {
+          "editTitle": "Edit AI profile",
+          "createTitle": "New AI profile",
+          "fields": {
+            "name": "Name",
+            "provider": "Provider",
+            "endpoint": "Endpoint",
+            "model": "Model",
+            "apiKey": "API key"
+          },
+          "endpointPlaceholderOllama": "http://ollama:11434",
+          "endpointPlaceholderOther": "https://your-server/v1",
+          "modelPlaceholderOllama": "gemma3:4b",
+          "refreshModels": "Refresh list",
+          "apiKeyPlaceholderSet": "•••••••••• (configured)",
+          "apiKeyPlaceholderUnset": "sk-...",
+          "apiKeyHintSet": "Leave empty to keep the saved key.",
+          "cloudWarning": "Some data needed for classification may be sent to the selected provider.",
+          "testConnection": "Test connection",
+          "submitEdit": "Save",
+          "submitCreate": "Create profile",
+          "validation": {
+            "name": "Enter a name",
+            "endpoint": "Enter the endpoint",
+            "model": "Enter the model",
+            "apiKey": "Enter an API key"
+          },
+          "errors": {
+            "save": "We couldn't save the profile.",
+            "test": "Test failed.",
+            "models": "Model list unavailable."
+          }
+        }
+      }
     },
     "marketData": {
       "label": "Market data",

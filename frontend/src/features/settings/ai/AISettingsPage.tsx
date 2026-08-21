@@ -12,14 +12,14 @@ import { SkeletonRows } from "../../../components/ui/Skeleton";
 import type { AIProfile } from "../../../types/api";
 import { useActivateAIProfile, useAIProfiles, useDeactivateAI, useDeleteAIProfile } from "./api";
 import { AIProfileFormDialog } from "./AIProfileFormDialog";
-import { AI_PROVIDER_LABELS } from "./schemas";
+import { aiProviderLabel } from "./schemas";
 
 /** SPEC_FE §44-45: pagina `/settings/ai`. Piu' profili salvabili per
  * workspace, al massimo uno attivo (mutuamente esclusivo) — l'AI resta
  * sempre opzionale (SPEC §25): nessun profilo attivo, o nessun profilo
  * affatto, e' uno stato valido, non un errore. */
 export function AISettingsPage() {
-  const { t } = useTranslation("settings");
+  const { t } = useTranslation(["settings", "common"]);
   const { data: profiles, isLoading, isError, refetch } = useAIProfiles();
   const activateProfile = useActivateAIProfile();
   const deactivateAI = useDeactivateAI();
@@ -45,25 +45,21 @@ export function AISettingsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-text">{t("items.ai.label")}</h1>
         <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nuovo profilo
+          <Plus className="h-4 w-4" /> {t("items.ai.page.newProfile")}
         </Button>
       </div>
 
-      <p className="text-sm text-text-muted">
-        {t("items.ai.pageDescription")}
-      </p>
+      <p className="text-sm text-text-muted">{t("items.ai.pageDescription")}</p>
 
       {isLoading && <SkeletonRows rows={3} />}
-      {isError && (
-        <ErrorState message="Non siamo riusciti a caricare i profili AI." onRetry={() => void refetch()} />
-      )}
+      {isError && <ErrorState message={t("items.ai.page.loadError")} onRetry={() => void refetch()} />}
 
       {!isLoading && !isError && profiles && profiles.length === 0 && (
         <EmptyState
           icon={Sparkles}
-          title="Nessun profilo AI"
-          description="Crea un profilo per classificare automaticamente le transazioni che le regole non riconoscono."
-          action={<Button onClick={openCreate}>Nuovo profilo</Button>}
+          title={t("items.ai.page.empty.title")}
+          description={t("items.ai.page.empty.description")}
+          action={<Button onClick={openCreate}>{t("items.ai.page.newProfile")}</Button>}
         />
       )}
 
@@ -76,13 +72,13 @@ export function AISettingsPage() {
                 <div>
                   <p className="font-medium text-text">{profile.name}</p>
                   <p className="text-sm text-text-muted">
-                    {AI_PROVIDER_LABELS[profile.provider]}
+                    {aiProviderLabel(t, profile.provider)}
                     {profile.model ? ` · ${profile.model}` : ""}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {profile.is_active && <Badge tone="success">Attivo</Badge>}
+                {profile.is_active && <Badge tone="success">{t("items.ai.page.active")}</Badge>}
                 {profile.is_active ? (
                   <Button
                     variant="ghost"
@@ -90,7 +86,7 @@ export function AISettingsPage() {
                     loading={deactivateAI.isPending}
                     onClick={() => deactivateAI.mutate()}
                   >
-                    Disattiva
+                    {t("items.ai.page.deactivate")}
                   </Button>
                 ) : (
                   <Button
@@ -99,14 +95,14 @@ export function AISettingsPage() {
                     loading={activateProfile.isPending}
                     onClick={() => activateProfile.mutate(profile.id)}
                   >
-                    Attiva
+                    {t("items.ai.page.activate")}
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" onClick={() => openEdit(profile)}>
-                  Modifica
+                  {t("items.ai.page.edit")}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setProfileToDelete(profile)}>
-                  Elimina
+                  {t("items.ai.page.delete")}
                 </Button>
               </div>
             </Card>
@@ -116,14 +112,18 @@ export function AISettingsPage() {
 
       <AIProfileFormDialog open={formOpen} onClose={() => setFormOpen(false)} profile={editingProfile} />
 
-      <Dialog open={!!profileToDelete} onClose={() => setProfileToDelete(null)} title="Eliminare il profilo?">
+      <Dialog
+        open={!!profileToDelete}
+        onClose={() => setProfileToDelete(null)}
+        title={t("items.ai.page.deleteDialog.title")}
+      >
         <p className="text-sm text-text-muted">
-          "{profileToDelete?.name}" verrà eliminato definitivamente.
-          {profileToDelete?.is_active && " È il profilo attivo: dopo l'eliminazione l'AI resterà disabilitata."}
+          {t("items.ai.page.deleteDialog.body", { name: profileToDelete?.name })}
+          {profileToDelete?.is_active && ` ${t("items.ai.page.deleteDialog.activeWarning")}`}
         </p>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setProfileToDelete(null)}>
-            Annulla
+            {t("common:actions.cancel")}
           </Button>
           <Button
             variant="danger"
@@ -132,13 +132,13 @@ export function AISettingsPage() {
               setProfileToDelete(null);
             }}
           >
-            Elimina
+            {t("items.ai.page.delete")}
           </Button>
         </div>
       </Dialog>
 
       {!activeProfile && profiles && profiles.length > 0 && (
-        <p className="text-sm text-text-muted">Nessun profilo attivo: l'AI è disabilitata.</p>
+        <p className="text-sm text-text-muted">{t("items.ai.page.noActiveProfile")}</p>
       )}
     </div>
   );

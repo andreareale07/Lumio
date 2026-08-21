@@ -10,5 +10,11 @@
     "tax": "Tassa",
     "refund": "Rimborso",
     "adjustment": "Rettifica"
+  },
+  "aiProvider": {
+    "ollama": "Ollama (locale)",
+    "openai": "OpenAI",
+    "anthropic": "Anthropic",
+    "custom": "Server personalizzato"
   }
 }

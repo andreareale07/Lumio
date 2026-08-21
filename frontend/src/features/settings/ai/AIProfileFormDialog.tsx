@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "../../../components/ui/Button";
 import { Dialog } from "../../../components/ui/Dialog";
@@ -17,7 +18,7 @@ import {
   useUpdateAIProfile,
 } from "./api";
 import {
-  AI_PROVIDER_LABELS,
+  aiProviderLabel,
   CLOUD_PROVIDERS,
   MODEL_DISCOVERABLE_PROVIDERS,
   buildAIProfileSchema,
@@ -47,6 +48,7 @@ function valuesFrom(profile: AIProfile | null | undefined): AIProfileFormValues 
 }
 
 export function AIProfileFormDialog({ open, onClose, profile }: AIProfileFormDialogProps) {
+  const { t } = useTranslation(["settings", "common"]);
   const isEditing = !!profile;
   const createProfile = useCreateAIProfile();
   const updateProfile = useUpdateAIProfile();
@@ -67,7 +69,7 @@ export function AIProfileFormDialog({ open, onClose, profile }: AIProfileFormDia
     reset,
     formState: { errors, isSubmitting },
   } = useForm<AIProfileFormValues>({
-    resolver: zodResolver(buildAIProfileSchema(isEditing ? profile.api_key_set : false)),
+    resolver: zodResolver(buildAIProfileSchema(isEditing ? profile.api_key_set : false, t)),
     defaultValues: valuesFrom(profile),
   });
 
@@ -115,7 +117,7 @@ export function AIProfileFormDialog({ open, onClose, profile }: AIProfileFormDia
       }
       onClose();
     } catch (error) {
-      setFormError(friendlyErrorMessage(error, "Non è stato possibile salvare il profilo."));
+      setFormError(friendlyErrorMessage(error, t("items.ai.page.form.errors.save")));
     }
   });
 
@@ -147,7 +149,7 @@ export function AIProfileFormDialog({ open, onClose, profile }: AIProfileFormDia
         : await testDraft.mutateAsync(draftConnectionPayload());
       setTestResult(result);
     } catch (error) {
-      setTestResult({ success: false, message: friendlyErrorMessage(error, "Verifica non riuscita.") });
+      setTestResult({ success: false, message: friendlyErrorMessage(error, t("items.ai.page.form.errors.test")) });
     }
   };
 
@@ -160,7 +162,7 @@ export function AIProfileFormDialog({ open, onClose, profile }: AIProfileFormDia
       setModelOptions(result.models);
       setTestResult({ success: result.success, message: result.message });
     } catch (error) {
-      setTestResult({ success: false, message: friendlyErrorMessage(error, "Elenco modelli non disponibile.") });
+      setTestResult({ success: false, message: friendlyErrorMessage(error, t("items.ai.page.form.errors.models")) });
     }
   };
 
@@ -168,22 +170,35 @@ export function AIProfileFormDialog({ open, onClose, profile }: AIProfileFormDia
   const isRefreshingModels = listDraftModels.isPending || listSavedModels.isPending;
 
   return (
-    <Dialog open={open} onClose={onClose} title={isEditing ? "Modifica profilo AI" : "Nuovo profilo AI"}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={isEditing ? t("items.ai.page.form.editTitle") : t("items.ai.page.form.createTitle")}
+    >
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
-        <Input label="Nome" error={errors.name?.message} {...register("name")} />
+        <Input label={t("items.ai.page.form.fields.name")} error={errors.name?.message} {...register("name")} />
 
-        <Select label="Provider" disabled={isEditing} error={errors.provider?.message} {...register("provider")}>
+        <Select
+          label={t("items.ai.page.form.fields.provider")}
+          disabled={isEditing}
+          error={errors.provider?.message}
+          {...register("provider")}
+        >
           {AI_PROVIDERS.map((p) => (
             <option key={p} value={p}>
-              {AI_PROVIDER_LABELS[p]}
+              {aiProviderLabel(t, p)}
             </option>
           ))}
         </Select>
 
         {showEndpoint && (
           <Input
-            label="Endpoint"
-            placeholder={provider === "ollama" ? "http://ollama:11434" : "https://il-tuo-server/v1"}
+            label={t("items.ai.page.form.fields.endpoint")}
+            placeholder={
+              provider === "ollama"
+                ? t("items.ai.page.form.endpointPlaceholderOllama")
+                : t("items.ai.page.form.endpointPlaceholderOther")
+            }
             error={errors.endpoint?.message}
             {...register("endpoint")}
           />
@@ -194,9 +209,9 @@ export function AIProfileFormDialog({ open, onClose, profile }: AIProfileFormDia
             <div className="flex items-end gap-2">
               <div className="flex-1">
                 <Input
-                  label="Modello"
+                  label={t("items.ai.page.form.fields.model")}
                   list={canDiscoverModels ? DATALIST_ID : undefined}
-                  placeholder={provider === "ollama" ? "gemma3:4b" : undefined}
+                  placeholder={provider === "ollama" ? t("items.ai.page.form.modelPlaceholderOllama") : undefined}
                   error={errors.model?.message}
                   {...register("model")}
                 />
@@ -209,7 +224,7 @@ export function AIProfileFormDialog({ open, onClose, profile }: AIProfileFormDia
                   loading={isRefreshingModels}
                   onClick={onRefreshModels}
                 >
-                  Aggiorna elenco
+                  {t("items.ai.page.form.refreshModels")}
                 </Button>
               )}
             </div>
@@ -225,11 +240,15 @@ export function AIProfileFormDialog({ open, onClose, profile }: AIProfileFormDia
 
         {showApiKey && (
           <Input
-            label="API key"
+            label={t("items.ai.page.form.fields.apiKey")}
             type="password"
             autoComplete="off"
-            placeholder={keepsSavedKey ? "•••••••••• (configurata)" : "sk-..."}
-            hint={keepsSavedKey ? "Lascia vuoto per mantenere la chiave salvata." : undefined}
+            placeholder={
+              keepsSavedKey
+                ? t("items.ai.page.form.apiKeyPlaceholderSet")
+                : t("items.ai.page.form.apiKeyPlaceholderUnset")
+            }
+            hint={keepsSavedKey ? t("items.ai.page.form.apiKeyHintSet") : undefined}
             error={errors.api_key?.message}
             {...register("api_key")}
           />
@@ -237,7 +256,7 @@ export function AIProfileFormDialog({ open, onClose, profile }: AIProfileFormDia
 
         {isCloudProvider && (
           <p className="rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
-            Alcuni dati necessari alla classificazione potrebbero essere inviati al provider selezionato.
+            {t("items.ai.page.form.cloudWarning")}
           </p>
         )}
 
@@ -254,10 +273,10 @@ export function AIProfileFormDialog({ open, onClose, profile }: AIProfileFormDia
 
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" loading={isTesting} onClick={onTest}>
-            Verifica connessione
+            {t("items.ai.page.form.testConnection")}
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            {isEditing ? "Salva" : "Crea profilo"}
+            {isEditing ? t("items.ai.page.form.submitEdit") : t("items.ai.page.form.submitCreate")}
           </Button>
         </div>
       </form>
