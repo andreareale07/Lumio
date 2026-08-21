@@ -1,6 +1,7 @@
 import { forwardRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Combobox } from "../../components/ui/Combobox";
 import { useCategories } from "./api";
@@ -38,9 +39,10 @@ interface CategoryPickerProps {
  * nella pagina dedicata `/settings/categories` (CategoriesSettingsPage).
  */
 export const CategoryPicker = forwardRef<HTMLButtonElement, CategoryPickerProps>(function CategoryPicker(
-  { label = "Categoria", error, disabled, name, value = "", includeEmptyOption = false, onChange, onBlur },
+  { label, error, disabled, name, value = "", includeEmptyOption = false, onChange, onBlur },
   ref,
 ) {
+  const { t } = useTranslation("categories");
   const { data: categories, isLoading } = useCategories();
   const options = buildCategoryComboboxOptions(categories);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -68,16 +70,16 @@ export const CategoryPicker = forwardRef<HTMLButtonElement, CategoryPickerProps>
     <>
       <Combobox
         ref={ref}
-        label={label}
+        label={label ?? t("picker.defaultLabel")}
         error={error}
         disabled={disabled || isLoading}
         value={value}
         onChange={emitChange}
         onBlur={emitBlur}
         options={options}
-        emptyOptionLabel={includeEmptyOption ? "Nessuna categoria" : undefined}
-        placeholder="Seleziona una categoria…"
-        searchPlaceholder="Cerca per nome…"
+        emptyOptionLabel={includeEmptyOption ? t("picker.emptyOption") : undefined}
+        placeholder={t("picker.placeholder")}
+        searchPlaceholder={t("picker.searchPlaceholder")}
         footer={
           <button
             type="button"
@@ -85,7 +87,7 @@ export const CategoryPicker = forwardRef<HTMLButtonElement, CategoryPickerProps>
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-primary hover:bg-surface-hover"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            Nuova categoria…
+            {t("picker.newCategoryButton")}
           </button>
         }
       />

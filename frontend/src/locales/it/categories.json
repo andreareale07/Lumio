@@ -1,0 +1,33 @@
+{
+  "fields": {
+    "name": "Nome",
+    "parent": "Categoria padre (opzionale)",
+    "kind": "Tipo",
+    "sortOrder": "Ordine"
+  },
+  "noParentOption": "Nessuna — categoria di primo livello",
+  "kindInheritedNote": "Il tipo si eredita dalla categoria padre scelta sopra.",
+  "sortOrderHint": "Determina la posizione nelle liste, a parità di livello.",
+  "validation": {
+    "name": "Inserisci un nome"
+  },
+  "editDialog": {
+    "editTitle": "Modifica categoria",
+    "createTitle": "Nuova categoria",
+    "submitEdit": "Salva",
+    "submitCreate": "Crea categoria",
+    "error": "Non è stato possibile salvare la categoria."
+  },
+  "createDialog": {
+    "title": "Nuova categoria",
+    "submit": "Crea categoria",
+    "error": "Non è stato possibile creare la categoria."
+  },
+  "picker": {
+    "defaultLabel": "Categoria",
+    "placeholder": "Seleziona una categoria…",
+    "searchPlaceholder": "Cerca per nome…",
+    "emptyOption": "Nessuna categoria",
+    "newCategoryButton": "Nuova categoria…"
+  }
+}

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import type { TFunction } from "i18next";
 
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
@@ -12,13 +14,15 @@ import { CATEGORY_KINDS, type Category } from "../../types/api";
 import { useCategories, useCreateCategory, useUpdateCategory } from "./api";
 import { CATEGORY_KIND_LABELS } from "./utils";
 
-const schema = z.object({
-  name: z.string().min(1, "Inserisci un nome"),
-  parent_id: z.string(),
-  kind: z.enum(CATEGORY_KINDS),
-  sort_order: z.number().int(),
-});
-type FormValues = z.infer<typeof schema>;
+function buildSchema(t: TFunction) {
+  return z.object({
+    name: z.string().min(1, t("validation.name")),
+    parent_id: z.string(),
+    kind: z.enum(CATEGORY_KINDS),
+    sort_order: z.number().int(),
+  });
+}
+type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 
 interface CategoryFormDialogProps {
   open: boolean;
@@ -45,6 +49,7 @@ function valuesFrom(category: Category | null | undefined): FormValues {
  * disattivazione resta un'azione diretta sulla riga della lista, non un
  * campo di questo form (stesso pattern di RulesPage per is_active). */
 export function CategoryFormDialog({ open, onClose, category }: CategoryFormDialogProps) {
+  const { t } = useTranslation(["categories", "common"]);
   const { data: categories } = useCategories();
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
@@ -58,7 +63,7 @@ export function CategoryFormDialog({ open, onClose, category }: CategoryFormDial
     watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(buildSchema(t)),
     defaultValues: valuesFrom(category),
   });
   // Il kind si eredita SEMPRE dal padre su una sottocategoria (il backend lo
@@ -105,16 +110,16 @@ export function CategoryFormDialog({ open, onClose, category }: CategoryFormDial
       }
       close();
     } catch (error) {
-      setFormError(friendlyErrorMessage(error, "Non è stato possibile salvare la categoria."));
+      setFormError(friendlyErrorMessage(error, t("editDialog.error")));
     }
   };
 
   return (
-    <Dialog open={open} onClose={close} title={isEditing ? "Modifica categoria" : "Nuova categoria"}>
+    <Dialog open={open} onClose={close} title={isEditing ? t("editDialog.editTitle") : t("editDialog.createTitle")}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-        <Input label="Nome" error={errors.name?.message} {...register("name")} />
-        <Select label="Categoria padre (opzionale)" error={errors.parent_id?.message} {...register("parent_id")}>
-          <option value="">Nessuna — categoria di primo livello</option>
+        <Input label={t("fields.name")} error={errors.name?.message} {...register("name")} />
+        <Select label={t("fields.parent")} error={errors.parent_id?.message} {...register("parent_id")}>
+          <option value="">{t("noParentOption")}</option>
           {parentOptions.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -122,7 +127,7 @@ export function CategoryFormDialog({ open, onClose, category }: CategoryFormDial
           ))}
         </Select>
         {isRoot ? (
-          <Select label="Tipo" error={errors.kind?.message} {...register("kind")}>
+          <Select label={t("fields.kind")} error={errors.kind?.message} {...register("kind")}>
             {CATEGORY_KINDS.map((kind) => (
               <option key={kind} value={kind}>
                 {CATEGORY_KIND_LABELS[kind]}
@@ -130,14 +135,12 @@ export function CategoryFormDialog({ open, onClose, category }: CategoryFormDial
             ))}
           </Select>
         ) : (
-          <p className="text-sm text-text-muted">
-            Il tipo si eredita dalla categoria padre scelta sopra.
-          </p>
+          <p className="text-sm text-text-muted">{t("kindInheritedNote")}</p>
         )}
         <Input
-          label="Ordine"
+          label={t("fields.sortOrder")}
           type="number"
-          hint="Determina la posizione nelle liste, a parità di livello."
+          hint={t("sortOrderHint")}
           error={errors.sort_order?.message}
           {...register("sort_order", { valueAsNumber: true })}
         />
@@ -148,10 +151,10 @@ export function CategoryFormDialog({ open, onClose, category }: CategoryFormDial
         )}
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={close}>
-            Annulla
+            {t("common:actions.cancel")}
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            {isEditing ? "Salva" : "Crea categoria"}
+            {isEditing ? t("editDialog.submitEdit") : t("editDialog.submitCreate")}
           </Button>
         </div>
       </form>

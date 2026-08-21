@@ -1,0 +1,33 @@
+{
+  "fields": {
+    "name": "Name",
+    "parent": "Parent category (optional)",
+    "kind": "Type",
+    "sortOrder": "Order"
+  },
+  "noParentOption": "None — top-level category",
+  "kindInheritedNote": "The type is inherited from the parent category chosen above.",
+  "sortOrderHint": "Determines the position in lists, among items at the same level.",
+  "validation": {
+    "name": "Enter a name"
+  },
+  "editDialog": {
+    "editTitle": "Edit category",
+    "createTitle": "New category",
+    "submitEdit": "Save",
+    "submitCreate": "Create category",
+    "error": "We couldn't save the category."
+  },
+  "createDialog": {
+    "title": "New category",
+    "submit": "Create category",
+    "error": "We couldn't create the category."
+  },
+  "picker": {
+    "defaultLabel": "Category",
+    "placeholder": "Select a category…",
+    "searchPlaceholder": "Search by name…",
+    "emptyOption": "No category",
+    "newCategoryButton": "New category…"
+  }
+}

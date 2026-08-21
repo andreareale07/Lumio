@@ -26,7 +26,7 @@ const KIND_ORDER: CategoryKind[] = ["expense", "income", "transfer", "investment
  * di sola lettura — il backend le protegge gia' con un 403, la UI evita di
  * mostrare azioni che fallirebbero comunque. */
 export function CategoriesSettingsPage() {
-  const { t } = useTranslation("settings");
+  const { t } = useTranslation(["settings", "common"]);
   const { data: categories, isLoading, isError, refetch } = useCategories();
   const [formCategory, setFormCategory] = useState<Category | null | "new">(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
@@ -65,7 +65,7 @@ export function CategoriesSettingsPage() {
       await deleteCategory.mutateAsync(categoryToDelete.id);
       setCategoryToDelete(null);
     } catch (error) {
-      setDeleteError(friendlyErrorMessage(error, "Non è stato possibile eliminare la categoria."));
+      setDeleteError(friendlyErrorMessage(error, t("items.categories.page.deleteDialog.error")));
     }
   };
 
@@ -90,7 +90,7 @@ export function CategoriesSettingsPage() {
         </div>
         <Button size="sm" onClick={() => setFormCategory("new")}>
           <Plus className="h-4 w-4" aria-hidden="true" />
-          Nuova
+          {t("items.categories.page.newCategory")}
         </Button>
       </div>
 
@@ -98,27 +98,27 @@ export function CategoriesSettingsPage() {
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={`Cerca tra ${totalCount} categorie per nome o codice…`}
-          aria-label="Cerca categorie"
+          placeholder={t("items.categories.page.searchPlaceholder", { count: totalCount })}
+          aria-label={t("items.categories.page.searchAriaLabel")}
         />
       )}
 
       {isLoading && <SkeletonRows rows={4} />}
-      {isError && <ErrorState message="Non siamo riusciti a caricare le categorie." onRetry={() => void refetch()} />}
+      {isError && <ErrorState message={t("items.categories.page.loadError")} onRetry={() => void refetch()} />}
 
       {!isLoading && !isError && totalCount === 0 && (
         <EmptyState
           icon={FolderTree}
-          title="Nessuna categoria"
-          description="Crea la tua prima categoria personalizzata."
-          action={<Button onClick={() => setFormCategory("new")}>Nuova categoria</Button>}
+          title={t("items.categories.page.empty.title")}
+          description={t("items.categories.page.empty.description")}
+          action={<Button onClick={() => setFormCategory("new")}>{t("items.categories.page.empty.action")}</Button>}
         />
       )}
 
       {!isLoading && !isError && isSearching && (
         <div className="flex flex-col gap-2">
           {searchMatches.length === 0 && (
-            <p className="text-sm text-text-muted">Nessuna categoria corrisponde a "{query}".</p>
+            <p className="text-sm text-text-muted">{t("items.categories.page.noSearchResults", { query })}</p>
           )}
           {searchMatches.map((category) => (
             <CategoryRow key={category.id} {...rowProps(category)} />
@@ -139,7 +139,7 @@ export function CategoriesSettingsPage() {
                     {children.length > 0 && (
                       <details className="ml-6">
                         <summary className="cursor-pointer text-sm text-text-muted select-none">
-                          {children.length} sottocategori{children.length === 1 ? "a" : "e"}
+                          {t("items.categories.page.subcategories", { count: children.length })}
                         </summary>
                         <div className="mt-2 flex flex-col gap-2">
                           {children.map((child) => (
@@ -162,10 +162,13 @@ export function CategoriesSettingsPage() {
         category={formCategory === "new" ? null : formCategory}
       />
 
-      <Dialog open={!!categoryToDelete} onClose={() => setCategoryToDelete(null)} title="Eliminare la categoria?">
+      <Dialog
+        open={!!categoryToDelete}
+        onClose={() => setCategoryToDelete(null)}
+        title={t("items.categories.page.deleteDialog.title")}
+      >
         <p className="text-sm text-text-muted">
-          "{categoryToDelete?.name}" verrà eliminata definitivamente. Se è ancora usata da qualche transazione o
-          sotto-categoria, l'eliminazione verrà rifiutata: in quel caso puoi disattivarla invece.
+          {t("items.categories.page.deleteDialog.body", { name: categoryToDelete?.name })}
         </p>
         {deleteError && (
           <p role="alert" className="mt-2 text-sm text-danger">
@@ -174,10 +177,10 @@ export function CategoriesSettingsPage() {
         )}
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setCategoryToDelete(null)}>
-            Annulla
+            {t("common:actions.cancel")}
           </Button>
           <Button variant="danger" loading={deleteCategory.isPending} onClick={() => void onConfirmDelete()}>
-            Elimina
+            {t("items.categories.page.row.delete")}
           </Button>
         </div>
       </Dialog>
@@ -196,6 +199,7 @@ function CategoryRow({
   onDelete: () => void;
   onToggleActive: () => void;
 }) {
+  const { t } = useTranslation("settings");
   return (
     <Card className="flex flex-wrap items-center justify-between gap-2">
       <div>
@@ -203,18 +207,18 @@ function CategoryRow({
         <p className="text-xs text-text-muted">{category.code}</p>
       </div>
       <div className="flex items-center gap-2">
-        {category.is_system && <Badge tone="neutral">Sistema</Badge>}
-        {!category.is_active && <Badge tone="neutral">Disattiva</Badge>}
+        {category.is_system && <Badge tone="neutral">{t("items.categories.page.row.badgeSystem")}</Badge>}
+        {!category.is_active && <Badge tone="neutral">{t("items.categories.page.row.badgeInactive")}</Badge>}
         {!category.is_system && (
           <>
             <Button variant="ghost" size="sm" onClick={onToggleActive}>
-              {category.is_active ? "Disattiva" : "Attiva"}
+              {t(category.is_active ? "items.categories.page.row.toggleDeactivate" : "items.categories.page.row.toggleActivate")}
             </Button>
             <Button variant="ghost" size="sm" onClick={onEdit}>
-              Modifica
+              {t("items.categories.page.row.edit")}
             </Button>
             <Button variant="ghost" size="sm" onClick={onDelete}>
-              Elimina
+              {t("items.categories.page.row.delete")}
             </Button>
           </>
         )}

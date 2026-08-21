@@ -14,7 +14,34 @@
     "categories": {
       "label": "Categories",
       "description": "Manage the categories used to classify transactions.",
-      "pageDescription": "System categories are shared and cannot be edited. Ones you create can be renamed, reordered, deactivated, or deleted once no longer in use."
+      "pageDescription": "System categories are shared and cannot be edited. Ones you create can be renamed, reordered, deactivated, or deleted once no longer in use.",
+      "page": {
+        "newCategory": "New",
+        "searchPlaceholder": "Search {{count}} categories by name or code…",
+        "searchAriaLabel": "Search categories",
+        "loadError": "We couldn't load the categories.",
+        "empty": {
+          "title": "No category",
+          "description": "Create your first custom category.",
+          "action": "New category"
+        },
+        "noSearchResults": "No category matches \"{{query}}\".",
+        "subcategories_one": "{{count}} subcategory",
+        "subcategories_other": "{{count}} subcategories",
+        "row": {
+          "badgeSystem": "System",
+          "badgeInactive": "Deactivated",
+          "toggleActivate": "Activate",
+          "toggleDeactivate": "Deactivate",
+          "edit": "Edit",
+          "delete": "Delete"
+        },
+        "deleteDialog": {
+          "title": "Delete this category?",
+          "body": "\"{{name}}\" will be permanently deleted. If it's still used by a transaction or subcategory, the deletion will be rejected: you can deactivate it instead in that case.",
+          "error": "We couldn't delete the category."
+        }
+      }
     },
     "transactionTypes": {
       "label": "Transaction types",

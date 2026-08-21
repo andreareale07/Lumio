@@ -38,6 +38,7 @@
     }
   },
   "fields": {
-    "currency": "Currency"
+    "currency": "Currency",
+    "category": "Category"
   }
 }

@@ -14,7 +14,34 @@
     "categories": {
       "label": "Categorie",
       "description": "Gestisci le categorie usate per classificare le transazioni.",
-      "pageDescription": "Le categorie di sistema sono condivise e non modificabili. Quelle create da te possono essere rinominate, riordinate, disattivate o eliminate se non più in uso."
+      "pageDescription": "Le categorie di sistema sono condivise e non modificabili. Quelle create da te possono essere rinominate, riordinate, disattivate o eliminate se non più in uso.",
+      "page": {
+        "newCategory": "Nuova",
+        "searchPlaceholder": "Cerca tra {{count}} categorie per nome o codice…",
+        "searchAriaLabel": "Cerca categorie",
+        "loadError": "Non siamo riusciti a caricare le categorie.",
+        "empty": {
+          "title": "Nessuna categoria",
+          "description": "Crea la tua prima categoria personalizzata.",
+          "action": "Nuova categoria"
+        },
+        "noSearchResults": "Nessuna categoria corrisponde a \"{{query}}\".",
+        "subcategories_one": "{{count}} sottocategoria",
+        "subcategories_other": "{{count}} sottocategorie",
+        "row": {
+          "badgeSystem": "Sistema",
+          "badgeInactive": "Disattiva",
+          "toggleActivate": "Attiva",
+          "toggleDeactivate": "Disattiva",
+          "edit": "Modifica",
+          "delete": "Elimina"
+        },
+        "deleteDialog": {
+          "title": "Eliminare la categoria?",
+          "body": "\"{{name}}\" verrà eliminata definitivamente. Se è ancora usata da qualche transazione o sotto-categoria, l'eliminazione verrà rifiutata: in quel caso puoi disattivarla invece.",
+          "error": "Non è stato possibile eliminare la categoria."
+        }
+      }
     },
     "transactionTypes": {
       "label": "Tipi di transazione",

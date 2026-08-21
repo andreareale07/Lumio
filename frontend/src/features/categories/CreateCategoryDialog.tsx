@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import type { TFunction } from "i18next";
 
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
@@ -12,12 +14,14 @@ import { CATEGORY_KINDS } from "../../types/api";
 import { useCategories, useCreateCategory } from "./api";
 import { CATEGORY_KIND_LABELS } from "./utils";
 
-const schema = z.object({
-  name: z.string().min(1, "Inserisci un nome"),
-  parent_id: z.string(),
-  kind: z.enum(CATEGORY_KINDS),
-});
-type FormValues = z.infer<typeof schema>;
+function buildSchema(t: TFunction) {
+  return z.object({
+    name: z.string().min(1, t("validation.name")),
+    parent_id: z.string(),
+    kind: z.enum(CATEGORY_KINDS),
+  });
+}
+type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 
 export function CreateCategoryDialog({
   open,
@@ -28,6 +32,7 @@ export function CreateCategoryDialog({
   onClose: () => void;
   onCreated: (categoryId: string) => void;
 }) {
+  const { t } = useTranslation(["categories", "common"]);
   const { data: categories } = useCategories();
   const createCategory = useCreateCategory();
   const [formError, setFormError] = useState<string | null>(null);
@@ -39,7 +44,7 @@ export function CreateCategoryDialog({
     watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(buildSchema(t)),
     defaultValues: { name: "", parent_id: "", kind: "expense" },
   });
   // Come in CategoryFormDialog: il kind si eredita dal padre su una
@@ -67,16 +72,16 @@ export function CreateCategoryDialog({
       reset();
       onCreated(category.id);
     } catch (error) {
-      setFormError(friendlyErrorMessage(error, "Non è stato possibile creare la categoria."));
+      setFormError(friendlyErrorMessage(error, t("createDialog.error")));
     }
   };
 
   return (
-    <Dialog open={open} onClose={close} title="Nuova categoria">
+    <Dialog open={open} onClose={close} title={t("createDialog.title")}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-        <Input label="Nome" error={errors.name?.message} {...register("name")} />
-        <Select label="Categoria padre (opzionale)" {...register("parent_id")}>
-          <option value="">Nessuna — categoria di primo livello</option>
+        <Input label={t("fields.name")} error={errors.name?.message} {...register("name")} />
+        <Select label={t("fields.parent")} {...register("parent_id")}>
+          <option value="">{t("noParentOption")}</option>
           {topLevelCategories.map((category) => (
             <option key={category.id} value={category.id}>
               {category.name}
@@ -84,7 +89,7 @@ export function CreateCategoryDialog({
           ))}
         </Select>
         {isRoot && (
-          <Select label="Tipo" error={errors.kind?.message} {...register("kind")}>
+          <Select label={t("fields.kind")} error={errors.kind?.message} {...register("kind")}>
             {CATEGORY_KINDS.map((kind) => (
               <option key={kind} value={kind}>
                 {CATEGORY_KIND_LABELS[kind]}
@@ -99,10 +104,10 @@ export function CreateCategoryDialog({
         )}
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={close}>
-            Annulla
+            {t("common:actions.cancel")}
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            Crea categoria
+            {t("createDialog.submit")}
           </Button>
         </div>
       </form>

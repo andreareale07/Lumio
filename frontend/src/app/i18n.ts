@@ -1,11 +1,13 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
+import categoriesEn from "../locales/en/categories.json";
 import commonEn from "../locales/en/common.json";
 import enumsEn from "../locales/en/enums.json";
 import jobsEn from "../locales/en/jobs.json";
 import navigationEn from "../locales/en/navigation.json";
 import settingsEn from "../locales/en/settings.json";
+import categoriesIt from "../locales/it/categories.json";
 import commonIt from "../locales/it/common.json";
 import enumsIt from "../locales/it/enums.json";
 import jobsIt from "../locales/it/jobs.json";
@@ -26,8 +28,8 @@ const STORAGE_KEY = "lumio-locale";
 // lazy-loading: "valutare lazy loading... se realmente necessario", non lo
 // e' oggi per un'app personale — SPEC_FE_REDESIGN §31).
 const resources = {
-  it: { common: commonIt, enums: enumsIt, jobs: jobsIt, navigation: navigationIt, settings: settingsIt },
-  en: { common: commonEn, enums: enumsEn, jobs: jobsEn, navigation: navigationEn, settings: settingsEn },
+  it: { categories: categoriesIt, common: commonIt, enums: enumsIt, jobs: jobsIt, navigation: navigationIt, settings: settingsIt },
+  en: { categories: categoriesEn, common: commonEn, enums: enumsEn, jobs: jobsEn, navigation: navigationEn, settings: settingsEn },
 };
 
 function readStoredLocale(): SupportedLocale | null {
@@ -57,7 +59,10 @@ void i18n.use(initReactI18next).init({
   // disableWarning/parametri) — il backend (app/services/job_registry.py)
   // restituisce solo chiavi stabili, mai piu' testo italiano hardcoded
   // (DECISION REQUIRED "testo backend", risolta scegliendo questa strada).
-  ns: ["common", "enums", "jobs", "navigation", "settings"],
+  // "categories": CategoryPicker/CreateCategoryDialog sono componenti
+  // condivisi usati anche fuori da Impostazioni (correzione transazione,
+  // creazione regola), non solo dalla pagina Settings > Categorie.
+  ns: ["categories", "common", "enums", "jobs", "navigation", "settings"],
   defaultNS: "common",
   interpolation: { escapeValue: false },
   // In sviluppo una translation key mancante deve essere facilmente
