@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Circle, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "../../../components/ui/Button";
 import { Dialog } from "../../../components/ui/Dialog";
@@ -34,6 +35,7 @@ export function ExportOptionsDialog({
   onClose: () => void;
   integration: GoogleIntegration;
 }) {
+  const { t } = useTranslation(["settings", "common"]);
   const triggerExport = useTriggerGoogleExport();
   const setFolder = useSetGoogleDriveFolder();
   const exportStatus = useGoogleExportStatus();
@@ -45,7 +47,7 @@ export function ExportOptionsDialog({
   const [includeCharts, setIncludeCharts] = useState(true);
   const [folderError, setFolderError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [progressMessage, setProgressMessage] = useState("In corso…");
+  const [progressMessage, setProgressMessage] = useState(() => t("items.integrations.page.exportDialog.inProgress"));
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -73,7 +75,7 @@ export function ExportOptionsDialog({
       });
       setStep("progress");
     } catch (error) {
-      setSubmitError(friendlyErrorMessage(error, "Non è stato possibile avviare l'export."));
+      setSubmitError(friendlyErrorMessage(error, t("items.integrations.page.exportDialog.submitError")));
     }
   };
 
@@ -85,11 +87,11 @@ export function ExportOptionsDialog({
     const handleEvent = (event: GoogleExportProgressEvent) => {
       if (event.stage) setProgressMessage(event.stage);
       if (event.event === "job.completed") {
-        setResultMessage(event.message ?? "Export completato.");
+        setResultMessage(event.message ?? t("items.integrations.page.exportDialog.completed"));
         setStep("done");
       }
       if (event.event === "job.failed") {
-        setResultMessage(event.message ?? "L'export non è riuscito.");
+        setResultMessage(event.message ?? t("items.integrations.page.exportDialog.failed"));
         setStep("error");
       }
     };
@@ -100,6 +102,7 @@ export function ExportOptionsDialog({
     });
 
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` stabile, non serve nelle dep
   }, [step]);
 
   // Fallback se il polling di stato segnala terminato prima (o al posto)
@@ -107,26 +110,29 @@ export function ExportOptionsDialog({
   useEffect(() => {
     if (step !== "progress" || !exportStatus.data) return;
     if (exportStatus.data.status === "success") {
-      setResultMessage(exportStatus.data.message ?? "Export completato.");
+      setResultMessage(exportStatus.data.message ?? t("items.integrations.page.exportDialog.completed"));
       setStep("done");
     }
     if (exportStatus.data.status === "failed") {
-      setResultMessage(exportStatus.data.message ?? "L'export non è riuscito.");
+      setResultMessage(exportStatus.data.message ?? t("items.integrations.page.exportDialog.failed"));
       setStep("error");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` stabile, non serve nelle dep
   }, [exportStatus.data, step]);
 
   return (
-    <Dialog open={open} onClose={close} title="Esporta su Google Sheets">
+    <Dialog open={open} onClose={close} title={t("items.integrations.page.exportDialog.title")}>
       {step === "options" && (
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
             <div>
-              <p className="text-sm font-medium text-text">Cartella Drive</p>
-              <p className="text-sm text-text-muted">{integration.drive_folder_name ?? "Il mio Drive (root)"}</p>
+              <p className="text-sm font-medium text-text">{t("items.integrations.page.exportDialog.driveFolder")}</p>
+              <p className="text-sm text-text-muted">
+                {integration.drive_folder_name ?? t("items.integrations.page.folderRoot")}
+              </p>
             </div>
             <DriveFolderPickerButton
-              label="Cambia cartella"
+              label={t("items.integrations.page.changeFolder")}
               onPicked={(folder) => {
                 setFolderError(null);
                 setFolder.mutate({ folder_id: folder.id, folder_name: folder.name });
@@ -141,18 +147,28 @@ export function ExportOptionsDialog({
           )}
 
           <div className="flex gap-3">
-            <Input type="date" label="Dal" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-            <Input type="date" label="Al" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            <Input
+              type="date"
+              label={t("items.integrations.page.exportDialog.dateFrom")}
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+            <Input
+              type="date"
+              label={t("items.integrations.page.exportDialog.dateTo")}
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
           </div>
 
           <Select
-            label="Foglio Portfolio"
+            label={t("items.integrations.page.exportDialog.portfolioSheet")}
             value={portfolioChoice}
             onChange={(e) => setPortfolioChoice(e.target.value as PortfolioChoice)}
           >
-            <option value="auto">Automatico (solo se hai posizioni aperte)</option>
-            <option value="yes">Includi sempre</option>
-            <option value="no">Non includere</option>
+            <option value="auto">{t("items.integrations.page.exportDialog.portfolioAuto")}</option>
+            <option value="yes">{t("items.integrations.page.exportDialog.portfolioAlways")}</option>
+            <option value="no">{t("items.integrations.page.exportDialog.portfolioNever")}</option>
           </Select>
 
           <label className="flex items-center gap-2 text-sm text-text">
@@ -162,7 +178,7 @@ export function ExportOptionsDialog({
               onChange={(e) => setIncludeCharts(e.target.checked)}
               className="h-4 w-4 rounded border-border"
             />
-            Includi grafici nativi (barre, torte, andamento)
+            {t("items.integrations.page.exportDialog.includeCharts")}
           </label>
 
           {submitError && (
@@ -173,10 +189,10 @@ export function ExportOptionsDialog({
 
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={close}>
-              Annulla
+              {t("common:actions.cancel")}
             </Button>
             <Button onClick={() => void onExport()} loading={triggerExport.isPending}>
-              Esporta
+              {t("items.integrations.page.export")}
             </Button>
           </div>
         </div>
@@ -201,9 +217,9 @@ export function ExportOptionsDialog({
               variant="secondary"
               onClick={() => window.open(integration.spreadsheet_url, "_blank", "noopener,noreferrer")}
             >
-              Apri lo spreadsheet
+              {t("items.integrations.page.openSpreadsheet")}
             </Button>
-            <Button onClick={close}>Chiudi</Button>
+            <Button onClick={close}>{t("common:actions.close")}</Button>
           </div>
         </div>
       )}
@@ -215,9 +231,9 @@ export function ExportOptionsDialog({
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={close}>
-              Chiudi
+              {t("common:actions.close")}
             </Button>
-            <Button onClick={() => setStep("options")}>Riprova</Button>
+            <Button onClick={() => setStep("options")}>{t("common:actions.retry")}</Button>
           </div>
         </div>
       )}

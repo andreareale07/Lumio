@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "../../../components/ui/Button";
 import { fetchGooglePickerToken } from "./api";
@@ -78,11 +79,12 @@ interface DriveFolderPickerButtonProps {
  * campo di testo libero per il path (SPEC_FE: tutto guidato). Riusato sia
  * nel wizard di connessione sia in `ExportOptionsDialog` ("Cambia cartella"). */
 export function DriveFolderPickerButton({ label, variant = "secondary", onPicked, onError }: DriveFolderPickerButtonProps) {
+  const { t } = useTranslation("settings");
   const [loading, setLoading] = useState(false);
 
   const openPicker = useCallback(async () => {
     if (!PICKER_API_KEY) {
-      onError?.("Google Picker non configurato su questa istanza.");
+      onError?.(t("items.integrations.page.picker.notConfigured"));
       return;
     }
     setLoading(true);
@@ -105,11 +107,11 @@ export function DriveFolderPickerButton({ label, variant = "secondary", onPicked
         .build()
         .setVisible(true);
     } catch {
-      onError?.("Non è stato possibile aprire il selettore di cartelle Google Drive.");
+      onError?.(t("items.integrations.page.picker.openError"));
     } finally {
       setLoading(false);
     }
-  }, [onPicked, onError]);
+  }, [onPicked, onError, t]);
 
   return (
     <Button variant={variant} size="sm" loading={loading} onClick={() => void openPicker()}>

@@ -194,7 +194,78 @@
     "integrations": {
       "label": "Integrazioni",
       "description": "Esporta i tuoi dati finanziari su Google Sheets.",
-      "pageDescription": "Google Sheets è un'integrazione opzionale: esporta i tuoi dati finanziari in un foglio Google, sempre aggiornabile su richiesta. Disattivarla non ha alcun impatto sul resto di Lumio."
+      "pageDescription": "Google Sheets è un'integrazione opzionale: esporta i tuoi dati finanziari in un foglio Google, sempre aggiornabile su richiesta. Disattivarla non ha alcun impatto sul resto di Lumio.",
+      "page": {
+        "loadError": "Non siamo riusciti a caricare lo stato dell'integrazione.",
+        "errorGeneric": "Si è verificato un errore con Google.",
+        "errorCodes": {
+          "missing_code": "Google non ha restituito un codice di autorizzazione. Riprova.",
+          "invalid_state": "La richiesta di connessione non è valida o è scaduta. Riprova.",
+          "connection_failed": "Non è stato possibile completare la connessione con Google. Riprova."
+        },
+        "empty": {
+          "title": "Google Sheets",
+          "description": "Esporta i tuoi dati finanziari in un foglio Google, con grafici e riepiloghi pronti."
+        },
+        "connect": "Connetti",
+        "connectError": "Non è stato possibile avviare la connessione con Google.",
+        "folderPrompt": {
+          "title": "Dove vuoi salvare il file?",
+          "description": "Il file è stato creato nella root del tuo Google Drive (\"Il mio Drive\"). Puoi spostarlo in una cartella specifica, oppure confermare che va bene lì dov'è.",
+          "chooseFolder": "Scegli cartella",
+          "hide": "Nascondi"
+        },
+        "connected": "Connesso ✓",
+        "openSpreadsheet": "Apri lo spreadsheet",
+        "folder": "Cartella: {{name}}",
+        "folderRoot": "Il mio Drive (root)",
+        "changeFolder": "Cambia cartella",
+        "lastExport": "Ultimo export: {{value}}",
+        "lastExportNever": "mai eseguito",
+        "disconnect": "Disconnetti",
+        "export": "Esporta",
+        "disconnectDialog": {
+          "title": "Disconnettere Google?",
+          "body": "Lumio non avrà più accesso al tuo account Google. Lo spreadsheet resterà su Google Drive, ma non verrà più aggiornato automaticamente finché non ti riconnetti."
+        },
+        "setupGuide": {
+          "intro": {
+            "title": "Prima di connetterti: serve un progetto Google Cloud",
+            "description": "Lumio è self-hosted: a differenza di un servizio con un unico dominio, non può includere credenziali Google già pronte per l'uso (Google richiede un indirizzo di ritorno registrato in anticipo, diverso per ogni installazione). Chi gestisce questa istanza crea il proprio progetto — gratuito, una tantum, circa 10 minuti — esattamente come già fatto per un eventuale provider AI o market data."
+          },
+          "steps": {
+            "createProject": "<strong>Crea il progetto.</strong> In alto accanto al logo \"Google Cloud\", apri il selettore progetto → <em>Nuovo progetto</em>. Un nome qualsiasi va bene (es. \"lumio-personale\") → <em>Crea</em>, poi selezionalo come progetto attivo.",
+            "enableApis": "<strong>Abilita le API.</strong> Menu ☰ → <em>API e servizi → Libreria</em>. Cerca e abilita <strong>Google Sheets API</strong>, <strong>Google Drive API</strong> e <strong>Google Picker API</strong> (tutte e tre: la Picker API va abilitata a parte, non basta Drive — altrimenti non comparirà nell'elenco quando limiti la chiave al passo 5).",
+            "consentScreen": "<strong>Configura la schermata di consenso OAuth.</strong> Menu ☰ → <em>API e servizi → Schermata consenso OAuth</em>. Tipo utente <em>Esterno</em>. Nella sezione \"Utenti di test\" aggiungi il tuo indirizzo Gmail: resti così in modalità \"Testing\", senza bisogno della revisione di Google — perfetto per uso personale.",
+            "createCredentialsIntro": "<strong>Crea le credenziali OAuth.</strong> <em>API e servizi → Credenziali → Crea credenziali → ID client OAuth</em>, tipo <em>Applicazione web</em>. Nell'URI di reindirizzamento autorizzati incolla esattamente:",
+            "createCredentialsOutro": "Crea, poi copia <strong>ID client</strong> e <strong>Secret client</strong>.",
+            "pickerKey": "<strong>Crea la chiave per il Picker</strong> (selezione cartella Drive). Sempre in <em>Credenziali → Crea credenziali → Chiave API</em>, poi limitala (Modifica → Restrizioni API) a <strong>Google Picker API</strong> soltanto.",
+            "pasteValues": "<strong>Incolla i 4 valori</strong> (client ID, client secret, l'URI sopra, la chiave Picker) nel file <code>.env</code> di questa istanza — variabili <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REDIRECT_URI</code>, <code>GOOGLE_PICKER_API_KEY</code> (e <code>VITE_GOOGLE_PICKER_API_KEY</code> per il frontend) — poi riavvia i container Docker."
+          },
+          "copy": "Copia",
+          "copied": "Copiato ✓",
+          "openConsole": "Apri Google Cloud Console"
+        },
+        "exportDialog": {
+          "title": "Esporta su Google Sheets",
+          "driveFolder": "Cartella Drive",
+          "dateFrom": "Dal",
+          "dateTo": "Al",
+          "portfolioSheet": "Foglio Portfolio",
+          "portfolioAuto": "Automatico (solo se hai posizioni aperte)",
+          "portfolioAlways": "Includi sempre",
+          "portfolioNever": "Non includere",
+          "includeCharts": "Includi grafici nativi (barre, torte, andamento)",
+          "submitError": "Non è stato possibile avviare l'export.",
+          "inProgress": "In corso…",
+          "completed": "Export completato.",
+          "failed": "L'export non è riuscito."
+        },
+        "picker": {
+          "notConfigured": "Google Picker non configurato su questa istanza.",
+          "openError": "Non è stato possibile aprire il selettore di cartelle Google Drive."
+        }
+      }
     },
     "jobs": {
       "label": "Job di sistema",

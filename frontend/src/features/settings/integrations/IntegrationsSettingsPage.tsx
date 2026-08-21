@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, FileSpreadsheet } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
@@ -21,14 +21,8 @@ import {
   useSetGoogleDriveFolder,
 } from "./api";
 
-const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
-  missing_code: "Google non ha restituito un codice di autorizzazione. Riprova.",
-  invalid_state: "La richiesta di connessione non è valida o è scaduta. Riprova.",
-  connection_failed: "Non è stato possibile completare la connessione con Google. Riprova.",
-};
-
 export function IntegrationsSettingsPage() {
-  const { t } = useTranslation("settings");
+  const { t } = useTranslation(["settings", "common"]);
   const { data: integration, isLoading, isError, refetch } = useGoogleIntegration();
   const connectGoogle = useConnectGoogle();
   const disconnectGoogle = useDisconnectGoogle();
@@ -57,34 +51,37 @@ export function IntegrationsSettingsPage() {
       const { authorize_url } = await connectGoogle.mutateAsync();
       window.location.assign(authorize_url);
     } catch {
-      setConnectError("Non è stato possibile avviare la connessione con Google.");
+      setConnectError(t("items.integrations.page.connectError"));
     }
   };
+
+  const googleErrorMessage = googleErrorCode
+    ? (t(`items.integrations.page.errorCodes.${googleErrorCode}`, { defaultValue: "" }) as string) ||
+      t("items.integrations.page.errorGeneric")
+    : null;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <h1 className="text-lg font-semibold text-text">{t("items.integrations.label")}</h1>
-      <p className="text-sm text-text-muted">
-        {t("items.integrations.pageDescription")}
-      </p>
+      <p className="text-sm text-text-muted">{t("items.integrations.pageDescription")}</p>
 
       {isLoading && <SkeletonRows rows={3} />}
-      {isError && <ErrorState message="Non siamo riusciti a caricare lo stato dell'integrazione." onRetry={() => void refetch()} />}
+      {isError && <ErrorState message={t("items.integrations.page.loadError")} onRetry={() => void refetch()} />}
 
       {!isLoading && !isError && !integration && (
         <>
-          {googleErrorCode && (
+          {googleErrorMessage && (
             <p role="alert" className="text-sm text-danger">
-              {GOOGLE_ERROR_MESSAGES[googleErrorCode] ?? "Si è verificato un errore con Google."}
+              {googleErrorMessage}
             </p>
           )}
           <EmptyState
             icon={FileSpreadsheet}
-            title="Google Sheets"
-            description="Esporta i tuoi dati finanziari in un foglio Google, con grafici e riepiloghi pronti."
+            title={t("items.integrations.page.empty.title")}
+            description={t("items.integrations.page.empty.description")}
             action={
               <Button onClick={() => void onConnect()} loading={connectGoogle.isPending}>
-                Connetti
+                {t("items.integrations.page.connect")}
               </Button>
             }
           />
@@ -102,15 +99,12 @@ export function IntegrationsSettingsPage() {
           {showFolderPrompt && (
             <Card className="flex flex-wrap items-center justify-between gap-3 border-primary/40">
               <div>
-                <p className="font-medium text-text">Dove vuoi salvare il file?</p>
-                <p className="text-sm text-text-muted">
-                  Il file è stato creato nella root del tuo Google Drive ("Il mio Drive"). Puoi spostarlo in una
-                  cartella specifica, oppure confermare che va bene lì dov'è.
-                </p>
+                <p className="font-medium text-text">{t("items.integrations.page.folderPrompt.title")}</p>
+                <p className="text-sm text-text-muted">{t("items.integrations.page.folderPrompt.description")}</p>
               </div>
               <div className="flex gap-2">
                 <DriveFolderPickerButton
-                  label="Scegli cartella"
+                  label={t("items.integrations.page.folderPrompt.chooseFolder")}
                   onPicked={(folder) => {
                     setFolderError(null);
                     setFolder.mutate(
@@ -121,7 +115,7 @@ export function IntegrationsSettingsPage() {
                   onError={setFolderError}
                 />
                 <Button variant="ghost" size="sm" onClick={() => setShowFolderPrompt(false)}>
-                  Nascondi
+                  {t("items.integrations.page.folderPrompt.hide")}
                 </Button>
               </div>
             </Card>
@@ -132,7 +126,7 @@ export function IntegrationsSettingsPage() {
               <div className="flex items-center gap-3">
                 <FileSpreadsheet className="h-8 w-8 text-text-muted" aria-hidden="true" />
                 <div>
-                  <p className="font-medium text-text">Connesso ✓</p>
+                  <p className="font-medium text-text">{t("items.integrations.page.connected")}</p>
                   <p className="text-sm text-text-muted">{integration.google_account_email}</p>
                 </div>
               </div>
@@ -145,12 +139,16 @@ export function IntegrationsSettingsPage() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 font-medium text-primary hover:underline"
               >
-                Apri lo spreadsheet <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                {t("items.integrations.page.openSpreadsheet")} <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               </a>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-text-muted">Cartella: {integration.drive_folder_name ?? "Il mio Drive (root)"}</p>
+                <p className="text-text-muted">
+                  {t("items.integrations.page.folder", {
+                    name: integration.drive_folder_name ?? t("items.integrations.page.folderRoot"),
+                  })}
+                </p>
                 <DriveFolderPickerButton
-                  label="Cambia cartella"
+                  label={t("items.integrations.page.changeFolder")}
                   variant="ghost"
                   onPicked={(folder) => {
                     setFolderError(null);
@@ -160,8 +158,11 @@ export function IntegrationsSettingsPage() {
                 />
               </div>
               <p className="text-text-muted">
-                Ultimo export:{" "}
-                {integration.last_exported_at ? formatDateTime(integration.last_exported_at) : "mai eseguito"}
+                {t("items.integrations.page.lastExport", {
+                  value: integration.last_exported_at
+                    ? formatDateTime(integration.last_exported_at)
+                    : t("items.integrations.page.lastExportNever"),
+                })}
               </p>
             </div>
             {folderError && (
@@ -174,22 +175,23 @@ export function IntegrationsSettingsPage() {
 
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setDisconnectConfirmOpen(true)}>
-                Disconnetti
+                {t("items.integrations.page.disconnect")}
               </Button>
-              <Button onClick={() => setExportDialogOpen(true)}>Esporta</Button>
+              <Button onClick={() => setExportDialogOpen(true)}>{t("items.integrations.page.export")}</Button>
             </div>
           </Card>
 
           <ExportOptionsDialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} integration={integration} />
 
-          <Dialog open={disconnectConfirmOpen} onClose={() => setDisconnectConfirmOpen(false)} title="Disconnettere Google?">
-            <p className="text-sm text-text-muted">
-              Lumio non avrà più accesso al tuo account Google. Lo spreadsheet resterà su Google Drive, ma non verrà
-              più aggiornato automaticamente finché non ti riconnetti.
-            </p>
+          <Dialog
+            open={disconnectConfirmOpen}
+            onClose={() => setDisconnectConfirmOpen(false)}
+            title={t("items.integrations.page.disconnectDialog.title")}
+          >
+            <p className="text-sm text-text-muted">{t("items.integrations.page.disconnectDialog.body")}</p>
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setDisconnectConfirmOpen(false)}>
-                Annulla
+                {t("common:actions.cancel")}
               </Button>
               <Button
                 variant="danger"
@@ -199,7 +201,7 @@ export function IntegrationsSettingsPage() {
                   setDisconnectConfirmOpen(false);
                 }}
               >
-                Disconnetti
+                {t("items.integrations.page.disconnect")}
               </Button>
             </div>
           </Dialog>
@@ -217,6 +219,7 @@ export function IntegrationsSettingsPage() {
  * accetta match parziali) con quello su cui gira DAVVERO questa istanza,
  * che puo' non essere "localhost:5173" (NAS, IP di rete locale, dominio). */
 function SetupGuide() {
+  const { t } = useTranslation("settings");
   const redirectUri = `${window.location.origin}/api/v1/integrations/google/callback`;
   const [copied, setCopied] = useState(false);
 
@@ -230,41 +233,40 @@ function SetupGuide() {
     }
   };
 
+  // Ogni passo mischia enfasi (<strong>/<em>) e nomi letterali (<code>,
+  // invariati fra le lingue) dentro la stessa frase: <Trans> con i
+  // component mapping a livello di TAG NAME (non per occorrenza) risolve
+  // ripetizioni multiple dello stesso tag nella stessa chiave — vedi
+  // "enableApis" (3x <strong>) o "pasteValues" (5x <code>).
+  const stepComponents = {
+    strong: <strong className="text-text" />,
+    em: <em />,
+    code: <code className="rounded bg-surface-hover px-1 py-0.5 font-mono text-xs" />,
+  };
+
   return (
     <Card className="flex flex-col gap-3 text-sm">
       <div>
-        <p className="font-medium text-text">Prima di connetterti: serve un progetto Google Cloud</p>
-        <p className="text-text-muted">
-          Lumio è self-hosted: a differenza di un servizio con un unico dominio, non può includere credenziali
-          Google già pronte per l'uso (Google richiede un indirizzo di ritorno registrato in anticipo, diverso per
-          ogni installazione). Chi gestisce questa istanza crea il proprio progetto — gratuito, una tantum, circa
-          10 minuti — esattamente come già fatto per un eventuale provider AI o market data.
-        </p>
+        <p className="font-medium text-text">{t("items.integrations.page.setupGuide.intro.title")}</p>
+        <p className="text-text-muted">{t("items.integrations.page.setupGuide.intro.description")}</p>
       </div>
 
       <ol className="list-decimal space-y-3 pl-5 text-text-muted">
         <li>
-          <strong className="text-text">Crea il progetto.</strong> In alto accanto al logo "Google Cloud", apri il
-          selettore progetto → <em>Nuovo progetto</em>. Un nome qualsiasi va bene (es. "lumio-personale") →{" "}
-          <em>Crea</em>, poi selezionalo come progetto attivo.
+          <Trans t={t} i18nKey="items.integrations.page.setupGuide.steps.createProject" components={stepComponents} />
         </li>
         <li>
-          <strong className="text-text">Abilita le API.</strong> Menu ☰ → <em>API e servizi → Libreria</em>. Cerca
-          e abilita <strong className="text-text">Google Sheets API</strong>,{" "}
-          <strong className="text-text">Google Drive API</strong> e{" "}
-          <strong className="text-text">Google Picker API</strong> (tutte e tre: la Picker API va abilitata a parte,
-          non basta Drive — altrimenti non comparirà nell'elenco quando limiti la chiave al passo 5).
+          <Trans t={t} i18nKey="items.integrations.page.setupGuide.steps.enableApis" components={stepComponents} />
         </li>
         <li>
-          <strong className="text-text">Configura la schermata di consenso OAuth.</strong> Menu ☰ →{" "}
-          <em>API e servizi → Schermata consenso OAuth</em>. Tipo utente <em>Esterno</em>. Nella sezione "Utenti di
-          test" aggiungi il tuo indirizzo Gmail: resti così in modalità "Testing", senza bisogno della revisione di
-          Google — perfetto per uso personale.
+          <Trans t={t} i18nKey="items.integrations.page.setupGuide.steps.consentScreen" components={stepComponents} />
         </li>
         <li>
-          <strong className="text-text">Crea le credenziali OAuth.</strong>{" "}
-          <em>API e servizi → Credenziali → Crea credenziali → ID client OAuth</em>, tipo{" "}
-          <em>Applicazione web</em>. Nell'URI di reindirizzamento autorizzati incolla esattamente:
+          <Trans
+            t={t}
+            i18nKey="items.integrations.page.setupGuide.steps.createCredentialsIntro"
+            components={stepComponents}
+          />
           <div className="mt-1.5 flex items-center gap-2 rounded-md border border-border bg-surface-hover px-2 py-1.5 font-mono text-xs text-text">
             <code className="flex-1 break-all">{redirectUri}</code>
             <button
@@ -272,24 +274,22 @@ function SetupGuide() {
               onClick={() => void copyRedirectUri()}
               className="shrink-0 font-sans font-medium text-primary hover:underline"
             >
-              {copied ? "Copiato ✓" : "Copia"}
+              {copied ? t("items.integrations.page.setupGuide.copied") : t("items.integrations.page.setupGuide.copy")}
             </button>
           </div>
           <span className="mt-1 block">
-            Crea, poi copia <strong className="text-text">ID client</strong> e{" "}
-            <strong className="text-text">Secret client</strong>.
+            <Trans
+              t={t}
+              i18nKey="items.integrations.page.setupGuide.steps.createCredentialsOutro"
+              components={stepComponents}
+            />
           </span>
         </li>
         <li>
-          <strong className="text-text">Crea la chiave per il Picker</strong> (selezione cartella Drive). Sempre in{" "}
-          <em>Credenziali → Crea credenziali → Chiave API</em>, poi limitala (Modifica → Restrizioni API) a{" "}
-          <strong className="text-text">Google Picker API</strong> soltanto.
+          <Trans t={t} i18nKey="items.integrations.page.setupGuide.steps.pickerKey" components={stepComponents} />
         </li>
         <li>
-          <strong className="text-text">Incolla i 4 valori</strong> (client ID, client secret, l'URI sopra, la
-          chiave Picker) nel file <code>.env</code> di questa istanza — variabili <code>GOOGLE_CLIENT_ID</code>,{" "}
-          <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REDIRECT_URI</code>, <code>GOOGLE_PICKER_API_KEY</code> (e{" "}
-          <code>VITE_GOOGLE_PICKER_API_KEY</code> per il frontend) — poi riavvia i container Docker.
+          <Trans t={t} i18nKey="items.integrations.page.setupGuide.steps.pasteValues" components={stepComponents} />
         </li>
       </ol>
 
@@ -299,7 +299,7 @@ function SetupGuide() {
         rel="noopener noreferrer"
         className="flex items-center gap-1.5 font-medium text-primary hover:underline"
       >
-        Apri Google Cloud Console <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+        {t("items.integrations.page.setupGuide.openConsole")} <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </a>
     </Card>
   );
