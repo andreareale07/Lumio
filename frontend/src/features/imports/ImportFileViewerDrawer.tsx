@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { FileText } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Drawer } from "../../components/ui/Drawer";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -14,11 +15,12 @@ interface ImportFileViewerDrawerProps {
 }
 
 export function ImportFileViewerDrawer({ importRecord, onClose }: ImportFileViewerDrawerProps) {
+  const { t } = useTranslation("imports");
   return (
     <Drawer
       open={!!importRecord}
       onClose={onClose}
-      title={importRecord ? `File originale — ${importRecord.filename}` : "File originale"}
+      title={importRecord ? t("fileViewer.title", { filename: importRecord.filename }) : t("fileViewer.titleFallback")}
       widthClassName="max-w-3xl"
     >
       {importRecord?.file_type === "pdf" && <PdfFileView importId={importRecord.id} />}
@@ -28,6 +30,7 @@ export function ImportFileViewerDrawer({ importRecord, onClose }: ImportFileView
 }
 
 function PdfFileView({ importId }: { importId: string }) {
+  const { t } = useTranslation("imports");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -47,7 +50,7 @@ function PdfFileView({ importId }: { importId: string }) {
   }, [importId]);
 
   if (error) {
-    return <ErrorState message="Non siamo riusciti a caricare il file originale." />;
+    return <ErrorState message={t("fileViewer.loadError")} />;
   }
   if (!blobUrl) {
     return <SkeletonRows rows={6} />;
@@ -62,14 +65,15 @@ function PdfFileView({ importId }: { importId: string }) {
 }
 
 function CsvFileView({ importId }: { importId: string }) {
+  const { t } = useTranslation("imports");
   const { data, isLoading, isError, refetch } = useImportFileContent(importId);
 
   if (isLoading) return <SkeletonRows rows={8} />;
   if (isError || !data) {
-    return <ErrorState message="Non siamo riusciti a caricare il file originale." onRetry={() => void refetch()} />;
+    return <ErrorState message={t("fileViewer.loadError")} onRetry={() => void refetch()} />;
   }
   if (data.rows.length === 0) {
-    return <EmptyState icon={FileText} title="File vuoto" description="Il file originale non contiene righe di dati." />;
+    return <EmptyState icon={FileText} title={t("fileViewer.empty.title")} description={t("fileViewer.empty.description")} />;
   }
 
   return (
@@ -98,7 +102,7 @@ function CsvFileView({ importId }: { importId: string }) {
       </table>
       {data.truncated && (
         <p className="mt-2 text-xs text-text-muted">
-          Mostrate le prime {data.rows.length} righe su {data.total_rows} totali.
+          {t("fileViewer.truncated", { shown: data.rows.length, total: data.total_rows })}
         </p>
       )}
     </div>

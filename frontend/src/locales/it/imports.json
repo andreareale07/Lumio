@@ -1,0 +1,103 @@
+{
+  "stage": {
+    "queued": "In coda",
+    "preparazione": "Preparazione",
+    "estrazione": "Estrazione in corso",
+    "salvataggio": "Salvataggio"
+  },
+  "aiProgress": {
+    "label": "Classificazione AI: {{processed}}/{{total}}"
+  },
+  "page": {
+    "title": "Import",
+    "importDocument": "Importa documento",
+    "loadError": "Non siamo riusciti a caricare gli import.",
+    "empty": {
+      "title": "Nessuna importazione",
+      "description": "Importa un estratto conto CSV o PDF per popolare i tuoi movimenti."
+    },
+    "transactionsImported_one": "{{count}} movimento",
+    "transactionsImported_other": "{{count}} movimenti",
+    "alreadyPresent": "{{count}} già presenti",
+    "aiClassificationFailed": "Classificazione AI non riuscita: {{message}}",
+    "duplicatesToReview": "{{count}} duplicati da verificare",
+    "viewOriginalFile": "Visualizza file originale",
+    "deleteImport": "Elimina import",
+    "blockedTooltip": {
+      "aiRunning": "Classificazione AI in corso: attendi il completamento prima di poterlo eliminare",
+      "processing": "Import in elaborazione: attendi il completamento prima di poterlo eliminare"
+    }
+  },
+  "deleteDialog": {
+    "title": "Eliminare l'import?",
+    "notYetCreated": "Questo import non ha ancora creato movimenti: verrà prima annullato (se ancora in coda) e poi eliminato definitivamente.",
+    "checkingCount": "Verifica delle transazioni collegate…",
+    "countError": "L'import e le eventuali transazioni collegate verranno eliminati definitivamente.",
+    "noTransactions": "Nessuna transazione collegata a questo import.",
+    "transactionsCount_one": "Verrà eliminata {{count}} transazione collegata a questo import.",
+    "transactionsCount_other": "Verranno eliminate {{count}} transazioni collegate a questo import.",
+    "irreversible": "L'operazione non è reversibile.",
+    "error": "Impossibile eliminare l'import.",
+    "confirm": "Elimina"
+  },
+  "fileViewer": {
+    "title": "File originale — {{filename}}",
+    "titleFallback": "File originale",
+    "loadError": "Non siamo riusciti a caricare il file originale.",
+    "empty": {
+      "title": "File vuoto",
+      "description": "Il file originale non contiene righe di dati."
+    },
+    "truncated": "Mostrate le prime {{shown}} righe su {{total}} totali."
+  },
+  "duplicateReview": {
+    "title": "Possibili duplicati — {{filename}}",
+    "empty": {
+      "title": "Nessun duplicato da verificare",
+      "description": "Tutti i movimenti ambigui di questo import sono stati decisi."
+    },
+    "decideError": "Non è stato possibile registrare la decisione.",
+    "possibleDuplicateBadge": "Possibile duplicato",
+    "newTransaction": "Nuovo movimento",
+    "existingTransaction": "Movimento già presente",
+    "balanceAfter": "Saldo: {{value}}",
+    "markDuplicate": "Non importare",
+    "keepNew": "Importa comunque"
+  },
+  "wizard": {
+    "title": "Importa documento",
+    "accountLabel": "Conto",
+    "selectAccount": "Seleziona un conto",
+    "dropzone": {
+      "prompt": "Trascina il file qui oppure seleziona",
+      "hint": "CSV o PDF, max {{size}} MB",
+      "privacyNote": "Il file resta memorizzato in locale sul tuo server: nessun dato lascia il tuo ambiente self-hosted."
+    },
+    "duplicateFileError": "Questo file risulta già importato in questo workspace.",
+    "uploadError": "Non è stato possibile caricare il file.",
+    "upload": "Carica",
+    "confirm": {
+      "pdfValid": "PDF valido, documento leggibile",
+      "detectedBank": "Banca riconosciuta: <strong>{{bank}}</strong>",
+      "previewTitle": "Anteprima ({{count}} colonne)",
+      "error": "Non è stato possibile confermare l'import.",
+      "submit": "Conferma e importa"
+    },
+    "progress": {
+      "preparation": "Preparazione",
+      "extraction": "Estrazione",
+      "saving": "Salvataggio",
+      "failed": "L'import non è riuscito."
+    },
+    "done": {
+      "readyForReview": "Import da verificare",
+      "completed": "Import completato",
+      "summary": "{{found}} movimenti analizzati su {{account}}: {{imported}} nuovi",
+      "duplicateSuffix": ", {{count}} già presenti",
+      "reviewSuffix": ", {{count}} da verificare",
+      "reviewHint": "Trovi i movimenti da verificare nella lista Import, chiudendo questa finestra.",
+      "autoClassified": "{{count}} classificati automaticamente.",
+      "viewTransactions": "Visualizza movimenti"
+    }
+  }
+}

@@ -1,15 +1,7 @@
-import type { AiClassificationStatus, ImportStatus } from "../../types/api";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
-export const IMPORT_STATUS_LABELS: Record<ImportStatus, string> = {
-  uploaded: "Caricato",
-  queued: "In coda",
-  processing: "In elaborazione",
-  parsing: "Estrazione in corso",
-  ready_for_review: "Da verificare",
-  completed: "Completato",
-  failed: "Non riuscito",
-  cancelled: "Annullato",
-};
+import type { AiClassificationStatus, ImportStatus } from "../../types/api";
 
 export const IMPORT_STATUS_TONE: Record<ImportStatus, "neutral" | "primary" | "success" | "danger" | "warning"> = {
   uploaded: "neutral",
@@ -21,6 +13,18 @@ export const IMPORT_STATUS_TONE: Record<ImportStatus, "neutral" | "primary" | "s
   failed: "danger",
   cancelled: "neutral",
 };
+
+/** Etichetta di stato import: namespace "enums" (SPEC_FE_REDESIGN §27),
+ * stesso pattern di `useTransactionTypeLabel`. */
+export function useImportStatusLabel(): (status: ImportStatus) => string {
+  const { t } = useTranslation("enums");
+  return (status) => t(`importStatus.${status}`);
+}
+
+export function useAiClassificationStatusLabel(): (status: AiClassificationStatus) => string {
+  const { t } = useTranslation("enums");
+  return (status) => t(`aiClassificationStatus.${status}`);
+}
 
 // Rework "elimina import": il job worker scrive uno stato in cui non e' piu'
 // realmente in esecuzione (completed/failed/ready_for_review) come
@@ -54,25 +58,11 @@ export function isActivelyProcessingImportStatus(status: ImportStatus): boolean 
 /** Etichette di stage per l'indicatore di progresso live nella lista Import
  * (stessa terminologia a 3 stage già usata da `ImportWizard.tsx`, qui in
  * forma di stringa invece di uno step-tracker: la lista mostra molte righe
- * insieme, non ha lo spazio verticale del wizard). */
-export const IMPORT_STAGE_LABELS: Record<string, string> = {
-  queued: "In coda",
-  preparazione: "Preparazione",
-  estrazione: "Estrazione in corso",
-  salvataggio: "Salvataggio",
-};
-
-/** Classificazione AI disaccoppiata dal job di import (rework UX/design):
- * 'pending'/'running' sono gli unici stati per cui vale la pena mostrare un
- * indicatore live "x/N" — gli altri sono terminali, l'import è già
- * completo. */
-export const AI_CLASSIFICATION_STATUS_LABELS: Record<AiClassificationStatus, string> = {
-  pending: "In coda",
-  running: "Classificazione AI in corso",
-  completed: "Classificazione AI completata",
-  failed: "Classificazione AI non riuscita",
-  skipped: "Nessuna classificazione AI necessaria",
-};
+ * insieme, non ha lo spazio verticale del wizard). Namespace "imports": non
+ * e' un vero enum del backend, solo un bucket derivato dagli eventi SSE. */
+export function importStageLabel(t: TFunction, stage: "queued" | "preparazione" | "estrazione" | "salvataggio"): string {
+  return t(`imports:stage.${stage}`);
+}
 
 export function isActiveAiClassificationStatus(status: AiClassificationStatus | null): boolean {
   return status === "pending" || status === "running";

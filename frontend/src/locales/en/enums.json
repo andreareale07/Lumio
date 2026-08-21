@@ -49,5 +49,22 @@
     "cash": "Cash",
     "credit_card": "Credit card",
     "other": "Other"
+  },
+  "importStatus": {
+    "uploaded": "Uploaded",
+    "queued": "Queued",
+    "processing": "Processing",
+    "parsing": "Extracting",
+    "ready_for_review": "Needs review",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "aiClassificationStatus": {
+    "pending": "Queued",
+    "running": "AI classification in progress",
+    "completed": "AI classification completed",
+    "failed": "AI classification failed",
+    "skipped": "No AI classification needed"
   }
 }

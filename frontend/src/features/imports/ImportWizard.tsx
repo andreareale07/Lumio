@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Circle, Loader2, UploadCloud } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Trans, useTranslation } from "react-i18next";
 
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
@@ -18,6 +19,7 @@ type StageKey = "preparazione" | "estrazione" | "salvataggio";
 const MAX_SIZE_MB = 10;
 
 export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation(["imports", "common"]);
   const navigate = useNavigate();
   const { data: accounts } = useAccounts();
   const uploadImport = useUploadImport();
@@ -79,9 +81,9 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
       setStep("confirm");
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        setUploadError("Questo file risulta già importato in questo workspace.");
+        setUploadError(t("wizard.duplicateFileError"));
       } else {
-        setUploadError(friendlyErrorMessage(error, "Non è stato possibile caricare il file."));
+        setUploadError(friendlyErrorMessage(error, t("wizard.uploadError")));
       }
     }
   };
@@ -95,7 +97,7 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
       await confirmImport.mutateAsync({ importId: uploadResult.import.id, mapping });
       setStep("progress");
     } catch (error) {
-      setConfirmError(friendlyErrorMessage(error, "Non è stato possibile confermare l'import."));
+      setConfirmError(friendlyErrorMessage(error, t("wizard.confirm.error")));
     }
   };
 
@@ -125,7 +127,7 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
         void refetchImportRecord();
       }
       if (event.event === "job.failed") {
-        setProgressError(event.message ?? "L'import non è riuscito.");
+        setProgressError(event.message ?? t("wizard.progress.failed"));
       }
     };
 
@@ -135,7 +137,7 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
     });
 
     return () => controller.abort();
-  }, [step, uploadResult, refetchImportRecord]);
+  }, [step, uploadResult, refetchImportRecord, t]);
 
   // Fallback: se il polling di useImport() segnala completato/fallito prima
   // (o al posto) dello stream, riflette comunque lo stato nella UI.
@@ -150,18 +152,18 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
       setStep("done");
     }
     if (importRecord.status === "failed") {
-      setProgressError(importRecord.error_message ?? "L'import non è riuscito.");
+      setProgressError(importRecord.error_message ?? t("wizard.progress.failed"));
     }
-  }, [importRecord, step]);
+  }, [importRecord, step, t]);
 
-  const categorizedCount = (importedTransactions ?? []).filter((t) => t.category_id !== null).length;
+  const categorizedCount = (importedTransactions ?? []).filter((txn) => txn.category_id !== null).length;
 
   return (
-    <Dialog open={open} onClose={close} title="Importa documento">
+    <Dialog open={open} onClose={close} title={t("wizard.title")}>
       {step === "upload" && (
         <div className="flex flex-col gap-4">
-          <Select label="Conto" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            <option value="">Seleziona un conto</option>
+          <Select label={t("wizard.accountLabel")} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            <option value="">{t("wizard.selectAccount")}</option>
             {(accounts ?? []).map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name}
@@ -170,10 +172,8 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
           </Select>
           <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border p-8 text-center hover:border-primary">
             <UploadCloud className="h-8 w-8 text-text-muted" />
-            <span className="text-sm text-text">
-              {file ? file.name : "Trascina il file qui oppure seleziona"}
-            </span>
-            <span className="text-xs text-text-muted">CSV o PDF, max {MAX_SIZE_MB} MB</span>
+            <span className="text-sm text-text">{file ? file.name : t("wizard.dropzone.prompt")}</span>
+            <span className="text-xs text-text-muted">{t("wizard.dropzone.hint", { size: MAX_SIZE_MB })}</span>
             <input
               type="file"
               accept=".csv,.pdf"
@@ -181,9 +181,7 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
           </label>
-          <p className="text-xs text-text-muted">
-            Il file resta memorizzato in locale sul tuo server: nessun dato lascia il tuo ambiente self-hosted.
-          </p>
+          <p className="text-xs text-text-muted">{t("wizard.dropzone.privacyNote")}</p>
           {uploadError && (
             <p role="alert" className="text-sm text-danger">
               {uploadError}
@@ -191,10 +189,10 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
           )}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={close}>
-              Annulla
+              {t("common:actions.cancel")}
             </Button>
             <Button onClick={onUpload} loading={uploadImport.isPending} disabled={!accountId || !file}>
-              Carica
+              {t("wizard.upload")}
             </Button>
           </div>
         </div>
@@ -205,15 +203,22 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
           {uploadResult.import.file_type === "pdf" ? (
             <div className="rounded-lg border border-border p-3 text-sm">
               <p className="flex items-center gap-1.5 text-text">
-                <Check className="h-4 w-4 text-success" /> PDF valido, documento leggibile
+                <Check className="h-4 w-4 text-success" /> {t("wizard.confirm.pdfValid")}
               </p>
               <p className="mt-1 text-text">
-                Banca riconosciuta: <strong>{uploadResult.preview.detected_bank_name}</strong>
+                <Trans
+                  t={t}
+                  i18nKey="wizard.confirm.detectedBank"
+                  values={{ bank: uploadResult.preview.detected_bank_name }}
+                  components={{ strong: <strong /> }}
+                />
               </p>
             </div>
           ) : (
             <div className="rounded-lg border border-border p-3 text-sm">
-              <p className="mb-2 font-medium text-text">Anteprima ({uploadResult.preview.columns.length} colonne)</p>
+              <p className="mb-2 font-medium text-text">
+                {t("wizard.confirm.previewTitle", { count: uploadResult.preview.columns.length })}
+              </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -247,10 +252,10 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
           )}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={close}>
-              Annulla
+              {t("common:actions.cancel")}
             </Button>
             <Button onClick={onConfirm} loading={confirmImport.isPending}>
-              Conferma e importa
+              {t("wizard.confirm.submit")}
             </Button>
           </div>
         </div>
@@ -258,9 +263,17 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
 
       {step === "progress" && (
         <div className="flex flex-col gap-4">
-          <ProgressStep label="Preparazione" done={stagesDone.preparazione} />
-          <ProgressStep label="Estrazione" done={stagesDone.estrazione} active={stagesDone.preparazione} />
-          <ProgressStep label="Salvataggio" done={stagesDone.salvataggio} active={stagesDone.estrazione} />
+          <ProgressStep label={t("wizard.progress.preparation")} done={stagesDone.preparazione} />
+          <ProgressStep
+            label={t("wizard.progress.extraction")}
+            done={stagesDone.estrazione}
+            active={stagesDone.preparazione}
+          />
+          <ProgressStep
+            label={t("wizard.progress.saving")}
+            done={stagesDone.salvataggio}
+            active={stagesDone.estrazione}
+          />
           {warnings.length > 0 && (
             <ul className="text-sm text-warning">
               {warnings.map((w, i) => (
@@ -279,9 +292,9 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
       {step === "done" && importRecord && (
         <div className="flex flex-col gap-4">
           {importRecord.status === "ready_for_review" ? (
-            <p className="text-lg font-semibold text-text">Import da verificare</p>
+            <p className="text-lg font-semibold text-text">{t("wizard.done.readyForReview")}</p>
           ) : (
-            <p className="text-lg font-semibold text-text">Import completato</p>
+            <p className="text-lg font-semibold text-text">{t("wizard.done.completed")}</p>
           )}
           {/* SPEC §32: sempre analizzati/nuovi/duplicati/da verificare, non
               solo "movimenti importati" — un import con 0 nuovi (tutti
@@ -290,25 +303,30 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
               errore: senza questo dettaglio sembrerebbe che l'import non
               abbia funzionato. */}
           <p className="text-sm text-text">
-            {importRecord.transactions_found} movimenti analizzati su {accountForSummary?.name}:{" "}
-            {importRecord.transactions_imported} nuovi
-            {importRecord.transactions_duplicate > 0 ? `, ${importRecord.transactions_duplicate} già presenti` : ""}
+            {t("wizard.done.summary", {
+              found: importRecord.transactions_found,
+              account: accountForSummary?.name,
+              imported: importRecord.transactions_imported,
+            })}
+            {importRecord.transactions_duplicate > 0
+              ? t("wizard.done.duplicateSuffix", { count: importRecord.transactions_duplicate })
+              : ""}
             {importRecord.transactions_review_pending > 0
-              ? `, ${importRecord.transactions_review_pending} da verificare`
+              ? t("wizard.done.reviewSuffix", { count: importRecord.transactions_review_pending })
               : ""}
             .
           </p>
           {importRecord.status === "ready_for_review" ? (
-            <p className="text-sm text-text-muted">
-              Trovi i movimenti da verificare nella lista Import, chiudendo questa finestra.
-            </p>
+            <p className="text-sm text-text-muted">{t("wizard.done.reviewHint")}</p>
           ) : (
             importRecord.transactions_imported > 0 &&
-            importedTransactions && <p className="text-sm text-text-muted">{categorizedCount} classificati automaticamente.</p>
+            importedTransactions && (
+              <p className="text-sm text-text-muted">{t("wizard.done.autoClassified", { count: categorizedCount })}</p>
+            )
           )}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={close}>
-              Chiudi
+              {t("common:actions.close")}
             </Button>
             <Button
               onClick={() => {
@@ -316,7 +334,7 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
                 close();
               }}
             >
-              Visualizza movimenti
+              {t("wizard.done.viewTransactions")}
             </Button>
           </div>
         </div>

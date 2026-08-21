@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { useEtaEstimate } from "../../lib/eta";
 import { streamAiClassificationEvents, type AiClassificationProgressEvent } from "./api";
@@ -26,6 +27,7 @@ export function AiClassificationProgress({
   startedAt: string | null;
   onSettled: () => void;
 }) {
+  const { t } = useTranslation("imports");
   const [processed, setProcessed] = useState(0);
 
   useEffect(() => {
@@ -55,7 +57,7 @@ export function AiClassificationProgress({
   return (
     <span className="flex items-center gap-1.5 text-sm text-text-muted">
       <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-      Classificazione AI: {processed}/{total}
+      {t("aiProgress.label", { processed, total })}
       {eta && ` — ${eta.label}`}
     </span>
   );

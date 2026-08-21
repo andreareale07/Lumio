@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileText, Plus, Trash2, UploadCloud } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -20,10 +21,10 @@ import { ImportFileViewerDrawer } from "./ImportFileViewerDrawer";
 import { ImportRowProgress } from "./ImportRowProgress";
 import { ImportWizard } from "./ImportWizard";
 import {
-  IMPORT_STATUS_LABELS,
   IMPORT_STATUS_TONE,
   isActivelyProcessingImportStatus,
   isActiveAiClassificationStatus,
+  useImportStatusLabel,
 } from "./labels";
 import type { ImportRecord } from "../../types/api";
 
@@ -33,11 +34,12 @@ import type { ImportRecord } from "../../types/api";
  * istante, un conteggio instabile sarebbe piu' fonte di confusione che
  * di aiuto. Link diretto a Movimenti pre-filtrato su questo import. */
 function ImportReviewSummary({ importId }: { importId: string }) {
+  const { t } = useTranslation("transactions");
   const { data: summary } = useTransactionReviewSummary({ import_id: importId });
   if (!summary || summary.needs_review === 0) return null;
   return (
     <Link to={`/transactions?import=${importId}&review=1`} className="inline-flex w-fit">
-      <Badge tone="warning">⚠ {summary.needs_review} da verificare</Badge>
+      <Badge tone="warning">⚠ {t("page.needsReview", { count: summary.needs_review })}</Badge>
     </Link>
   );
 }
@@ -48,16 +50,19 @@ function ImportReviewSummary({ importId }: { importId: string }) {
  * 'ready_for_review' finche' non sono tutti decisi), non transazioni gia'
  * importate ma incerte nella categoria. */
 function DuplicateReviewSummaryBadge({ importId, onClick }: { importId: string; onClick: () => void }) {
+  const { t } = useTranslation("imports");
   const { data: summary } = useImportReviewSummary(importId);
   if (!summary || summary.pending === 0) return null;
   return (
     <button type="button" onClick={onClick} className="inline-flex w-fit">
-      <Badge tone="warning">⚠ {summary.pending} duplicati da verificare</Badge>
+      <Badge tone="warning">⚠ {t("page.duplicatesToReview", { count: summary.pending })}</Badge>
     </button>
   );
 }
 
 export function ImportsPage() {
+  const { t } = useTranslation("imports");
+  const importStatusLabel = useImportStatusLabel();
   const { data: imports, isLoading, isError, refetch } = useImports();
   const { data: accounts } = useAccounts();
   const queryClient = useQueryClient();
@@ -70,21 +75,21 @@ export function ImportsPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-text">Import</h1>
+        <h1 className="text-lg font-semibold text-text">{t("page.title")}</h1>
         <Button size="sm" onClick={() => setWizardOpen(true)}>
-          <Plus className="h-4 w-4" /> Importa documento
+          <Plus className="h-4 w-4" /> {t("page.importDocument")}
         </Button>
       </div>
 
       {isLoading && <SkeletonRows rows={4} />}
-      {isError && <ErrorState message="Non siamo riusciti a caricare gli import." onRetry={() => void refetch()} />}
+      {isError && <ErrorState message={t("page.loadError")} onRetry={() => void refetch()} />}
 
       {!isLoading && !isError && imports && imports.length === 0 && (
         <EmptyState
           icon={UploadCloud}
-          title="Nessuna importazione"
-          description="Importa un estratto conto CSV o PDF per popolare i tuoi movimenti."
-          action={<Button onClick={() => setWizardOpen(true)}>Importa documento</Button>}
+          title={t("page.empty.title")}
+          description={t("page.empty.description")}
+          action={<Button onClick={() => setWizardOpen(true)}>{t("page.importDocument")}</Button>}
         />
       )}
 
@@ -109,12 +114,14 @@ export function ImportsPage() {
                     />
                   ) : (
                     <p className="text-sm text-text-muted">
-                      {formatDateTime(importRecord.created_at)} · {importRecord.transactions_imported} movimenti
+                      {formatDateTime(importRecord.created_at)} ·{" "}
+                      {t("page.transactionsImported", { count: importRecord.transactions_imported })}
                       {/* Un import con 0 nuovi (tutti gia' presenti) e' un
                           esito corretto e comune del Deduplication Engine,
                           non un errore — senza questo dettaglio la riga
                           sembrerebbe "non ha fatto nulla". */}
-                      {importRecord.transactions_duplicate > 0 && ` · ${importRecord.transactions_duplicate} già presenti`}
+                      {importRecord.transactions_duplicate > 0 &&
+                        ` · ${t("page.alreadyPresent", { count: importRecord.transactions_duplicate })}`}
                     </p>
                   )}
                   {importRecord.error_message && <p className="text-sm text-danger">{importRecord.error_message}</p>}
@@ -135,7 +142,7 @@ export function ImportsPage() {
                     importRecord.ai_classification_status === "failed" &&
                     importRecord.ai_classification_error_message && (
                       <p className="text-sm text-danger">
-                        Classificazione AI non riuscita: {importRecord.ai_classification_error_message}
+                        {t("page.aiClassificationFailed", { message: importRecord.ai_classification_error_message })}
                       </p>
                     )}
                   {!isLive && (
@@ -150,13 +157,13 @@ export function ImportsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge tone={IMPORT_STATUS_TONE[importRecord.status]}>
-                    {IMPORT_STATUS_LABELS[importRecord.status]}
+                    {importStatusLabel(importRecord.status)}
                   </Badge>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => setViewingImport(importRecord)}
-                    aria-label="Visualizza file originale"
+                    aria-label={t("page.viewOriginalFile")}
                   >
                     <FileText className="h-4 w-4" />
                   </Button>
@@ -164,13 +171,13 @@ export function ImportsPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => setDeletingImport(importRecord)}
-                    aria-label="Elimina import"
+                    aria-label={t("page.deleteImport")}
                     disabled={isBlocked}
                     title={
                       isBlocked
                         ? importRecord.ai_classification_status === "running"
-                          ? "Classificazione AI in corso: attendi il completamento prima di poterlo eliminare"
-                          : "Import in elaborazione: attendi il completamento prima di poterlo eliminare"
+                          ? t("page.blockedTooltip.aiRunning")
+                          : t("page.blockedTooltip.processing")
                         : undefined
                     }
                     className="hover:text-danger"

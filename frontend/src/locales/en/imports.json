@@ -1,0 +1,103 @@
+{
+  "stage": {
+    "queued": "Queued",
+    "preparazione": "Preparing",
+    "estrazione": "Extracting",
+    "salvataggio": "Saving"
+  },
+  "aiProgress": {
+    "label": "AI classification: {{processed}}/{{total}}"
+  },
+  "page": {
+    "title": "Import",
+    "importDocument": "Import document",
+    "loadError": "We couldn't load the imports.",
+    "empty": {
+      "title": "No import yet",
+      "description": "Import a CSV or PDF bank statement to populate your transactions."
+    },
+    "transactionsImported_one": "{{count}} transaction",
+    "transactionsImported_other": "{{count}} transactions",
+    "alreadyPresent": "{{count}} already present",
+    "aiClassificationFailed": "AI classification failed: {{message}}",
+    "duplicatesToReview": "{{count}} duplicates to review",
+    "viewOriginalFile": "View original file",
+    "deleteImport": "Delete import",
+    "blockedTooltip": {
+      "aiRunning": "AI classification in progress: wait for it to finish before deleting",
+      "processing": "Import in progress: wait for it to finish before deleting"
+    }
+  },
+  "deleteDialog": {
+    "title": "Delete this import?",
+    "notYetCreated": "This import hasn't created any transactions yet: it will first be cancelled (if still queued) and then permanently deleted.",
+    "checkingCount": "Checking linked transactions…",
+    "countError": "The import and any linked transactions will be permanently deleted.",
+    "noTransactions": "No transactions linked to this import.",
+    "transactionsCount_one": "{{count}} transaction linked to this import will be deleted.",
+    "transactionsCount_other": "{{count}} transactions linked to this import will be deleted.",
+    "irreversible": "This action cannot be undone.",
+    "error": "Couldn't delete the import.",
+    "confirm": "Delete"
+  },
+  "fileViewer": {
+    "title": "Original file — {{filename}}",
+    "titleFallback": "Original file",
+    "loadError": "We couldn't load the original file.",
+    "empty": {
+      "title": "Empty file",
+      "description": "The original file has no data rows."
+    },
+    "truncated": "Showing the first {{shown}} rows out of {{total}} total."
+  },
+  "duplicateReview": {
+    "title": "Possible duplicates — {{filename}}",
+    "empty": {
+      "title": "No duplicates to review",
+      "description": "All ambiguous transactions from this import have been decided."
+    },
+    "decideError": "We couldn't record the decision.",
+    "possibleDuplicateBadge": "Possible duplicate",
+    "newTransaction": "New transaction",
+    "existingTransaction": "Already existing transaction",
+    "balanceAfter": "Balance: {{value}}",
+    "markDuplicate": "Don't import",
+    "keepNew": "Import anyway"
+  },
+  "wizard": {
+    "title": "Import document",
+    "accountLabel": "Account",
+    "selectAccount": "Select an account",
+    "dropzone": {
+      "prompt": "Drag the file here or select one",
+      "hint": "CSV or PDF, max {{size}} MB",
+      "privacyNote": "The file stays stored locally on your server: no data leaves your self-hosted environment."
+    },
+    "duplicateFileError": "This file has already been imported into this workspace.",
+    "uploadError": "We couldn't upload the file.",
+    "upload": "Upload",
+    "confirm": {
+      "pdfValid": "Valid PDF, readable document",
+      "detectedBank": "Detected bank: <strong>{{bank}}</strong>",
+      "previewTitle": "Preview ({{count}} columns)",
+      "error": "We couldn't confirm the import.",
+      "submit": "Confirm and import"
+    },
+    "progress": {
+      "preparation": "Preparing",
+      "extraction": "Extracting",
+      "saving": "Saving",
+      "failed": "The import failed."
+    },
+    "done": {
+      "readyForReview": "Import needs review",
+      "completed": "Import completed",
+      "summary": "{{found}} transactions analyzed on {{account}}: {{imported}} new",
+      "duplicateSuffix": ", {{count}} already present",
+      "reviewSuffix": ", {{count}} to review",
+      "reviewHint": "You'll find the transactions to review in the Import list once you close this window.",
+      "autoClassified": "{{count}} automatically classified.",
+      "viewTransactions": "View transactions"
+    }
+  }
+}

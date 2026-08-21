@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
@@ -11,6 +13,7 @@ interface ImportDeleteDialogProps {
 }
 
 export function ImportDeleteDialog({ importRecord, onClose }: ImportDeleteDialogProps) {
+  const { t } = useTranslation(["imports", "common"]);
   const isTerminal = importRecord ? isTerminalImportStatus(importRecord.status) : false;
   const count = useImportTransactionsCount(isTerminal ? importRecord?.id ?? null : null);
   const deleteImport = useDeleteImport();
@@ -26,42 +29,38 @@ export function ImportDeleteDialog({ importRecord, onClose }: ImportDeleteDialog
   };
 
   return (
-    <Dialog open={!!importRecord} onClose={onClose} title="Eliminare l'import?">
+    <Dialog open={!!importRecord} onClose={onClose} title={t("deleteDialog.title")}>
       <p className="text-sm text-text-muted">{importRecord?.filename}</p>
 
       {importRecord && !isTerminal && (
-        <p className="mt-2 text-sm text-text-muted">
-          Questo import non ha ancora creato movimenti: verrà prima annullato (se ancora in coda) e poi eliminato
-          definitivamente.
-        </p>
+        <p className="mt-2 text-sm text-text-muted">{t("deleteDialog.notYetCreated")}</p>
       )}
 
       {importRecord && isTerminal && (
         <p className="mt-2 text-sm text-text-muted">
-          {count.isLoading && "Verifica delle transazioni collegate…"}
-          {count.isError && "L'import e le eventuali transazioni collegate verranno eliminati definitivamente."}
-          {count.data && count.data.transactions_count === 0 && "Nessuna transazione collegata a questo import."}
-          {count.data && count.data.transactions_count === 1 && "Verrà eliminata 1 transazione collegata a questo import."}
+          {count.isLoading && t("deleteDialog.checkingCount")}
+          {count.isError && t("deleteDialog.countError")}
+          {count.data && count.data.transactions_count === 0 && t("deleteDialog.noTransactions")}
           {count.data &&
-            count.data.transactions_count > 1 &&
-            `Verranno eliminate ${count.data.transactions_count} transazioni collegate a questo import.`}
+            count.data.transactions_count > 0 &&
+            t("deleteDialog.transactionsCount", { count: count.data.transactions_count })}
           {" "}
-          L'operazione non è reversibile.
+          {t("deleteDialog.irreversible")}
         </p>
       )}
 
       {deleteImport.isError && (
         <p role="alert" className="mt-2 text-sm text-danger">
-          {friendlyErrorMessage(deleteImport.error, "Impossibile eliminare l'import.")}
+          {friendlyErrorMessage(deleteImport.error, t("deleteDialog.error"))}
         </p>
       )}
 
       <div className="mt-4 flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose}>
-          Annulla
+          {t("common:actions.cancel")}
         </Button>
         <Button variant="danger" loading={deleteImport.isPending} onClick={() => void handleDelete()}>
-          Elimina
+          {t("deleteDialog.confirm")}
         </Button>
       </div>
     </Dialog>

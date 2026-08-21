@@ -49,5 +49,22 @@
     "cash": "Contanti",
     "credit_card": "Carta di credito",
     "other": "Altro"
+  },
+  "importStatus": {
+    "uploaded": "Caricato",
+    "queued": "In coda",
+    "processing": "In elaborazione",
+    "parsing": "Estrazione in corso",
+    "ready_for_review": "Da verificare",
+    "completed": "Completato",
+    "failed": "Non riuscito",
+    "cancelled": "Annullato"
+  },
+  "aiClassificationStatus": {
+    "pending": "In coda",
+    "running": "Classificazione AI in corso",
+    "completed": "Classificazione AI completata",
+    "failed": "Classificazione AI non riuscita",
+    "skipped": "Nessuna classificazione AI necessaria"
   }
 }

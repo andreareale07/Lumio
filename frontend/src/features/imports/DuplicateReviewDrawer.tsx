@@ -1,4 +1,5 @@
 import { Check, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -22,6 +23,7 @@ interface DuplicateReviewDrawerProps {
  * movimento gia' presente ("NON IMPORTARE") — mai una decisione automatica
  * su un match incerto (SPEC §14). */
 export function DuplicateReviewDrawer({ importRecord, onClose }: DuplicateReviewDrawerProps) {
+  const { t } = useTranslation(["imports", "common"]);
   const importId = importRecord?.id ?? null;
   const { data: items, isLoading } = useImportReviewItems(importId, "pending");
   const decide = useDecideImportReviewItem(importId);
@@ -34,22 +36,22 @@ export function DuplicateReviewDrawer({ importRecord, onClose }: DuplicateReview
     <Dialog
       open={!!importRecord}
       onClose={onClose}
-      title={`Possibili duplicati — ${importRecord?.filename ?? ""}`}
+      title={t("duplicateReview.title", { filename: importRecord?.filename ?? "" })}
     >
       <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
-        {isLoading && <p className="text-sm text-text-muted">Caricamento…</p>}
+        {isLoading && <p className="text-sm text-text-muted">{t("common:loading")}</p>}
 
         {!isLoading && items && items.length === 0 && (
           <EmptyState
             icon={Check}
-            title="Nessun duplicato da verificare"
-            description="Tutti i movimenti ambigui di questo import sono stati decisi."
+            title={t("duplicateReview.empty.title")}
+            description={t("duplicateReview.empty.description")}
           />
         )}
 
         {decide.isError && (
           <p role="alert" className="text-sm text-danger">
-            {friendlyErrorMessage(decide.error, "Non è stato possibile registrare la decisione.")}
+            {friendlyErrorMessage(decide.error, t("duplicateReview.decideError"))}
           </p>
         )}
 
@@ -67,7 +69,7 @@ export function DuplicateReviewDrawer({ importRecord, onClose }: DuplicateReview
 
       <div className="mt-4 flex justify-end">
         <Button variant="secondary" onClick={onClose}>
-          Chiudi
+          {t("common:actions.close")}
         </Button>
       </div>
     </Dialog>
@@ -85,12 +87,13 @@ function ReviewItemCard({
   onMarkDuplicate: () => void;
   pending: boolean;
 }) {
+  const { t } = useTranslation("imports");
   return (
     <Card className="flex flex-col gap-3">
-      <Badge tone="warning">Possibile duplicato</Badge>
+      <Badge tone="warning">{t("duplicateReview.possibleDuplicateBadge")}</Badge>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <TransactionSummary
-          label="Nuovo movimento"
+          label={t("duplicateReview.newTransaction")}
           date={item.transaction_date}
           description={item.description_raw}
           amount={item.amount}
@@ -100,7 +103,7 @@ function ReviewItemCard({
         />
         {item.candidate && (
           <TransactionSummary
-            label="Movimento già presente"
+            label={t("duplicateReview.existingTransaction")}
             date={item.candidate.transaction_date}
             description={item.candidate.description_raw}
             amount={item.candidate.amount}
@@ -112,10 +115,10 @@ function ReviewItemCard({
       </div>
       <div className="flex justify-end gap-2">
         <Button variant="secondary" size="sm" onClick={onMarkDuplicate} disabled={pending}>
-          <X className="h-4 w-4" /> Non importare
+          <X className="h-4 w-4" /> {t("duplicateReview.markDuplicate")}
         </Button>
         <Button size="sm" onClick={onKeepNew} disabled={pending}>
-          <Check className="h-4 w-4" /> Importa comunque
+          <Check className="h-4 w-4" /> {t("duplicateReview.keepNew")}
         </Button>
       </div>
     </Card>
@@ -139,6 +142,7 @@ function TransactionSummary({
   transactionType: string;
   balanceAfter: string | null;
 }) {
+  const { t } = useTranslation("imports");
   return (
     <div className="rounded-lg border border-border p-3 text-sm">
       <p className="mb-1 font-medium text-text-muted">{label}</p>
@@ -147,7 +151,9 @@ function TransactionSummary({
       <p className="font-medium text-text">{formatSignedMoney(amount, currency)}</p>
       <p className="text-xs text-text-muted">{transactionType}</p>
       {balanceAfter !== null && (
-        <p className="text-xs text-text-muted">Saldo: {formatSignedMoney(balanceAfter, currency)}</p>
+        <p className="text-xs text-text-muted">
+          {t("duplicateReview.balanceAfter", { value: formatSignedMoney(balanceAfter, currency) })}
+        </p>
       )}
     </div>
   );
