@@ -50,8 +50,7 @@ export function AISettingsPage() {
       </div>
 
       <p className="text-sm text-text-muted">
-        L'AI è opzionale: le transazioni vengono comunque classificate dalle regole anche senza un profilo
-        attivo. Puoi salvare più profili (anche dello stesso provider) e attivarne uno alla volta.
+        {t("items.ai.pageDescription")}
       </p>
 
       {isLoading && <SkeletonRows rows={3} />}

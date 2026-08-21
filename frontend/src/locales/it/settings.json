@@ -13,11 +13,13 @@
   "items": {
     "categories": {
       "label": "Categorie",
-      "description": "Gestisci le categorie usate per classificare le transazioni."
+      "description": "Gestisci le categorie usate per classificare le transazioni.",
+      "pageDescription": "Le categorie di sistema sono condivise e non modificabili. Quelle create da te possono essere rinominate, riordinate, disattivate o eliminate se non più in uso."
     },
     "transactionTypes": {
       "label": "Tipi di transazione",
-      "description": "Mappa le etichette grezze del tuo estratto conto sui tipi di transazione di Lumio."
+      "description": "Mappa le etichette grezze del tuo estratto conto sui tipi di transazione di Lumio.",
+      "pageDescription": "Per ogni etichetta grezza usata dal tuo estratto conto (es. \"Bonifico\"), scegli qui con quale tipo Lumio la deve trattare. Il cambiamento si applica anche alle transazioni già importate — tranne quelle che hai già corretto a mano, che restano intatte."
     },
     "currency": {
       "label": "Valuta",
@@ -29,7 +31,8 @@
     },
     "ai": {
       "label": "AI",
-      "description": "Configura un provider AI opzionale per la classificazione automatica."
+      "description": "Configura un provider AI opzionale per la classificazione automatica.",
+      "pageDescription": "L'AI è opzionale: le transazioni vengono comunque classificate dalle regole anche senza un profilo attivo. Puoi salvare più profili (anche dello stesso provider) e attivarne uno alla volta."
     },
     "marketData": {
       "label": "Market Data",
@@ -37,7 +40,8 @@
     },
     "integrations": {
       "label": "Integrazioni",
-      "description": "Esporta i tuoi dati finanziari su Google Sheets."
+      "description": "Esporta i tuoi dati finanziari su Google Sheets.",
+      "pageDescription": "Google Sheets è un'integrazione opzionale: esporta i tuoi dati finanziari in un foglio Google, sempre aggiornabile su richiesta. Disattivarla non ha alcun impatto sul resto di Lumio."
     },
     "jobs": {
       "label": "Job di sistema",

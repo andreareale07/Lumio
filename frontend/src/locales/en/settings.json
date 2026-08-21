@@ -13,11 +13,13 @@
   "items": {
     "categories": {
       "label": "Categories",
-      "description": "Manage the categories used to classify transactions."
+      "description": "Manage the categories used to classify transactions.",
+      "pageDescription": "System categories are shared and cannot be edited. Ones you create can be renamed, reordered, deactivated, or deleted once no longer in use."
     },
     "transactionTypes": {
       "label": "Transaction types",
-      "description": "Map the raw labels from your bank statement to Lumio's transaction types."
+      "description": "Map the raw labels from your bank statement to Lumio's transaction types.",
+      "pageDescription": "For each raw label used by your bank statement (e.g. \"Transfer\"), choose here which type Lumio should treat it as. The change also applies to already-imported transactions — except the ones you've already corrected by hand, which stay untouched."
     },
     "currency": {
       "label": "Currency",
@@ -29,7 +31,8 @@
     },
     "ai": {
       "label": "AI",
-      "description": "Configure an optional AI provider for automatic classification."
+      "description": "Configure an optional AI provider for automatic classification.",
+      "pageDescription": "AI is optional: transactions are still classified by rules even without an active profile. You can save multiple profiles (even for the same provider) and activate one at a time."
     },
     "marketData": {
       "label": "Market data",
@@ -37,7 +40,8 @@
     },
     "integrations": {
       "label": "Integrations",
-      "description": "Export your financial data to Google Sheets."
+      "description": "Export your financial data to Google Sheets.",
+      "pageDescription": "Google Sheets is an optional integration: it exports your financial data to a Google spreadsheet, refreshable on demand. Disabling it has no effect on the rest of Lumio."
     },
     "jobs": {
       "label": "System jobs",

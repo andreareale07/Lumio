@@ -86,10 +86,7 @@ export function CategoriesSettingsPage() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-lg font-semibold text-text">{t("items.categories.label")}</h1>
-          <p className="text-sm text-text-muted">
-            Le categorie di sistema sono condivise e non modificabili. Quelle create da te possono essere
-            rinominate, riordinate, disattivate o eliminate se non più in uso.
-          </p>
+          <p className="text-sm text-text-muted">{t("items.categories.pageDescription")}</p>
         </div>
         <Button size="sm" onClick={() => setFormCategory("new")}>
           <Plus className="h-4 w-4" aria-hidden="true" />

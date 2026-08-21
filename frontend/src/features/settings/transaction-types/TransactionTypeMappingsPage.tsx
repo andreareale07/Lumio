@@ -37,9 +37,7 @@ export function TransactionTypeMappingsPage() {
       <h1 className="text-lg font-semibold text-text">{t("items.transactionTypes.label")}</h1>
 
       <p className="text-sm text-text-muted">
-        Per ogni etichetta grezza usata dal tuo estratto conto (es. "Bonifico"), scegli qui con quale tipo Lumio
-        la deve trattare. Il cambiamento si applica anche alle transazioni già importate — tranne quelle che hai
-        già corretto a mano, che restano intatte.
+        {t("items.transactionTypes.pageDescription")}
       </p>
 
       {isLoading && <SkeletonRows rows={3} />}

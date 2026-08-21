@@ -65,8 +65,7 @@ export function IntegrationsSettingsPage() {
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <h1 className="text-lg font-semibold text-text">{t("items.integrations.label")}</h1>
       <p className="text-sm text-text-muted">
-        Google Sheets è un'integrazione opzionale: esporta i tuoi dati finanziari in un foglio Google, sempre
-        aggiornabile su richiesta. Disattivarla non ha alcun impatto sul resto di Lumio.
+        {t("items.integrations.pageDescription")}
       </p>
 
       {isLoading && <SkeletonRows rows={3} />}
