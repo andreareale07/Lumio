@@ -102,5 +102,185 @@
       "currency": "Select a currency"
     },
     "error": "We couldn't save the portfolio."
+  },
+  "assetFormDialog": {
+    "editTitle": "Edit asset",
+    "createTitle": "New asset",
+    "fields": {
+      "name": "Name",
+      "symbol": "Symbol (optional)",
+      "isin": "ISIN (optional)",
+      "type": "Type",
+      "notes": "Notes (optional)"
+    },
+    "submitEdit": "Save",
+    "submitCreate": "Create asset",
+    "validation": {
+      "name": "Enter a name",
+      "currency": "Select a currency"
+    },
+    "error": "We couldn't save the asset."
+  },
+  "positionDialog": {
+    "editTitle": "Edit position",
+    "createTitle": "Opening position",
+    "editHint": "The difference from recorded transactions will be logged as a correction, keeping the history consistent.",
+    "createHint": "Useful to start tracking a portfolio you already own without re-entering years of history.",
+    "fields": {
+      "account": "Account",
+      "asset": "Asset",
+      "quantity": "Quantity held",
+      "averageCost": "Average cost",
+      "notes": "Notes (optional)"
+    },
+    "selectAccount": "Select an account",
+    "selectAsset": "Select an asset",
+    "submit": "Save",
+    "validation": {
+      "account": "Select an account",
+      "asset": "Select an asset",
+      "quantity": "Invalid quantity (>= 0)",
+      "averageCost": "Invalid average cost (>= 0)"
+    },
+    "error": "We couldn't save the position."
+  },
+  "transactionFormDialog": {
+    "title": "New transaction",
+    "fields": {
+      "account": "Account",
+      "type": "Type",
+      "asset": "Asset",
+      "assetOptional": "Asset (optional)",
+      "date": "Date",
+      "quantity": "Quantity (optional)",
+      "price": "Price (optional)",
+      "amount": "Net cash amount",
+      "fees": "Fees",
+      "tax": "Taxes",
+      "currency": "Currency",
+      "notes": "Notes (optional)"
+    },
+    "amountHint": "Negative if the transaction reduces the account's cash (e.g. a purchase).",
+    "selectAccount": "Select an account",
+    "selectAssetRequired": "Select an asset",
+    "selectAssetOptional": "None (cash movement)",
+    "submit": "Record transaction",
+    "validation": {
+      "account": "Select an account",
+      "date": "Enter a date",
+      "amount": "Invalid amount (e.g. -1000.00)",
+      "assetRequired": "Select an asset for this transaction type",
+      "quantity": "Invalid quantity",
+      "price": "Invalid price",
+      "currencyLength": "3-letter currency code (e.g. EUR)"
+    },
+    "error": "We couldn't record the transaction."
+  },
+  "assetDetail": {
+    "backFallback": "Investments",
+    "loadError": "We couldn't load the asset.",
+    "notFound": {
+      "title": "Asset not found",
+      "description": "The requested asset doesn't exist or is no longer available.",
+      "action": "Back to investments"
+    },
+    "currentPrice": "Current price",
+    "originalCurrencyTooltip": "Original currency: {{value}}",
+    "priceChart": {
+      "title": "Price over time",
+      "valueLabel": "Price",
+      "tableCaption": "Asset price history",
+      "tableHeaders": [
+        "Date",
+        "Price"
+      ],
+      "noHistory": {
+        "title": "History unavailable",
+        "description": "The active market data provider doesn't supply price history. Configure it in Settings > Market Data."
+      },
+      "noDataInRange": {
+        "title": "No data in this range",
+        "description": "Try a different range."
+      }
+    },
+    "kpi": {
+      "position": "Position",
+      "positionAtCost": "Position (at cost)",
+      "quantity": "Quantity",
+      "averagePrice": "Average price",
+      "returnLabel": "Return"
+    },
+    "realizedPl": "Realized P/L: {{value}}",
+    "info": {
+      "title": "Information",
+      "issuer": "Issuer",
+      "category": "Category",
+      "fundAum": "Fund assets",
+      "distributionPolicy": "Distribution policy"
+    },
+    "purchases": {
+      "title": "Purchases",
+      "loadError": "Purchases unavailable.",
+      "empty": "No purchases recorded for this asset.",
+      "table": {
+        "date": "Date",
+        "quantity": "Quantity",
+        "price": "Price",
+        "amount": "Amount",
+        "gain": "Return",
+        "gainPct": "Return %"
+      },
+      "atCostSuffix": " (at cost)"
+    }
+  },
+  "detail": {
+    "backLabel": "Investments",
+    "unassignedTitle": "Assets with no portfolio",
+    "unassignedDescription": "Accounts not grouped into any portfolio.",
+    "notFound": {
+      "title": "Portfolio not found",
+      "description": "The requested portfolio doesn't exist or is no longer available.",
+      "action": "Back to investments"
+    },
+    "assets": {
+      "title": "Assets",
+      "loadError": "Positions unavailable.",
+      "empty": "No open position in this scope.",
+      "table": {
+        "asset": "Asset",
+        "account": "Account",
+        "quantity": "Quantity",
+        "currentValue": "Current value",
+        "returnLabel": "Return",
+        "total": "Total"
+      }
+    },
+    "transactions": {
+      "title": "Transactions",
+      "newTransaction": "New transaction",
+      "loadError": "Transactions unavailable.",
+      "empty": {
+        "title": "No transactions",
+        "description": "Purchases, sales, dividends and other transactions recorded on the accounts in this scope will appear here.",
+        "action": "Record a transaction"
+      },
+      "table": {
+        "date": "Date",
+        "type": "Type",
+        "asset": "Asset",
+        "amount": "Amount"
+      },
+      "noAsset": "—",
+      "deleteTransaction": "Delete transaction",
+      "pagination": {
+        "previous": "Previous",
+        "next": "Next"
+      },
+      "deleteDialog": {
+        "title": "Delete this transaction?",
+        "body": "The transaction will be removed and the position recalculated.",
+        "confirm": "Delete"
+      }
+    }
   }
 }

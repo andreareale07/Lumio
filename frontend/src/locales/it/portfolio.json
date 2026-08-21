@@ -102,5 +102,185 @@
       "currency": "Seleziona una valuta"
     },
     "error": "Non è stato possibile salvare il portfolio."
+  },
+  "assetFormDialog": {
+    "editTitle": "Modifica asset",
+    "createTitle": "Nuovo asset",
+    "fields": {
+      "name": "Nome",
+      "symbol": "Simbolo (opzionale)",
+      "isin": "ISIN (opzionale)",
+      "type": "Tipo",
+      "notes": "Note (opzionale)"
+    },
+    "submitEdit": "Salva",
+    "submitCreate": "Crea asset",
+    "validation": {
+      "name": "Inserisci un nome",
+      "currency": "Seleziona una valuta"
+    },
+    "error": "Non è stato possibile salvare l'asset."
+  },
+  "positionDialog": {
+    "editTitle": "Modifica posizione",
+    "createTitle": "Posizione iniziale",
+    "editHint": "La differenza rispetto ai movimenti registrati verrà annotata come correzione, mantenendo lo storico coerente.",
+    "createHint": "Utile per iniziare a tracciare un portafoglio già esistente senza reinserire anni di storico.",
+    "fields": {
+      "account": "Conto",
+      "asset": "Asset",
+      "quantity": "Quantità posseduta",
+      "averageCost": "Costo medio",
+      "notes": "Note (opzionale)"
+    },
+    "selectAccount": "Seleziona un conto",
+    "selectAsset": "Seleziona un asset",
+    "submit": "Salva",
+    "validation": {
+      "account": "Seleziona un conto",
+      "asset": "Seleziona un asset",
+      "quantity": "Quantità non valida (>= 0)",
+      "averageCost": "Costo medio non valido (>= 0)"
+    },
+    "error": "Non è stato possibile salvare la posizione."
+  },
+  "transactionFormDialog": {
+    "title": "Nuovo movimento",
+    "fields": {
+      "account": "Conto",
+      "type": "Tipo",
+      "asset": "Asset",
+      "assetOptional": "Asset (opzionale)",
+      "date": "Data",
+      "quantity": "Quantità (opzionale)",
+      "price": "Prezzo (opzionale)",
+      "amount": "Importo netto in cassa",
+      "fees": "Commissioni",
+      "tax": "Imposte",
+      "currency": "Valuta",
+      "notes": "Note (opzionale)"
+    },
+    "amountHint": "Negativo se il movimento riduce la liquidità del conto (es. un acquisto).",
+    "selectAccount": "Seleziona un conto",
+    "selectAssetRequired": "Seleziona un asset",
+    "selectAssetOptional": "Nessuno (movimento di cassa)",
+    "submit": "Registra movimento",
+    "validation": {
+      "account": "Seleziona un conto",
+      "date": "Inserisci una data",
+      "amount": "Importo non valido (es. -1000.00)",
+      "assetRequired": "Seleziona un asset per questo tipo di movimento",
+      "quantity": "Quantità non valida",
+      "price": "Prezzo non valido",
+      "currencyLength": "Codice valuta a 3 lettere (es. EUR)"
+    },
+    "error": "Non è stato possibile registrare il movimento."
+  },
+  "assetDetail": {
+    "backFallback": "Investimenti",
+    "loadError": "Non siamo riusciti a caricare l'asset.",
+    "notFound": {
+      "title": "Asset non trovato",
+      "description": "L'asset richiesto non esiste o non è più disponibile.",
+      "action": "Torna agli investimenti"
+    },
+    "currentPrice": "Prezzo attuale",
+    "originalCurrencyTooltip": "Valuta originale: {{value}}",
+    "priceChart": {
+      "title": "Andamento prezzo",
+      "valueLabel": "Prezzo",
+      "tableCaption": "Storico prezzo dell'asset",
+      "tableHeaders": [
+        "Data",
+        "Prezzo"
+      ],
+      "noHistory": {
+        "title": "Storico non disponibile",
+        "description": "Il provider di mercato attivo non fornisce uno storico prezzi. Configuralo in Impostazioni > Market Data."
+      },
+      "noDataInRange": {
+        "title": "Nessun dato in questo intervallo",
+        "description": "Prova un intervallo diverso."
+      }
+    },
+    "kpi": {
+      "position": "Posizione",
+      "positionAtCost": "Posizione (a costo)",
+      "quantity": "Quantità",
+      "averagePrice": "Prezzo medio",
+      "returnLabel": "Rendimento"
+    },
+    "realizedPl": "P/L realizzato: {{value}}",
+    "info": {
+      "title": "Informazioni",
+      "issuer": "Emittente",
+      "category": "Categoria",
+      "fundAum": "Patrimonio del fondo",
+      "distributionPolicy": "Politica dei proventi"
+    },
+    "purchases": {
+      "title": "Acquisti",
+      "loadError": "Acquisti non disponibili.",
+      "empty": "Nessun acquisto registrato per questo asset.",
+      "table": {
+        "date": "Data",
+        "quantity": "Quantità",
+        "price": "Prezzo",
+        "amount": "Importo",
+        "gain": "Rendimento",
+        "gainPct": "Rendimento %"
+      },
+      "atCostSuffix": " (a costo)"
+    }
+  },
+  "detail": {
+    "backLabel": "Investimenti",
+    "unassignedTitle": "Asset senza portfolio",
+    "unassignedDescription": "Conti non raggruppati in nessun portfolio.",
+    "notFound": {
+      "title": "Portfolio non trovato",
+      "description": "Il portfolio richiesto non esiste o non è più disponibile.",
+      "action": "Torna agli investimenti"
+    },
+    "assets": {
+      "title": "Asset",
+      "loadError": "Posizioni non disponibili.",
+      "empty": "Nessuna posizione aperta in questo ambito.",
+      "table": {
+        "asset": "Asset",
+        "account": "Conto",
+        "quantity": "Quantità",
+        "currentValue": "Valore attuale",
+        "returnLabel": "Rendimento",
+        "total": "Totale"
+      }
+    },
+    "transactions": {
+      "title": "Movimenti",
+      "newTransaction": "Nuovo movimento",
+      "loadError": "Movimenti non disponibili.",
+      "empty": {
+        "title": "Nessun movimento",
+        "description": "Acquisti, vendite, dividendi e altri movimenti registrati sui conti di questo ambito appariranno qui.",
+        "action": "Registra un movimento"
+      },
+      "table": {
+        "date": "Data",
+        "type": "Tipo",
+        "asset": "Asset",
+        "amount": "Importo"
+      },
+      "noAsset": "—",
+      "deleteTransaction": "Elimina movimento",
+      "pagination": {
+        "previous": "Precedenti",
+        "next": "Successivi"
+      },
+      "deleteDialog": {
+        "title": "Eliminare il movimento?",
+        "body": "Il movimento verrà rimosso e la posizione ricalcolata.",
+        "confirm": "Elimina"
+      }
+    }
   }
 }

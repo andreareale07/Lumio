@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PiggyBank } from "lucide-react";
 import { useLocation, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
@@ -28,9 +29,11 @@ import {
   usePositions,
   usePriceHistory,
 } from "./api";
-import { ASSET_TYPE_LABELS, DISTRIBUTION_POLICY_LABELS, INVESTMENT_TRANSACTION_TYPE_LABELS } from "./labels";
+import { distributionPolicyLabel, useAssetTypeLabel, useInvestmentTransactionTypeLabel } from "./labels";
 
 export function AssetDetailPage() {
+  const { t } = useTranslation("portfolio");
+  const assetTypeLabel = useAssetTypeLabel();
   const { assetId } = useParams<{ assetId: string }>();
   const location = useLocation();
   // Un asset si raggiunge da piu' ambiti diversi (Panoramica generale, un
@@ -40,7 +43,7 @@ export function AssetDetailPage() {
   // con "Investimenti" come fallback per un accesso diretto (bookmark,
   // refresh, link condiviso — `state` non sopravvive a nessuno dei due).
   const backTo = (location.state as { from?: string; label?: string } | null)?.from ?? "/investments";
-  const backLabel = (location.state as { from?: string; label?: string } | null)?.label ?? "Investimenti";
+  const backLabel = (location.state as { from?: string; label?: string } | null)?.label ?? t("assetDetail.backFallback");
   const [preset, setPreset] = useState<HistoryPreset>("3M");
 
   const { data: assets, isLoading, isError, refetch } = useAssets();
@@ -58,15 +61,19 @@ export function AssetDetailPage() {
 
   if (isLoading) return <SkeletonRows rows={4} />;
   if (isError) {
-    return <ErrorState message="Non siamo riusciti a caricare l'asset." onRetry={() => void refetch()} />;
+    return <ErrorState message={t("assetDetail.loadError")} onRetry={() => void refetch()} />;
   }
   if (!asset || !assetId) {
     return (
       <EmptyState
         icon={PiggyBank}
-        title="Asset non trovato"
-        description="L'asset richiesto non esiste o non è più disponibile."
-        action={<LinkButton to="/investments" size="sm">Torna agli investimenti</LinkButton>}
+        title={t("assetDetail.notFound.title")}
+        description={t("assetDetail.notFound.description")}
+        action={
+          <LinkButton to="/investments" size="sm">
+            {t("assetDetail.notFound.action")}
+          </LinkButton>
+        }
       />
     );
   }
@@ -107,7 +114,7 @@ export function AssetDetailPage() {
   const displayCurrency = hasConvertedPrice ? valuation.data!.currency : nativeCurrency ?? asset.currency;
   const nativeTooltip =
     hasConvertedPrice && nativeCurrency && nativeCurrency !== valuation.data!.currency && currentPriceNative !== null
-      ? `Valuta originale: ${formatMoney(currentPriceNative, nativeCurrency)}`
+      ? t("assetDetail.originalCurrencyTooltip", { value: formatMoney(currentPriceNative, nativeCurrency) })
       : undefined;
 
   // Gli intervalli intraday (1G/1S) hanno bisogno dell'ora in etichetta,
@@ -142,14 +149,14 @@ export function AssetDetailPage() {
           <BackLink to={backTo} label={backLabel} />
           <h1 className="mt-1 text-lg font-semibold text-text">{asset.display_name ?? asset.name}</h1>
           <p className="text-sm text-text-muted">
-            {[asset.symbol, asset.isin, ASSET_TYPE_LABELS[asset.asset_type], asset.currency]
+            {[asset.symbol, asset.isin, assetTypeLabel(asset.asset_type), asset.currency]
               .filter(Boolean)
               .join(" · ")}
           </p>
         </div>
         {displayPrice !== null && (
           <div className="text-right">
-            <p className="text-sm text-text-muted">Prezzo attuale</p>
+            <p className="text-sm text-text-muted">{t("assetDetail.currentPrice")}</p>
             <div className="flex items-baseline justify-end gap-2">
               <span className="font-numeric text-2xl font-semibold text-text" title={nativeTooltip}>
                 {formatMoney(displayPrice, displayCurrency)}
@@ -169,28 +176,32 @@ export function AssetDetailPage() {
       </div>
 
       <ChartCard
-        title="Andamento prezzo"
+        title={t("assetDetail.priceChart.title")}
         action={<RangeSelector value={preset} onChange={setPreset} />}
         empty={!history.isLoading && (!history.data?.supports_history || points.length === 0)}
         emptyState={
           <EmptyState
             icon={PiggyBank}
-            title={history.data?.supports_history === false ? "Storico non disponibile" : "Nessun dato in questo intervallo"}
+            title={
+              history.data?.supports_history === false
+                ? t("assetDetail.priceChart.noHistory.title")
+                : t("assetDetail.priceChart.noDataInRange.title")
+            }
             description={
               history.data?.supports_history === false
-                ? "Il provider di mercato attivo non fornisce uno storico prezzi. Configuralo in Impostazioni > Market Data."
-                : "Prova un intervallo diverso."
+                ? t("assetDetail.priceChart.noHistory.description")
+                : t("assetDetail.priceChart.noDataInRange.description")
             }
           />
         }
-        tableCaption="Storico prezzo dell'asset"
-        tableHeaders={["Data", "Prezzo"]}
+        tableCaption={t("assetDetail.priceChart.tableCaption")}
+        tableHeaders={t("assetDetail.priceChart.tableHeaders", { returnObjects: true }) as string[]}
         tableRows={points.map((p) => [p.label, formatMoney(p.value, historyCurrency)])}
       >
         {history.isLoading ? (
           <SkeletonRows rows={4} />
         ) : (
-          <AreaTrendChart data={points} currency={historyCurrency} valueLabel="Prezzo" />
+          <AreaTrendChart data={points} currency={historyCurrency} valueLabel={t("assetDetail.priceChart.valueLabel")} />
         )}
       </ChartCard>
 
@@ -198,24 +209,24 @@ export function AssetDetailPage() {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Card className="flex flex-col gap-1">
             <h3 className="text-sm font-semibold text-text">
-              {hasMarketValue ? "Posizione" : "Posizione (a costo)"}
+              {hasMarketValue ? t("assetDetail.kpi.position") : t("assetDetail.kpi.positionAtCost")}
             </h3>
             <span className="font-numeric text-lg font-semibold text-text">
               {valuation.data ? formatMoney(valuation.data.market_value, valuation.data.currency) : "—"}
             </span>
           </Card>
           <Card className="flex flex-col gap-1">
-            <h3 className="text-sm font-semibold text-text">Quantità</h3>
+            <h3 className="text-sm font-semibold text-text">{t("assetDetail.kpi.quantity")}</h3>
             <span className="font-numeric text-lg font-semibold text-text">{totalQuantity}</span>
           </Card>
           <Card className="flex flex-col gap-1">
-            <h3 className="text-sm font-semibold text-text">Prezzo medio</h3>
+            <h3 className="text-sm font-semibold text-text">{t("assetDetail.kpi.averagePrice")}</h3>
             <span className="font-numeric text-lg font-semibold text-text">
               {formatMoney(averageCost, asset.currency)}
             </span>
           </Card>
           <Card className="flex flex-col gap-1">
-            <h3 className="text-sm font-semibold text-text">Rendimento</h3>
+            <h3 className="text-sm font-semibold text-text">{t("assetDetail.kpi.returnLabel")}</h3>
             {unrealizedPl !== null && valuation.data ? (
               <div className="flex items-baseline gap-2">
                 <span className="font-numeric text-2xl font-semibold text-text">
@@ -239,10 +250,9 @@ export function AssetDetailPage() {
       )}
       {valuation.data && Number(valuation.data.realized_pl) !== 0 && (
         <p className="text-sm text-text-muted">
-          P/L realizzato:{" "}
-          <span className="font-numeric text-text">
-            {formatSignedMoney(valuation.data.realized_pl, valuation.data.currency)}
-          </span>
+          {t("assetDetail.realizedPl", {
+            value: formatSignedMoney(valuation.data.realized_pl, valuation.data.currency),
+          })}
         </p>
       )}
 
@@ -279,22 +289,23 @@ export function AssetDetailPage() {
 }
 
 function AssetInfoCard({ profile, currency }: { profile: AssetProfile | undefined; currency: string }) {
+  const { t } = useTranslation("portfolio");
   // Arricchimento best-effort (Step 3): ogni riga presente solo se il
   // rispettivo campo non e' `null` — mai "N/A" in vista, e l'intera card
   // sparisce se il provider attivo non ha restituito nulla.
   if (!profile) return null;
   const rows: [string, string][] = [];
-  if (profile.issuer) rows.push(["Emittente", profile.issuer]);
-  if (profile.category) rows.push(["Categoria", profile.category]);
-  if (profile.aum) rows.push(["Patrimonio del fondo", formatLargeMoney(profile.aum, currency)]);
+  if (profile.issuer) rows.push([t("assetDetail.info.issuer"), profile.issuer]);
+  if (profile.category) rows.push([t("assetDetail.info.category"), profile.category]);
+  if (profile.aum) rows.push([t("assetDetail.info.fundAum"), formatLargeMoney(profile.aum, currency)]);
   if (profile.distribution_policy) {
-    rows.push(["Politica dei proventi", DISTRIBUTION_POLICY_LABELS[profile.distribution_policy]]);
+    rows.push([t("assetDetail.info.distributionPolicy"), distributionPolicyLabel(t, profile.distribution_policy)]);
   }
   if (rows.length === 0) return null;
 
   return (
     <Card className="flex flex-col gap-3">
-      <h3 className="text-sm font-semibold text-text">Informazioni</h3>
+      <h3 className="text-sm font-semibold text-text">{t("assetDetail.info.title")}</h3>
       <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
         {rows.map(([label, value]) => (
           <div key={label} className="flex items-center justify-between gap-2 sm:flex-col sm:items-start sm:gap-0.5">
@@ -334,6 +345,8 @@ function PurchasesList({
   currentPriceCurrency: string | null;
   totals: PurchasesTotals | null;
 }) {
+  const { t } = useTranslation("portfolio");
+  const investmentTransactionTypeLabel = useInvestmentTransactionTypeLabel();
   const rows = transactions ?? [];
 
   // Rendimento per singolo acquisto: confronta il prezzo pagato (in
@@ -352,11 +365,11 @@ function PurchasesList({
 
   return (
     <Card className="flex flex-col gap-3">
-      <h3 className="text-sm font-semibold text-text">Acquisti</h3>
+      <h3 className="text-sm font-semibold text-text">{t("assetDetail.purchases.title")}</h3>
       {isLoading && <SkeletonRows rows={3} />}
-      {isError && <ErrorState message="Acquisti non disponibili." onRetry={onRetry} />}
+      {isError && <ErrorState message={t("assetDetail.purchases.loadError")} onRetry={onRetry} />}
       {!isLoading && !isError && rows.length === 0 && (
-        <p className="text-sm text-text-muted">Nessun acquisto registrato per questo asset.</p>
+        <p className="text-sm text-text-muted">{t("assetDetail.purchases.empty")}</p>
       )}
       {rows.length > 0 && (
         <>
@@ -364,12 +377,12 @@ function PurchasesList({
             <table className="w-full text-sm">
               <thead className="text-left text-text-muted">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Data</th>
-                  <th className="px-3 py-2 text-right font-medium">Quantità</th>
-                  <th className="px-3 py-2 text-right font-medium">Prezzo</th>
-                  <th className="px-3 py-2 text-right font-medium">Importo</th>
-                  <th className="px-3 py-2 text-right font-medium">Rendimento</th>
-                  <th className="px-3 py-2 text-right font-medium">Rendimento %</th>
+                  <th className="px-3 py-2 font-medium">{t("assetDetail.purchases.table.date")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.quantity")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.price")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.amount")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.gain")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.gainPct")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -407,9 +420,9 @@ function PurchasesList({
                 <tfoot>
                   <tr className="border-t-2 border-border font-bold">
                     <td className="px-3 py-2 text-text">
-                      <span className="block text-xs font-medium text-text-muted">Posizione</span>
+                      <span className="block text-xs font-medium text-text-muted">{t("assetDetail.kpi.position")}</span>
                       {formatMoney(totals.positionValue, totals.currency)}
-                      {!totals.hasMarketData && " (a costo)"}
+                      {!totals.hasMarketData && t("assetDetail.purchases.atCostSuffix")}
                     </td>
                     <td className="font-numeric px-3 py-2 text-right text-text">{totals.quantity}</td>
                     <td className="font-numeric px-3 py-2 text-right text-text">
@@ -441,27 +454,27 @@ function PurchasesList({
           </div>
 
           <ul className="flex flex-col gap-2 md:hidden">
-            {rows.map((t) => {
-              const { gain, gainPct } = computeGain(t);
+            {rows.map((txn) => {
+              const { gain, gainPct } = computeGain(txn);
               return (
-                <li key={t.id} className="flex flex-col gap-1 rounded-xl border border-border p-3 text-sm">
+                <li key={txn.id} className="flex flex-col gap-1 rounded-xl border border-border p-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-text">{formatDate(t.trade_date)}</span>
-                    <span className="font-numeric text-text">{formatSignedMoney(t.amount, t.currency)}</span>
+                    <span className="text-text">{formatDate(txn.trade_date)}</span>
+                    <span className="font-numeric text-text">{formatSignedMoney(txn.amount, txn.currency)}</span>
                   </div>
                   <span className="text-text-muted">
-                    {INVESTMENT_TRANSACTION_TYPE_LABELS[t.type]}
-                    {t.quantity && ` · ${t.quantity}`}
-                    {t.price && ` @ ${formatMoney(t.price, t.currency)}`}
+                    {investmentTransactionTypeLabel(txn.type)}
+                    {txn.quantity && ` · ${txn.quantity}`}
+                    {txn.price && ` @ ${formatMoney(txn.price, txn.currency)}`}
                   </span>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-text-muted">Rendimento</span>
+                    <span className="text-text-muted">{t("assetDetail.purchases.table.gain")}</span>
                     <span className={gain === null ? "font-numeric text-text-muted" : `font-numeric ${gain >= 0 ? "text-success" : "text-danger"}`}>
-                      {gain !== null ? formatSignedMoney(gain, t.currency) : "—"}
+                      {gain !== null ? formatSignedMoney(gain, txn.currency) : "—"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-text-muted">Rendimento %</span>
+                    <span className="text-text-muted">{t("assetDetail.purchases.table.gainPct")}</span>
                     <span className={gainPct === null ? "font-numeric text-text-muted" : `font-numeric ${gainPct >= 0 ? "text-success" : "text-danger"}`}>
                       {gainPct !== null ? formatPercent(gainPct, { signed: true }) : "—"}
                     </span>
@@ -474,20 +487,20 @@ function PurchasesList({
           {totals && (
             <div className="grid grid-cols-2 gap-3 border-t-2 border-border pt-3 text-sm font-bold md:hidden">
               <div>
-                <span className="block text-xs font-medium text-text-muted">Posizione</span>
+                <span className="block text-xs font-medium text-text-muted">{t("assetDetail.kpi.position")}</span>
                 {formatMoney(totals.positionValue, totals.currency)}
-                {!totals.hasMarketData && " (a costo)"}
+                {!totals.hasMarketData && t("assetDetail.purchases.atCostSuffix")}
               </div>
               <div className="text-right">
-                <span className="block text-xs font-medium text-text-muted">Quantità</span>
+                <span className="block text-xs font-medium text-text-muted">{t("assetDetail.kpi.quantity")}</span>
                 {totals.quantity}
               </div>
               <div>
-                <span className="block text-xs font-medium text-text-muted">Prezzo medio</span>
+                <span className="block text-xs font-medium text-text-muted">{t("assetDetail.kpi.averagePrice")}</span>
                 {formatMoney(totals.averageCost, totals.currency)}
               </div>
               <div className={`text-right ${totals.unrealizedPl >= 0 ? "text-success" : "text-danger"}`}>
-                <span className="block text-xs font-medium text-text-muted">Rendimento</span>
+                <span className="block text-xs font-medium text-text-muted">{t("assetDetail.kpi.returnLabel")}</span>
                 {formatSignedMoney(totals.unrealizedPl, totals.currency)}
                 {totals.unrealizedPlPct !== null &&
                   ` (${formatPercent(totals.unrealizedPlPct, { signed: true })})`}

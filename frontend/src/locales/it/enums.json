@@ -66,5 +66,30 @@
     "completed": "Classificazione AI completata",
     "failed": "Classificazione AI non riuscita",
     "skipped": "Nessuna classificazione AI necessaria"
+  },
+  "assetType": {
+    "etf": "ETF",
+    "stock": "Azione",
+    "bond": "Obbligazione",
+    "crypto": "Crypto",
+    "fund": "Fondo",
+    "cash": "Liquidità",
+    "other": "Altro"
+  },
+  "investmentTransactionType": {
+    "buy": "Acquisto",
+    "sell": "Vendita",
+    "dividend": "Dividendo",
+    "deposit": "Versamento",
+    "withdrawal": "Prelievo",
+    "fee": "Commissione",
+    "tax": "Imposta",
+    "split": "Frazionamento",
+    "opening": "Posizione iniziale",
+    "adjustment": "Correzione"
+  },
+  "distributionPolicy": {
+    "accumulating": "Accumulo (probabile)",
+    "distributing": "Distribuzione (probabile)"
   }
 }

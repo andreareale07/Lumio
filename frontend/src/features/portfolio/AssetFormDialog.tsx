@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import type { TFunction } from "i18next";
 
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
@@ -12,19 +14,21 @@ import { useAuth } from "../../app/providers/AuthProvider";
 import { CurrencyPicker } from "../settings/currency/CurrencyPicker";
 import { ASSET_TYPES, type Asset } from "../../types/api";
 import { useCreateAsset, useUpdateAsset } from "./api";
-import { ASSET_TYPE_LABELS } from "./labels";
+import { useAssetTypeLabel } from "./labels";
 
-const schema = z.object({
-  name: z.string().min(1, "Inserisci un nome"),
-  symbol: z.string().max(32).optional(),
-  isin: z.string().max(12).optional(),
-  asset_type: z.enum(ASSET_TYPES),
-  // Sistema di valute: il codice viene scelto da CurrencyPicker (sempre
-  // valido), non piu' digitato — il vincolo qui e' solo "non vuoto".
-  currency: z.string().min(2, "Seleziona una valuta"),
-  notes: z.string().optional(),
-});
-type FormValues = z.infer<typeof schema>;
+function buildSchema(t: TFunction) {
+  return z.object({
+    name: z.string().min(1, t("assetFormDialog.validation.name")),
+    symbol: z.string().max(32).optional(),
+    isin: z.string().max(12).optional(),
+    asset_type: z.enum(ASSET_TYPES),
+    // Sistema di valute: il codice viene scelto da CurrencyPicker (sempre
+    // valido), non piu' digitato — il vincolo qui e' solo "non vuoto".
+    currency: z.string().min(2, t("assetFormDialog.validation.currency")),
+    notes: z.string().optional(),
+  });
+}
+type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 
 interface AssetFormDialogProps {
   open: boolean;
@@ -50,6 +54,8 @@ function valuesFrom(asset: Asset | null | undefined, defaultCurrency: string): F
  * `MarketDataProvider` configurato per esistere — un asset senza
  * symbol/isin resta valorizzato solo a costo, sempre utilizzabile. */
 export function AssetFormDialog({ open, onClose, asset }: AssetFormDialogProps) {
+  const { t } = useTranslation(["portfolio", "common"]);
+  const assetTypeLabel = useAssetTypeLabel();
   const createAsset = useCreateAsset();
   const updateAsset = useUpdateAsset();
   const { user } = useAuth();
@@ -63,7 +69,7 @@ export function AssetFormDialog({ open, onClose, asset }: AssetFormDialogProps) 
     reset,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(buildSchema(t)),
     defaultValues: valuesFrom(asset, defaultCurrency),
   });
 
@@ -96,27 +102,31 @@ export function AssetFormDialog({ open, onClose, asset }: AssetFormDialogProps) 
       }
       close();
     } catch (error) {
-      setFormError(friendlyErrorMessage(error, "Non è stato possibile salvare l'asset."));
+      setFormError(friendlyErrorMessage(error, t("assetFormDialog.error")));
     }
   };
 
   return (
-    <Dialog open={open} onClose={close} title={isEditing ? "Modifica asset" : "Nuovo asset"}>
+    <Dialog
+      open={open}
+      onClose={close}
+      title={isEditing ? t("assetFormDialog.editTitle") : t("assetFormDialog.createTitle")}
+    >
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-        <Input label="Nome" error={errors.name?.message} {...register("name")} />
+        <Input label={t("assetFormDialog.fields.name")} error={errors.name?.message} {...register("name")} />
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Simbolo (opzionale)" placeholder="VWCE" {...register("symbol")} />
-          <Input label="ISIN (opzionale)" placeholder="IE00BK5BQT80" {...register("isin")} />
+          <Input label={t("assetFormDialog.fields.symbol")} placeholder="VWCE" {...register("symbol")} />
+          <Input label={t("assetFormDialog.fields.isin")} placeholder="IE00BK5BQT80" {...register("isin")} />
         </div>
-        <Select label="Tipo" error={errors.asset_type?.message} {...register("asset_type")}>
+        <Select label={t("assetFormDialog.fields.type")} error={errors.asset_type?.message} {...register("asset_type")}>
           {ASSET_TYPES.map((type) => (
             <option key={type} value={type}>
-              {ASSET_TYPE_LABELS[type]}
+              {assetTypeLabel(type)}
             </option>
           ))}
         </Select>
         <CurrencyPicker error={errors.currency?.message} {...register("currency")} />
-        <Input label="Note (opzionale)" {...register("notes")} />
+        <Input label={t("assetFormDialog.fields.notes")} {...register("notes")} />
         {formError && (
           <p role="alert" className="text-sm text-danger">
             {formError}
@@ -124,10 +134,10 @@ export function AssetFormDialog({ open, onClose, asset }: AssetFormDialogProps) 
         )}
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={close}>
-            Annulla
+            {t("common:actions.cancel")}
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            {isEditing ? "Salva" : "Crea asset"}
+            {isEditing ? t("assetFormDialog.submitEdit") : t("assetFormDialog.submitCreate")}
           </Button>
         </div>
       </form>

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import type { TFunction } from "i18next";
 
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
@@ -11,37 +13,43 @@ import { useAccounts } from "../accounts/api";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import { INVESTMENT_TRANSACTION_TYPES } from "../../types/api";
 import { useAssets, useCreateInvestmentTransaction } from "./api";
-import { ASSET_REQUIRED_TYPES, ASSET_TYPE_LABELS, INVESTMENT_TRANSACTION_TYPE_LABELS } from "./labels";
+import { ASSET_REQUIRED_TYPES, useAssetTypeLabel, useInvestmentTransactionTypeLabel } from "./labels";
 
 const DECIMAL_RE = /^-?\d+(\.\d+)?$/;
-const decimalString = (message: string) => z.string().regex(DECIMAL_RE, message);
 
-const schema = z
-  .object({
-    financial_account_id: z.string().min(1, "Seleziona un conto"),
-    asset_id: z.string().optional(),
-    trade_date: z.string().min(1, "Inserisci una data"),
-    type: z.enum(INVESTMENT_TRANSACTION_TYPES),
-    quantity: z.string().optional(),
-    price: z.string().optional(),
-    amount: decimalString("Importo non valido (es. -1000.00)"),
-    fees: z.string().optional(),
-    tax: z.string().optional(),
-    currency: z.string().length(3, "Codice valuta a 3 lettere (es. EUR)"),
-    notes: z.string().optional(),
-  })
-  .superRefine((values, ctx) => {
-    if (ASSET_REQUIRED_TYPES.includes(values.type) && !values.asset_id) {
-      ctx.addIssue({ code: "custom", path: ["asset_id"], message: "Seleziona un asset per questo tipo di movimento" });
-    }
-    if (values.quantity && !DECIMAL_RE.test(values.quantity)) {
-      ctx.addIssue({ code: "custom", path: ["quantity"], message: "Quantità non valida" });
-    }
-    if (values.price && !DECIMAL_RE.test(values.price)) {
-      ctx.addIssue({ code: "custom", path: ["price"], message: "Prezzo non valido" });
-    }
-  });
-type FormValues = z.infer<typeof schema>;
+function buildSchema(t: TFunction) {
+  const decimalString = (message: string) => z.string().regex(DECIMAL_RE, message);
+  return z
+    .object({
+      financial_account_id: z.string().min(1, t("transactionFormDialog.validation.account")),
+      asset_id: z.string().optional(),
+      trade_date: z.string().min(1, t("transactionFormDialog.validation.date")),
+      type: z.enum(INVESTMENT_TRANSACTION_TYPES),
+      quantity: z.string().optional(),
+      price: z.string().optional(),
+      amount: decimalString(t("transactionFormDialog.validation.amount")),
+      fees: z.string().optional(),
+      tax: z.string().optional(),
+      currency: z.string().length(3, t("transactionFormDialog.validation.currencyLength")),
+      notes: z.string().optional(),
+    })
+    .superRefine((values, ctx) => {
+      if (ASSET_REQUIRED_TYPES.includes(values.type) && !values.asset_id) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["asset_id"],
+          message: t("transactionFormDialog.validation.assetRequired"),
+        });
+      }
+      if (values.quantity && !DECIMAL_RE.test(values.quantity)) {
+        ctx.addIssue({ code: "custom", path: ["quantity"], message: t("transactionFormDialog.validation.quantity") });
+      }
+      if (values.price && !DECIMAL_RE.test(values.price)) {
+        ctx.addIssue({ code: "custom", path: ["price"], message: t("transactionFormDialog.validation.price") });
+      }
+    });
+}
+type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 
 const DEFAULT_VALUES: FormValues = {
   financial_account_id: "",
@@ -75,6 +83,9 @@ export function InvestmentTransactionFormDialog({
   defaultAccountId,
   defaultAssetId,
 }: InvestmentTransactionFormDialogProps) {
+  const { t } = useTranslation(["portfolio", "common"]);
+  const assetTypeLabel = useAssetTypeLabel();
+  const investmentTransactionTypeLabel = useInvestmentTransactionTypeLabel();
   const { data: accounts } = useAccounts();
   const { data: assets } = useAssets();
   const createTransaction = useCreateInvestmentTransaction();
@@ -86,7 +97,7 @@ export function InvestmentTransactionFormDialog({
     reset,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: DEFAULT_VALUES });
+  } = useForm<FormValues>({ resolver: zodResolver(buildSchema(t)), defaultValues: DEFAULT_VALUES });
 
   useEffect(() => {
     if (open) {
@@ -126,15 +137,19 @@ export function InvestmentTransactionFormDialog({
       });
       close();
     } catch (error) {
-      setFormError(friendlyErrorMessage(error, "Non è stato possibile registrare il movimento."));
+      setFormError(friendlyErrorMessage(error, t("transactionFormDialog.error")));
     }
   };
 
   return (
-    <Dialog open={open} onClose={close} title="Nuovo movimento">
+    <Dialog open={open} onClose={close} title={t("transactionFormDialog.title")}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-        <Select label="Conto" error={errors.financial_account_id?.message} {...register("financial_account_id")}>
-          <option value="">Seleziona un conto</option>
+        <Select
+          label={t("transactionFormDialog.fields.account")}
+          error={errors.financial_account_id?.message}
+          {...register("financial_account_id")}
+        >
+          <option value="">{t("transactionFormDialog.selectAccount")}</option>
           {(accounts ?? []).map((account) => (
             <option key={account.id} value={account.id}>
               {account.name}
@@ -142,40 +157,45 @@ export function InvestmentTransactionFormDialog({
           ))}
         </Select>
 
-        <Select label="Tipo" error={errors.type?.message} {...register("type")}>
+        <Select label={t("transactionFormDialog.fields.type")} error={errors.type?.message} {...register("type")}>
           {INVESTMENT_TRANSACTION_TYPES.map((type) => (
             <option key={type} value={type}>
-              {INVESTMENT_TRANSACTION_TYPE_LABELS[type]}
+              {investmentTransactionTypeLabel(type)}
             </option>
           ))}
         </Select>
 
         <Select
-          label={assetRequired ? "Asset" : "Asset (opzionale)"}
+          label={assetRequired ? t("transactionFormDialog.fields.asset") : t("transactionFormDialog.fields.assetOptional")}
           error={errors.asset_id?.message}
           {...register("asset_id")}
         >
           <option value="">
-            {assetRequired ? "Seleziona un asset" : "Nessuno (movimento di cassa)"}
+            {assetRequired ? t("transactionFormDialog.selectAssetRequired") : t("transactionFormDialog.selectAssetOptional")}
           </option>
           {(assets ?? []).map((asset) => (
             <option key={asset.id} value={asset.id}>
-              {asset.symbol ? `${asset.symbol} — ${asset.name}` : asset.name} ({ASSET_TYPE_LABELS[asset.asset_type]})
+              {asset.symbol ? `${asset.symbol} — ${asset.name}` : asset.name} ({assetTypeLabel(asset.asset_type)})
             </option>
           ))}
         </Select>
 
-        <Input label="Data" type="date" error={errors.trade_date?.message} {...register("trade_date")} />
+        <Input
+          label={t("transactionFormDialog.fields.date")}
+          type="date"
+          error={errors.trade_date?.message}
+          {...register("trade_date")}
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <Input
-            label="Quantità (opzionale)"
+            label={t("transactionFormDialog.fields.quantity")}
             placeholder="10"
             error={errors.quantity?.message}
             {...register("quantity")}
           />
           <Input
-            label="Prezzo (opzionale)"
+            label={t("transactionFormDialog.fields.price")}
             placeholder="100.00"
             error={errors.price?.message}
             {...register("price")}
@@ -183,26 +203,26 @@ export function InvestmentTransactionFormDialog({
         </div>
 
         <Input
-          label="Importo netto in cassa"
-          hint="Negativo se il movimento riduce la liquidità del conto (es. un acquisto)."
+          label={t("transactionFormDialog.fields.amount")}
+          hint={t("transactionFormDialog.amountHint")}
           placeholder="-1000.00"
           error={errors.amount?.message}
           {...register("amount")}
         />
 
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Commissioni" {...register("fees")} />
-          <Input label="Imposte" {...register("tax")} />
+          <Input label={t("transactionFormDialog.fields.fees")} {...register("fees")} />
+          <Input label={t("transactionFormDialog.fields.tax")} {...register("tax")} />
         </div>
 
         <Input
-          label="Valuta"
+          label={t("transactionFormDialog.fields.currency")}
           maxLength={3}
           className="uppercase"
           error={errors.currency?.message}
           {...register("currency")}
         />
-        <Input label="Note (opzionale)" {...register("notes")} />
+        <Input label={t("transactionFormDialog.fields.notes")} {...register("notes")} />
 
         {formError && (
           <p role="alert" className="text-sm text-danger">
@@ -211,10 +231,10 @@ export function InvestmentTransactionFormDialog({
         )}
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={close}>
-            Annulla
+            {t("common:actions.cancel")}
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            Registra movimento
+            {t("transactionFormDialog.submit")}
           </Button>
         </div>
       </form>

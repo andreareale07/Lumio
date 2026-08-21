@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PiggyBank, Plus, Trash2 } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { BackLink } from "../../components/ui/BackLink";
 import { Button } from "../../components/ui/Button";
@@ -12,7 +13,7 @@ import { SkeletonRows } from "../../components/ui/Skeleton";
 import { formatDate, formatMoney, formatPercent, formatSignedMoney } from "../../lib/format";
 import { InvestmentTransactionFormDialog } from "./InvestmentTransactionFormDialog";
 import { PortfolioSummaryBlock } from "./PortfolioSummaryBlock";
-import { INVESTMENT_TRANSACTION_TYPE_LABELS } from "./labels";
+import { useInvestmentTransactionTypeLabel } from "./labels";
 import {
   useAssets,
   usePortfolio,
@@ -32,6 +33,8 @@ const PAGE_SIZE = 25;
  * sto vedendo dentro") e il libro mastro dei movimenti, esattamente come
  * `PurchasesList` sta sotto le card in `AssetDetailPage`. */
 export function PortfolioDetailPage() {
+  const { t } = useTranslation("portfolio");
+  const investmentTransactionTypeLabel = useInvestmentTransactionTypeLabel();
   const { portfolioId: rawId } = useParams<{ portfolioId: string }>();
   const location = useLocation();
   const isUnassigned = rawId === "unassigned";
@@ -66,14 +69,18 @@ export function PortfolioDetailPage() {
     return (
       <EmptyState
         icon={PiggyBank}
-        title="Portfolio non trovato"
-        description="Il portfolio richiesto non esiste o non è più disponibile."
-        action={<LinkButton to="/investments" size="sm">Torna agli investimenti</LinkButton>}
+        title={t("detail.notFound.title")}
+        description={t("detail.notFound.description")}
+        action={
+          <LinkButton to="/investments" size="sm">
+            {t("detail.notFound.action")}
+          </LinkButton>
+        }
       />
     );
   }
 
-  const title = isUnassigned ? "Asset senza portfolio" : portfolio.data?.name ?? "";
+  const title = isUnassigned ? t("detail.unassignedTitle") : portfolio.data?.name ?? "";
   // Il link "indietro" di AssetDetailPage usa questo per tornare qui invece
   // che sempre alla Panoramica generale — un asset puo' essere raggiunto da
   // piu' ambiti diversi, quindi si passa via `state` di navigazione (non
@@ -103,11 +110,9 @@ export function PortfolioDetailPage() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <div>
-        <BackLink to="/investments" label="Investimenti" />
+        <BackLink to="/investments" label={t("detail.backLabel")} />
         <h1 className="mt-1 text-lg font-semibold text-text">{title}</h1>
-        {isUnassigned && (
-          <p className="text-sm text-text-muted">Conti non raggruppati in nessun portfolio.</p>
-        )}
+        {isUnassigned && <p className="text-sm text-text-muted">{t("detail.unassignedDescription")}</p>}
         {!isUnassigned && portfolio.data?.description && (
           <p className="text-sm text-text-muted">{portfolio.data.description}</p>
         )}
@@ -116,13 +121,13 @@ export function PortfolioDetailPage() {
       <PortfolioSummaryBlock scope={scope} />
 
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
-        <h3 className="text-sm font-semibold text-text">Asset</h3>
+        <h3 className="text-sm font-semibold text-text">{t("detail.assets.title")}</h3>
         {positions.isLoading && <SkeletonRows rows={3} />}
         {positions.isError && (
-          <ErrorState message="Posizioni non disponibili." onRetry={() => void positions.refetch()} />
+          <ErrorState message={t("detail.assets.loadError")} onRetry={() => void positions.refetch()} />
         )}
         {positions.data && positions.data.positions.length === 0 && (
-          <p className="text-sm text-text-muted">Nessuna posizione aperta in questo ambito.</p>
+          <p className="text-sm text-text-muted">{t("detail.assets.empty")}</p>
         )}
         {positions.data && positions.data.positions.length > 0 && (
           <>
@@ -130,11 +135,11 @@ export function PortfolioDetailPage() {
               <table className="w-full text-sm">
                 <thead className="text-left text-text-muted">
                   <tr>
-                    <th className="px-3 py-2 font-medium">Asset</th>
-                    <th className="px-3 py-2 font-medium">Conto</th>
-                    <th className="px-3 py-2 text-right font-medium">Quantità</th>
-                    <th className="px-3 py-2 text-right font-medium">Valore attuale</th>
-                    <th className="px-3 py-2 text-right font-medium">Rendimento</th>
+                    <th className="px-3 py-2 font-medium">{t("detail.assets.table.asset")}</th>
+                    <th className="px-3 py-2 font-medium">{t("detail.assets.table.account")}</th>
+                    <th className="px-3 py-2 text-right font-medium">{t("detail.assets.table.quantity")}</th>
+                    <th className="px-3 py-2 text-right font-medium">{t("detail.assets.table.currentValue")}</th>
+                    <th className="px-3 py-2 text-right font-medium">{t("detail.assets.table.returnLabel")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -166,7 +171,7 @@ export function PortfolioDetailPage() {
                 {positionsTotals && (
                   <tfoot>
                     <tr className="border-t-2 border-border font-bold">
-                      <td className="px-3 py-2 text-text">Totale</td>
+                      <td className="px-3 py-2 text-text">{t("detail.assets.table.total")}</td>
                       <td className="px-3 py-2" />
                       <td className="px-3 py-2" />
                       <td className="font-numeric px-3 py-2 text-right text-text">
@@ -215,11 +220,11 @@ export function PortfolioDetailPage() {
             {positionsTotals && (
               <div className="grid grid-cols-2 gap-3 border-t-2 border-border pt-3 text-sm font-bold md:hidden">
                 <div>
-                  <span className="block text-xs font-medium text-text-muted">Totale</span>
+                  <span className="block text-xs font-medium text-text-muted">{t("detail.assets.table.total")}</span>
                   {formatMoney(positionsTotals.marketValue, positionsTotals.currency)}
                 </div>
                 <div className={`text-right ${positionsTotals.unrealizedPl >= 0 ? "text-success" : "text-danger"}`}>
-                  <span className="block text-xs font-medium text-text-muted">Rendimento</span>
+                  <span className="block text-xs font-medium text-text-muted">{t("detail.assets.table.returnLabel")}</span>
                   {formatSignedMoney(positionsTotals.unrealizedPl, positionsTotals.currency)}
                   {positionsTotalsPct !== null && ` (${formatPercent(positionsTotalsPct, { signed: true })})`}
                 </div>
@@ -231,22 +236,22 @@ export function PortfolioDetailPage() {
 
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-text">Movimenti</h3>
+          <h3 className="text-sm font-semibold text-text">{t("detail.transactions.title")}</h3>
           <Button size="sm" onClick={() => setTxnDialogOpen(true)}>
-            <Plus className="h-4 w-4" /> Nuovo movimento
+            <Plus className="h-4 w-4" /> {t("detail.transactions.newTransaction")}
           </Button>
         </div>
 
         {transactions.isLoading && <SkeletonRows rows={4} />}
         {transactions.isError && (
-          <ErrorState message="Movimenti non disponibili." onRetry={() => void transactions.refetch()} />
+          <ErrorState message={t("detail.transactions.loadError")} onRetry={() => void transactions.refetch()} />
         )}
         {transactions.data && transactions.data.length === 0 && offset === 0 && (
           <EmptyState
             icon={PiggyBank}
-            title="Nessun movimento"
-            description="Acquisti, vendite, dividendi e altri movimenti registrati sui conti di questo ambito appariranno qui."
-            action={<Button onClick={() => setTxnDialogOpen(true)}>Registra un movimento</Button>}
+            title={t("detail.transactions.empty.title")}
+            description={t("detail.transactions.empty.description")}
+            action={<Button onClick={() => setTxnDialogOpen(true)}>{t("detail.transactions.empty.action")}</Button>}
           />
         )}
         {transactions.data && transactions.data.length > 0 && (
@@ -255,10 +260,10 @@ export function PortfolioDetailPage() {
               <table className="w-full text-sm">
                 <thead className="text-left text-text-muted">
                   <tr>
-                    <th className="px-3 py-2 font-medium">Data</th>
-                    <th className="px-3 py-2 font-medium">Tipo</th>
-                    <th className="px-3 py-2 font-medium">Asset</th>
-                    <th className="px-3 py-2 text-right font-medium">Importo</th>
+                    <th className="px-3 py-2 font-medium">{t("detail.transactions.table.date")}</th>
+                    <th className="px-3 py-2 font-medium">{t("detail.transactions.table.type")}</th>
+                    <th className="px-3 py-2 font-medium">{t("detail.transactions.table.asset")}</th>
+                    <th className="px-3 py-2 text-right font-medium">{t("detail.transactions.table.amount")}</th>
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
@@ -266,14 +271,14 @@ export function PortfolioDetailPage() {
                   {transactions.data.map((txn) => (
                     <tr key={txn.id} className="border-t border-border">
                       <td className="px-3 py-2 text-text-muted">{formatDate(txn.trade_date)}</td>
-                      <td className="px-3 py-2 text-text">{INVESTMENT_TRANSACTION_TYPE_LABELS[txn.type]}</td>
+                      <td className="px-3 py-2 text-text">{investmentTransactionTypeLabel(txn.type)}</td>
                       <td className="px-3 py-2 text-text">
                         {txn.asset_id ? (
                           <Link to={`/investments/assets/${txn.asset_id}`} state={backState} className="hover:underline">
-                            {assetLabel(txn.asset_id) ?? "—"}
+                            {assetLabel(txn.asset_id) ?? t("detail.transactions.noAsset")}
                           </Link>
                         ) : (
-                          <span className="text-text-muted">—</span>
+                          <span className="text-text-muted">{t("detail.transactions.noAsset")}</span>
                         )}
                       </td>
                       <td className="font-numeric px-3 py-2 text-right text-text">
@@ -284,7 +289,7 @@ export function PortfolioDetailPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => setToDelete(txn)}
-                          aria-label="Elimina movimento"
+                          aria-label={t("detail.transactions.deleteTransaction")}
                           className="hover:text-danger"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -308,12 +313,12 @@ export function PortfolioDetailPage() {
                   </div>
                   <div className="flex items-center justify-between text-text-muted">
                     <span>
-                      {INVESTMENT_TRANSACTION_TYPE_LABELS[txn.type]}
+                      {investmentTransactionTypeLabel(txn.type)}
                       {txn.asset_id && (
                         <>
                           {" · "}
                           <Link to={`/investments/assets/${txn.asset_id}`} state={backState} className="hover:underline">
-                            {assetLabel(txn.asset_id) ?? "—"}
+                            {assetLabel(txn.asset_id) ?? t("detail.transactions.noAsset")}
                           </Link>
                         </>
                       )}
@@ -322,7 +327,7 @@ export function PortfolioDetailPage() {
                       variant="ghost"
                       size="icon"
                       onClick={() => setToDelete(txn)}
-                      aria-label="Elimina movimento"
+                      aria-label={t("detail.transactions.deleteTransaction")}
                       className="hover:text-danger"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -339,7 +344,7 @@ export function PortfolioDetailPage() {
                 disabled={offset === 0}
                 onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
               >
-                Precedenti
+                {t("detail.transactions.pagination.previous")}
               </Button>
               <Button
                 variant="secondary"
@@ -347,7 +352,7 @@ export function PortfolioDetailPage() {
                 disabled={transactions.data.length < PAGE_SIZE}
                 onClick={() => setOffset(offset + PAGE_SIZE)}
               >
-                Successivi
+                {t("detail.transactions.pagination.next")}
               </Button>
             </div>
           </>
@@ -359,19 +364,19 @@ export function PortfolioDetailPage() {
       <Dialog
         open={toDelete !== null}
         onClose={() => setToDelete(null)}
-        title="Eliminare il movimento?"
+        title={t("detail.transactions.deleteDialog.title")}
         footer={
           <>
             <Button variant="secondary" onClick={() => setToDelete(null)}>
-              Annulla
+              {t("common:actions.cancel")}
             </Button>
             <Button variant="danger" loading={deleteTransaction.isPending} onClick={() => void confirmDelete()}>
-              Elimina
+              {t("detail.transactions.deleteDialog.confirm")}
             </Button>
           </>
         }
       >
-        <p className="text-sm text-text-muted">Il movimento verrà rimosso e la posizione ricalcolata.</p>
+        <p className="text-sm text-text-muted">{t("detail.transactions.deleteDialog.body")}</p>
       </Dialog>
     </div>
   );
