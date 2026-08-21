@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { FolderTree, Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -25,6 +26,7 @@ const KIND_ORDER: CategoryKind[] = ["expense", "income", "transfer", "investment
  * di sola lettura — il backend le protegge gia' con un 403, la UI evita di
  * mostrare azioni che fallirebbero comunque. */
 export function CategoriesSettingsPage() {
+  const { t } = useTranslation("settings");
   const { data: categories, isLoading, isError, refetch } = useCategories();
   const [formCategory, setFormCategory] = useState<Category | null | "new">(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
@@ -83,7 +85,7 @@ export function CategoriesSettingsPage() {
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold text-text">Categorie</h1>
+          <h1 className="text-lg font-semibold text-text">{t("items.categories.label")}</h1>
           <p className="text-sm text-text-muted">
             Le categorie di sistema sono condivise e non modificabili. Quelle create da te possono essere
             rinominate, riordinate, disattivate o eliminate se non più in uso.

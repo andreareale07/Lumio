@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Info, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../../../app/providers/AuthProvider";
 import { Button } from "../../../components/ui/Button";
@@ -20,6 +21,7 @@ import { useUpdateWorkspaceCurrency, useWorkspace } from "./api";
  * nella loro valuta originale — solo i totali si ricalcolano da quel
  * momento in poi. */
 export function CurrencySettingsPage() {
+  const { t } = useTranslation("settings");
   const { data: workspace, isLoading, isError, refetch } = useWorkspace();
   const updateCurrency = useUpdateWorkspaceCurrency();
   // Cambiare valuta accoda in background lo stesso job di refresh usato dal
@@ -54,7 +56,7 @@ export function CurrencySettingsPage() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div className="flex items-center gap-1.5">
-        <h1 className="text-lg font-semibold text-text">Valuta</h1>
+        <h1 className="text-lg font-semibold text-text">{t("items.currency.label")}</h1>
         <Button variant="ghost" size="icon" aria-label="Cosa significa cambiare la valuta?" onClick={() => setInfoOpen(true)}>
           <Info className="h-4 w-4" />
         </Button>

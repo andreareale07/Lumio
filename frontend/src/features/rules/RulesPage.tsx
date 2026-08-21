@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Wand2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -17,6 +18,7 @@ import { RULE_FIELD_LABELS, RULE_OPERATOR_LABELS } from "./schemas";
 import type { Rule } from "../../types/api";
 
 export function RulesPage() {
+  const { t } = useTranslation("settings");
   const { data: rules, isLoading, isError, refetch } = useRules();
   const { data: categories } = useCategories();
   const { data: suggestions } = useRuleSuggestions();
@@ -43,7 +45,7 @@ export function RulesPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-text">Regole</h1>
+        <h1 className="text-lg font-semibold text-text">{t("items.rules.label")}</h1>
         <Button size="sm" onClick={openCreate}>
           <Plus className="h-4 w-4" /> Nuova regola
         </Button>

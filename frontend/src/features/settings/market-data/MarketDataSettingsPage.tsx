@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LineChart, Plus, RefreshCw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Badge } from "../../../components/ui/Badge";
@@ -27,6 +28,7 @@ import { MARKET_DATA_PROVIDER_LABELS } from "./schemas";
  * nessun profilo attivo, o nessun profilo affatto, e' uno stato valido: le
  * posizioni restano valorizzate al costo storico, non e' un errore. */
 export function MarketDataSettingsPage() {
+  const { t } = useTranslation("settings");
   const { data: profiles, isLoading, isError, refetch } = useMarketDataProfiles();
   const activateProfile = useActivateMarketDataProfile();
   const deactivateMarketData = useDeactivateMarketData();
@@ -66,7 +68,7 @@ export function MarketDataSettingsPage() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-text">Market Data</h1>
+        <h1 className="text-lg font-semibold text-text">{t("items.marketData.label")}</h1>
         <Button size="sm" onClick={openCreate}>
           <Plus className="h-4 w-4" /> Nuovo profilo
         </Button>

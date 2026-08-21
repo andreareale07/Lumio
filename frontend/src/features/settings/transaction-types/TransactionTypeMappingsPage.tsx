@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Tags } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -21,6 +22,7 @@ import { parserTypeLabel } from "./labels";
  * alle transazioni gia' importate con quella etichetta, tranne quelle che
  * l'utente ha gia' corretto a mano (mai sovrascritte, vedi backend). */
 export function TransactionTypeMappingsPage() {
+  const { t } = useTranslation("settings");
   const { data: parserTypes, isLoading, isError, refetch } = useUsedParserTypes();
   const [selectedParser, setSelectedParser] = useState<string | null>(null);
 
@@ -32,7 +34,7 @@ export function TransactionTypeMappingsPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
-      <h1 className="text-lg font-semibold text-text">Tipi di transazione</h1>
+      <h1 className="text-lg font-semibold text-text">{t("items.transactionTypes.label")}</h1>
 
       <p className="text-sm text-text-muted">
         Per ogni etichetta grezza usata dal tuo estratto conto (es. "Bonifico"), scegli qui con quale tipo Lumio

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, FileSpreadsheet } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
@@ -27,6 +28,7 @@ const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
 };
 
 export function IntegrationsSettingsPage() {
+  const { t } = useTranslation("settings");
   const { data: integration, isLoading, isError, refetch } = useGoogleIntegration();
   const connectGoogle = useConnectGoogle();
   const disconnectGoogle = useDisconnectGoogle();
@@ -61,7 +63,7 @@ export function IntegrationsSettingsPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
-      <h1 className="text-lg font-semibold text-text">Integrazioni</h1>
+      <h1 className="text-lg font-semibold text-text">{t("items.integrations.label")}</h1>
       <p className="text-sm text-text-muted">
         Google Sheets è un'integrazione opzionale: esporta i tuoi dati finanziari in un foglio Google, sempre
         aggiornabile su richiesta. Disattivarla non ha alcun impatto sul resto di Lumio.

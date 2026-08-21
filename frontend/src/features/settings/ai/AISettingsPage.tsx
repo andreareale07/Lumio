@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Bot, Plus, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -18,6 +19,7 @@ import { AI_PROVIDER_LABELS } from "./schemas";
  * sempre opzionale (SPEC §25): nessun profilo attivo, o nessun profilo
  * affatto, e' uno stato valido, non un errore. */
 export function AISettingsPage() {
+  const { t } = useTranslation("settings");
   const { data: profiles, isLoading, isError, refetch } = useAIProfiles();
   const activateProfile = useActivateAIProfile();
   const deactivateAI = useDeactivateAI();
@@ -41,7 +43,7 @@ export function AISettingsPage() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-text">AI</h1>
+        <h1 className="text-lg font-semibold text-text">{t("items.ai.label")}</h1>
         <Button size="sm" onClick={openCreate}>
           <Plus className="h-4 w-4" /> Nuovo profilo
         </Button>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Info } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "../../../components/ui/Button";
 import { Dialog } from "../../../components/ui/Dialog";
@@ -14,6 +15,7 @@ import { JobCard } from "./JobCard";
  * (vedi app/models/workspace_member.py), rischio accettato in attesa del
  * futuro rework — stessa scelta gia' fatta per /system-settings. */
 export function JobsSettingsPage() {
+  const { t } = useTranslation("settings");
   const { data: jobs, isLoading, isError, refetch } = useJobs();
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -24,7 +26,7 @@ export function JobsSettingsPage() {
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <h1 className="text-lg font-semibold text-text">Job di sistema</h1>
+          <h1 className="text-lg font-semibold text-text">{t("items.jobs.label")}</h1>
           <Button variant="ghost" size="icon" aria-label="Cosa sono le due categorie?" onClick={() => setInfoOpen(true)}>
             <Info className="h-4 w-4" />
           </Button>
