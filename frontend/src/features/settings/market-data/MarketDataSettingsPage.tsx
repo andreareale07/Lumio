@@ -21,14 +21,14 @@ import {
   useTriggerMarketDataRefresh,
 } from "./api";
 import { MarketDataProfileFormDialog } from "./MarketDataProfileFormDialog";
-import { MARKET_DATA_PROVIDER_LABELS } from "./schemas";
+import { marketDataProviderLabel } from "./schemas";
 
 /** SPEC §38: pagina `/settings/market-data`. Il market data resta sempre
  * opzionale (DoD M09: "l'app funziona anche senza provider configurato") —
  * nessun profilo attivo, o nessun profilo affatto, e' uno stato valido: le
  * posizioni restano valorizzate al costo storico, non e' un errore. */
 export function MarketDataSettingsPage() {
-  const { t } = useTranslation("settings");
+  const { t } = useTranslation(["settings", "common"]);
   const { data: profiles, isLoading, isError, refetch } = useMarketDataProfiles();
   const activateProfile = useActivateMarketDataProfile();
   const deactivateMarketData = useDeactivateMarketData();
@@ -70,26 +70,21 @@ export function MarketDataSettingsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-text">{t("items.marketData.label")}</h1>
         <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nuovo profilo
+          <Plus className="h-4 w-4" /> {t("items.marketData.page.newProfile")}
         </Button>
       </div>
 
-      <p className="text-sm text-text-muted">
-        Il market data è opzionale: senza un provider attivo le posizioni restano valorizzate al costo
-        storico, senza errori. Puoi salvare più profili e attivarne uno alla volta.
-      </p>
+      <p className="text-sm text-text-muted">{t("items.marketData.page.intro")}</p>
 
       {isLoading && <SkeletonRows rows={3} />}
-      {isError && (
-        <ErrorState message="Non siamo riusciti a caricare i profili." onRetry={() => void refetch()} />
-      )}
+      {isError && <ErrorState message={t("items.marketData.page.loadError")} onRetry={() => void refetch()} />}
 
       {!isLoading && !isError && profiles && profiles.length === 0 && (
         <EmptyState
           icon={LineChart}
-          title="Nessun profilo market data"
-          description="Crea un profilo per valorizzare le tue posizioni a prezzo di mercato invece che a costo storico."
-          action={<Button onClick={openCreate}>Nuovo profilo</Button>}
+          title={t("items.marketData.page.empty.title")}
+          description={t("items.marketData.page.empty.description")}
+          action={<Button onClick={openCreate}>{t("items.marketData.page.newProfile")}</Button>}
         />
       )}
 
@@ -101,11 +96,11 @@ export function MarketDataSettingsPage() {
                 <LineChart className="h-5 w-5 text-text-muted" aria-hidden="true" />
                 <div>
                   <p className="font-medium text-text">{profile.name}</p>
-                  <p className="text-sm text-text-muted">{MARKET_DATA_PROVIDER_LABELS[profile.provider]}</p>
+                  <p className="text-sm text-text-muted">{marketDataProviderLabel(t, profile.provider)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {profile.is_active && <Badge tone="success">Attivo</Badge>}
+                {profile.is_active && <Badge tone="success">{t("items.marketData.page.active")}</Badge>}
                 {profile.is_active ? (
                   <Button
                     variant="ghost"
@@ -113,7 +108,7 @@ export function MarketDataSettingsPage() {
                     loading={deactivateMarketData.isPending}
                     onClick={() => deactivateMarketData.mutate()}
                   >
-                    Disattiva
+                    {t("items.marketData.page.deactivate")}
                   </Button>
                 ) : (
                   <Button
@@ -122,14 +117,14 @@ export function MarketDataSettingsPage() {
                     loading={activateProfile.isPending}
                     onClick={() => activateProfile.mutate(profile.id)}
                   >
-                    Attiva
+                    {t("items.marketData.page.activate")}
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" onClick={() => openEdit(profile)}>
-                  Modifica
+                  {t("items.marketData.page.edit")}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setProfileToDelete(profile)}>
-                  Elimina
+                  {t("items.marketData.page.delete")}
                 </Button>
               </div>
             </Card>
@@ -140,13 +135,11 @@ export function MarketDataSettingsPage() {
       {activeProfile && activeProfile.provider !== "manual" && (
         <Card className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-medium text-text">Aggiornamento prezzi</p>
-            <p className="text-sm text-text-muted">
-              Avviene automaticamente ogni notte. Puoi anche avviarlo subito.
-            </p>
+            <p className="font-medium text-text">{t("items.marketData.page.refresh.title")}</p>
+            <p className="text-sm text-text-muted">{t("items.marketData.page.refresh.description")}</p>
           </div>
           <Button variant="secondary" size="sm" loading={triggerRefresh.isPending} onClick={() => void onRefreshNow()}>
-            <RefreshCw className="h-4 w-4" /> Aggiorna prezzi ora
+            <RefreshCw className="h-4 w-4" /> {t("items.marketData.page.refresh.action")}
           </Button>
         </Card>
       )}
@@ -154,15 +147,18 @@ export function MarketDataSettingsPage() {
 
       <MarketDataProfileFormDialog open={formOpen} onClose={() => setFormOpen(false)} profile={editingProfile} />
 
-      <Dialog open={!!profileToDelete} onClose={() => setProfileToDelete(null)} title="Eliminare il profilo?">
+      <Dialog
+        open={!!profileToDelete}
+        onClose={() => setProfileToDelete(null)}
+        title={t("items.marketData.page.deleteDialog.title")}
+      >
         <p className="text-sm text-text-muted">
-          "{profileToDelete?.name}" verrà eliminato definitivamente.
-          {profileToDelete?.is_active &&
-            " È il profilo attivo: dopo l'eliminazione il market data resterà disabilitato."}
+          {t("items.marketData.page.deleteDialog.body", { name: profileToDelete?.name })}
+          {profileToDelete?.is_active && ` ${t("items.marketData.page.deleteDialog.activeWarning")}`}
         </p>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setProfileToDelete(null)}>
-            Annulla
+            {t("common:actions.cancel")}
           </Button>
           <Button
             variant="danger"
@@ -171,13 +167,13 @@ export function MarketDataSettingsPage() {
               setProfileToDelete(null);
             }}
           >
-            Elimina
+            {t("items.marketData.page.delete")}
           </Button>
         </div>
       </Dialog>
 
       {!activeProfile && profiles && profiles.length > 0 && (
-        <p className="text-sm text-text-muted">Nessun profilo attivo: valorizzazione a costo storico.</p>
+        <p className="text-sm text-text-muted">{t("items.marketData.page.noActiveProfile")}</p>
       )}
     </div>
   );

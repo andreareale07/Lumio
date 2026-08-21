@@ -16,5 +16,11 @@
     "openai": "OpenAI",
     "anthropic": "Anthropic",
     "custom": "Custom server"
+  },
+  "marketDataProvider": {
+    "manual": "Manual (I enter prices myself)",
+    "stooq": "Stooq (free)",
+    "yahoo": "Yahoo Finance (free, unofficial)",
+    "custom": "Custom provider (with API key)"
   }
 }

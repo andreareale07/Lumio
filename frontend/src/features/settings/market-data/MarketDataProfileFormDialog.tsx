@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "../../../components/ui/Button";
 import { Dialog } from "../../../components/ui/Dialog";
@@ -20,9 +21,9 @@ import {
   useUpdateMarketDataProfile,
 } from "./api";
 import {
-  MARKET_DATA_PROVIDER_DESCRIPTIONS,
-  MARKET_DATA_PROVIDER_LABELS,
-  marketDataProfileSchema,
+  buildMarketDataProfileSchema,
+  marketDataProviderDescription,
+  marketDataProviderLabel,
   type MarketDataProfileFormValues,
 } from "./schemas";
 
@@ -50,6 +51,7 @@ function valuesFrom(profile: MarketDataProfile | null | undefined): MarketDataPr
  * — nessun provider e' obbligatorio, l'app funziona anche senza nessuno
  * attivo (valorizzazione a costo storico). */
 export function MarketDataProfileFormDialog({ open, onClose, profile }: MarketDataProfileFormDialogProps) {
+  const { t } = useTranslation(["settings", "common"]);
   const isEditing = !!profile;
   const createProfile = useCreateMarketDataProfile();
   const updateProfile = useUpdateMarketDataProfile();
@@ -67,7 +69,7 @@ export function MarketDataProfileFormDialog({ open, onClose, profile }: MarketDa
     reset,
     formState: { errors, isSubmitting },
   } = useForm<MarketDataProfileFormValues>({
-    resolver: zodResolver(marketDataProfileSchema),
+    resolver: zodResolver(buildMarketDataProfileSchema(t)),
     defaultValues: valuesFrom(profile),
   });
 
@@ -112,7 +114,7 @@ export function MarketDataProfileFormDialog({ open, onClose, profile }: MarketDa
       }
       onClose();
     } catch (error) {
-      setFormError(friendlyErrorMessage(error, "Non è stato possibile salvare il profilo."));
+      setFormError(friendlyErrorMessage(error, t("items.marketData.page.form.errors.save")));
     }
   });
 
@@ -135,54 +137,63 @@ export function MarketDataProfileFormDialog({ open, onClose, profile }: MarketDa
           });
       setTestResult(result);
     } catch (error) {
-      setTestResult({ success: false, message: friendlyErrorMessage(error, "Verifica non riuscita.") });
+      setTestResult({ success: false, message: friendlyErrorMessage(error, t("items.marketData.page.form.errors.test")) });
     }
   };
 
   const isTesting = testDraft.isPending || testSaved.isPending;
 
   return (
-    <Dialog open={open} onClose={onClose} title={isEditing ? "Modifica profilo" : "Nuovo profilo market data"}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={isEditing ? t("items.marketData.page.form.editTitle") : t("items.marketData.page.form.createTitle")}
+    >
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
-        <Input label="Nome" error={errors.name?.message} {...register("name")} />
+        <Input label={t("items.marketData.page.form.fields.name")} error={errors.name?.message} {...register("name")} />
 
-        <Select label="Provider" disabled={isEditing} error={errors.provider?.message} {...register("provider")}>
+        <Select
+          label={t("items.marketData.page.form.fields.provider")}
+          disabled={isEditing}
+          error={errors.provider?.message}
+          {...register("provider")}
+        >
           {MARKET_DATA_PROVIDERS.map((p) => (
             <option key={p} value={p}>
-              {MARKET_DATA_PROVIDER_LABELS[p]}
+              {marketDataProviderLabel(t, p)}
             </option>
           ))}
         </Select>
-        <p className="text-sm text-text-muted">{MARKET_DATA_PROVIDER_DESCRIPTIONS[provider]}</p>
+        <p className="text-sm text-text-muted">{marketDataProviderDescription(t, provider)}</p>
 
         {isCustom && (
           <>
             <Input
-              label="Endpoint"
-              placeholder="https://api.esempio.com/quote?symbol={symbol}"
-              hint="Usa {symbol} come segnaposto per il simbolo dell'asset."
+              label={t("items.marketData.page.form.fields.endpoint")}
+              placeholder={t("items.marketData.page.form.endpointPlaceholder")}
+              hint={t("items.marketData.page.form.endpointHint")}
               error={errors.endpoint?.message}
               {...register("endpoint")}
             />
             <Input
-              label="API key (opzionale)"
+              label={t("items.marketData.page.form.fields.apiKey")}
               type="password"
               autoComplete="off"
-              placeholder={keepsSavedKey ? "•••••••••• (configurata)" : ""}
-              hint={keepsSavedKey ? "Lascia vuoto per mantenere la chiave salvata." : undefined}
+              placeholder={keepsSavedKey ? t("items.marketData.page.form.apiKeyPlaceholderSet") : ""}
+              hint={keepsSavedKey ? t("items.marketData.page.form.apiKeyHintSet") : undefined}
               {...register("api_key")}
             />
             <Input
-              label="Percorso del prezzo nella risposta"
-              placeholder="price"
-              hint='Percorso puntato nel JSON di risposta, es. "quote.price".'
+              label={t("items.marketData.page.form.fields.priceField")}
+              placeholder={t("items.marketData.page.form.priceFieldPlaceholder")}
+              hint={t("items.marketData.page.form.priceFieldHint")}
               error={errors.price_field?.message}
               {...register("price_field")}
             />
             <Input
-              label="Percorso della valuta (opzionale)"
-              placeholder="currency"
-              hint="Se vuoto, si usa la valuta dell'asset."
+              label={t("items.marketData.page.form.fields.currencyField")}
+              placeholder={t("items.marketData.page.form.currencyFieldPlaceholder")}
+              hint={t("items.marketData.page.form.currencyFieldHint")}
               {...register("currency_field")}
             />
           </>
@@ -201,10 +212,10 @@ export function MarketDataProfileFormDialog({ open, onClose, profile }: MarketDa
 
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" loading={isTesting} onClick={onTest}>
-            Verifica connessione
+            {t("items.marketData.page.form.testConnection")}
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            {isEditing ? "Salva" : "Crea profilo"}
+            {isEditing ? t("items.marketData.page.form.submitEdit") : t("items.marketData.page.form.submitCreate")}
           </Button>
         </div>
       </form>

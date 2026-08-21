@@ -126,7 +126,70 @@
     },
     "marketData": {
       "label": "Market Data",
-      "description": "Configura il provider di quotazioni per l'aggiornamento prezzi degli investimenti."
+      "description": "Configura il provider di quotazioni per l'aggiornamento prezzi degli investimenti.",
+      "page": {
+        "newProfile": "Nuovo profilo",
+        "intro": "Il market data è opzionale: senza un provider attivo le posizioni restano valorizzate al costo storico, senza errori. Puoi salvare più profili e attivarne uno alla volta.",
+        "loadError": "Non siamo riusciti a caricare i profili.",
+        "empty": {
+          "title": "Nessun profilo market data",
+          "description": "Crea un profilo per valorizzare le tue posizioni a prezzo di mercato invece che a costo storico."
+        },
+        "active": "Attivo",
+        "activate": "Attiva",
+        "deactivate": "Disattiva",
+        "edit": "Modifica",
+        "delete": "Elimina",
+        "refresh": {
+          "title": "Aggiornamento prezzi",
+          "description": "Avviene automaticamente ogni notte. Puoi anche avviarlo subito.",
+          "action": "Aggiorna prezzi ora"
+        },
+        "noActiveProfile": "Nessun profilo attivo: valorizzazione a costo storico.",
+        "deleteDialog": {
+          "title": "Eliminare il profilo?",
+          "body": "\"{{name}}\" verrà eliminato definitivamente.",
+          "activeWarning": "È il profilo attivo: dopo l'eliminazione il market data resterà disabilitato."
+        },
+        "providerDescriptions": {
+          "manual": "Nessun aggiornamento automatico: aggiorni tu il prezzo di ogni asset quando vuoi.",
+          "stooq": "Al momento non raggiungibile: Stooq ha introdotto una protezione anti-bot che blocca le richieste automatiche. Il codice resta pronto per quando (o se) tornerà accessibile.",
+          "yahoo": "Aggiornamento automatico giornaliero tramite un endpoint non ufficiale — best-effort, può interrompersi senza preavviso. Verificato funzionante.",
+          "custom": "Configuri tu l'endpoint (es. Alpha Vantage, Twelve Data, Finnhub) e la API key: nessun servizio è integrato di default."
+        },
+        "form": {
+          "editTitle": "Modifica profilo",
+          "createTitle": "Nuovo profilo market data",
+          "fields": {
+            "name": "Nome",
+            "provider": "Provider",
+            "endpoint": "Endpoint",
+            "apiKey": "API key (opzionale)",
+            "priceField": "Percorso del prezzo nella risposta",
+            "currencyField": "Percorso della valuta (opzionale)"
+          },
+          "endpointPlaceholder": "https://api.esempio.com/quote?symbol={symbol}",
+          "endpointHint": "Usa {symbol} come segnaposto per il simbolo dell'asset.",
+          "apiKeyPlaceholderSet": "•••••••••• (configurata)",
+          "apiKeyHintSet": "Lascia vuoto per mantenere la chiave salvata.",
+          "priceFieldPlaceholder": "price",
+          "priceFieldHint": "Percorso puntato nel JSON di risposta, es. \"quote.price\".",
+          "currencyFieldPlaceholder": "currency",
+          "currencyFieldHint": "Se vuoto, si usa la valuta dell'asset.",
+          "testConnection": "Verifica connessione",
+          "submitEdit": "Salva",
+          "submitCreate": "Crea profilo",
+          "validation": {
+            "name": "Inserisci un nome",
+            "endpoint": "Inserisci l'endpoint",
+            "priceField": "Inserisci il percorso del prezzo nella risposta"
+          },
+          "errors": {
+            "save": "Non è stato possibile salvare il profilo.",
+            "test": "Verifica non riuscita."
+          }
+        }
+      }
     },
     "integrations": {
       "label": "Integrazioni",

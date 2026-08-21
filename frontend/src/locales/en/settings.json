@@ -126,7 +126,70 @@
     },
     "marketData": {
       "label": "Market data",
-      "description": "Configure the quote provider used to refresh investment prices."
+      "description": "Configure the quote provider used to refresh investment prices.",
+      "page": {
+        "newProfile": "New profile",
+        "intro": "Market data is optional: without an active provider, positions stay valued at historical cost, with no errors. You can save multiple profiles and activate one at a time.",
+        "loadError": "We couldn't load the profiles.",
+        "empty": {
+          "title": "No market data profile",
+          "description": "Create a profile to value your positions at market price instead of historical cost."
+        },
+        "active": "Active",
+        "activate": "Activate",
+        "deactivate": "Deactivate",
+        "edit": "Edit",
+        "delete": "Delete",
+        "refresh": {
+          "title": "Price refresh",
+          "description": "Happens automatically every night. You can also start it right away.",
+          "action": "Refresh prices now"
+        },
+        "noActiveProfile": "No active profile: valued at historical cost.",
+        "deleteDialog": {
+          "title": "Delete this profile?",
+          "body": "\"{{name}}\" will be permanently deleted.",
+          "activeWarning": "This is the active profile: market data will be disabled after deletion."
+        },
+        "providerDescriptions": {
+          "manual": "No automatic refresh: you update each asset's price yourself whenever you want.",
+          "stooq": "Currently unreachable: Stooq introduced an anti-bot protection that blocks automated requests. The code stays ready for when (or if) it becomes reachable again.",
+          "yahoo": "Automatic daily refresh via an unofficial endpoint — best-effort, may stop working without notice. Verified working.",
+          "custom": "You configure the endpoint (e.g. Alpha Vantage, Twelve Data, Finnhub) and the API key: no service is integrated by default."
+        },
+        "form": {
+          "editTitle": "Edit profile",
+          "createTitle": "New market data profile",
+          "fields": {
+            "name": "Name",
+            "provider": "Provider",
+            "endpoint": "Endpoint",
+            "apiKey": "API key (optional)",
+            "priceField": "Price path in the response",
+            "currencyField": "Currency path (optional)"
+          },
+          "endpointPlaceholder": "https://api.example.com/quote?symbol={symbol}",
+          "endpointHint": "Use {symbol} as a placeholder for the asset's symbol.",
+          "apiKeyPlaceholderSet": "•••••••••• (configured)",
+          "apiKeyHintSet": "Leave empty to keep the saved key.",
+          "priceFieldPlaceholder": "price",
+          "priceFieldHint": "Dotted path in the JSON response, e.g. \"quote.price\".",
+          "currencyFieldPlaceholder": "currency",
+          "currencyFieldHint": "If empty, the asset's own currency is used.",
+          "testConnection": "Test connection",
+          "submitEdit": "Save",
+          "submitCreate": "Create profile",
+          "validation": {
+            "name": "Enter a name",
+            "endpoint": "Enter the endpoint",
+            "priceField": "Enter the price path in the response"
+          },
+          "errors": {
+            "save": "We couldn't save the profile.",
+            "test": "Test failed."
+          }
+        }
+      }
     },
     "integrations": {
       "label": "Integrations",
