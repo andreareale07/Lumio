@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { PiggyBank } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
@@ -45,6 +46,7 @@ const PORTFOLIO_PRESET_LOOKBACK_DAYS: Record<PortfolioHistoryPreset, number> = {
  * elogiata dall'utente (`AssetDetailPage`): quanto vale/rende in cima,
  * come si e' mosso nel tempo, di cosa e' fatto. */
 export function PortfolioSummaryBlock({ scope }: { scope: PortfolioScope }) {
+  const { t } = useTranslation("portfolio");
   const portfolioId = scope.portfolioId ?? null;
   const unassigned = scope.unassigned ?? false;
 
@@ -89,7 +91,7 @@ export function PortfolioSummaryBlock({ scope }: { scope: PortfolioScope }) {
   if (valuation.isError || allocation.isError || performance.isError) {
     return (
       <ErrorState
-        message="Non siamo riusciti a caricare il riepilogo."
+        message={t("summaryBlock.loadError")}
         onRetry={() => {
           void valuation.refetch();
           void allocation.refetch();
@@ -107,8 +109,8 @@ export function PortfolioSummaryBlock({ scope }: { scope: PortfolioScope }) {
     return (
       <EmptyState
         icon={PiggyBank}
-        title="Nessuna posizione qui"
-        description="Le posizioni derivano automaticamente dai movimenti registrati sui conti in questo ambito."
+        title={t("summaryBlock.empty.title")}
+        description={t("summaryBlock.empty.description")}
       />
     );
   }
@@ -129,28 +131,22 @@ export function PortfolioSummaryBlock({ scope }: { scope: PortfolioScope }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {!v.has_market_data && (
-        <p className="text-sm text-text-muted">
-          Alcune posizioni sono valorizzate al costo storico: nessun prezzo di mercato disponibile.
-        </p>
-      )}
-      {v.has_missing_fx_rate && (
-        <p className="text-sm text-text-muted">
-          Una o più posizioni in valuta diversa non sono incluse nei totali: manca un tasso di cambio.
-        </p>
-      )}
+      {!v.has_market_data && <p className="text-sm text-text-muted">{t("summaryBlock.missingMarketData")}</p>}
+      {v.has_missing_fx_rate && <p className="text-sm text-text-muted">{t("summaryBlock.missingFxRate")}</p>}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Card className="flex flex-col gap-1">
-          <h3 className="text-sm font-semibold text-text">{v.has_market_data ? "Valore attuale" : "Valore a costo"}</h3>
+          <h3 className="text-sm font-semibold text-text">
+            {v.has_market_data ? t("summaryBlock.kpi.currentValue") : t("summaryBlock.kpi.costValue")}
+          </h3>
           <span className="font-numeric text-lg font-semibold text-text">{formatMoney(marketValue, v.currency)}</span>
         </Card>
         <Card className="flex flex-col gap-1">
-          <h3 className="text-sm font-semibold text-text">Investito</h3>
+          <h3 className="text-sm font-semibold text-text">{t("summaryBlock.kpi.invested")}</h3>
           <span className="font-numeric text-lg font-semibold text-text">{formatMoney(costBasis, v.currency)}</span>
         </Card>
         <Card className="flex flex-col gap-1">
-          <h3 className="text-sm font-semibold text-text">Rendimento</h3>
+          <h3 className="text-sm font-semibold text-text">{t("summaryBlock.kpi.returnLabel")}</h3>
           <div className="flex items-baseline gap-2">
             <span className="font-numeric text-2xl font-semibold text-text">
               {formatSignedMoney(unrealizedPl, v.currency)}
@@ -163,30 +159,33 @@ export function PortfolioSummaryBlock({ scope }: { scope: PortfolioScope }) {
           </div>
         </Card>
         <Card className="flex flex-col gap-1">
-          <h3 className="text-sm font-semibold text-text">Utile realizzato</h3>
+          <h3 className="text-sm font-semibold text-text">{t("summaryBlock.kpi.realizedPl")}</h3>
           <span className="font-numeric text-lg font-semibold text-text">{formatSignedMoney(realizedPl, v.currency)}</span>
-          <span className="text-xs text-text-muted">da posizioni chiuse</span>
+          <span className="text-xs text-text-muted">{t("summaryBlock.kpi.realizedPlHint")}</span>
         </Card>
       </div>
 
       <ChartCard
-        title="Andamento del valore"
+        title={t("summaryBlock.valueChart.title")}
         action={<RangeSelector value={preset} onChange={setPreset} presets={PORTFOLIO_HISTORY_PRESETS} />}
         empty={points.length === 0}
         emptyState={
           <EmptyState
             icon={PiggyBank}
-            title="Nessuno storico disponibile"
-            description="Registra un movimento su questi conti per iniziare a costruire lo storico."
+            title={t("summaryBlock.valueChart.empty.title")}
+            description={t("summaryBlock.valueChart.empty.description")}
           />
         }
-        tableCaption="Andamento del valore"
-        tableHeaders={["Data", "Valore"]}
+        tableCaption={t("summaryBlock.valueChart.tableCaption")}
+        tableHeaders={t("summaryBlock.valueChart.tableHeaders", { returnObjects: true }) as string[]}
         tableRows={points.map((p) => [p.label, formatMoney(p.value, v.currency)])}
         footer={
           periodChangePct !== null && (
             <p className="text-sm text-text-muted">
-              Inizio periodo {formatMoney(periodStart!, v.currency)} · Fine {formatMoney(periodEnd!, v.currency)} ·{" "}
+              {t("summaryBlock.valueChart.footer", {
+                start: formatMoney(periodStart!, v.currency),
+                end: formatMoney(periodEnd!, v.currency),
+              })}{" "}
               <span className={periodChangePct >= 0 ? "text-success" : "text-danger"}>
                 {formatPercent(periodChangePct, { signed: true })}
               </span>
@@ -194,18 +193,18 @@ export function PortfolioSummaryBlock({ scope }: { scope: PortfolioScope }) {
           )
         }
       >
-        <AreaTrendChart data={points} currency={v.currency} valueLabel="Valore" />
+        <AreaTrendChart data={points} currency={v.currency} valueLabel={t("summaryBlock.valueChart.valueLabel")} />
       </ChartCard>
 
       <div className={`grid grid-cols-1 gap-4 ${hasCurrencyBreakdown ? "lg:grid-cols-2" : ""}`}>
         <ChartCard
-          title="Composizione"
-          subtitle="Per tipo di asset"
+          title={t("summaryBlock.compositionChart.title")}
+          subtitle={t("summaryBlock.compositionChart.byAssetType")}
           dataTable={false}
           empty={a.by_asset_type.length === 0}
-          emptyState={<p className="text-sm text-text-muted">Nessuna posizione da distribuire.</p>}
-          tableCaption="Composizione per tipo di asset"
-          tableHeaders={["Tipo", "Valore", "Quota"]}
+          emptyState={<p className="text-sm text-text-muted">{t("summaryBlock.compositionChart.emptyAssetType")}</p>}
+          tableCaption={t("summaryBlock.compositionChart.tableCaptionAssetType")}
+          tableHeaders={t("summaryBlock.compositionChart.tableHeadersAssetType", { returnObjects: true }) as string[]}
           tableRows={a.by_asset_type.map((item) => [item.label, formatMoney(item.value, a.currency), formatPercent(item.share)])}
         >
           <DonutChart
@@ -217,11 +216,11 @@ export function PortfolioSummaryBlock({ scope }: { scope: PortfolioScope }) {
 
         {hasCurrencyBreakdown && (
           <ChartCard
-            title="Composizione"
-            subtitle="Per valuta originale"
+            title={t("summaryBlock.compositionChart.title")}
+            subtitle={t("summaryBlock.compositionChart.byCurrency")}
             dataTable={false}
-            tableCaption="Composizione per valuta originale"
-            tableHeaders={["Valuta", "Valore", "Quota"]}
+            tableCaption={t("summaryBlock.compositionChart.tableCaptionCurrency")}
+            tableHeaders={t("summaryBlock.compositionChart.tableHeadersCurrency", { returnObjects: true }) as string[]}
             tableRows={a.by_currency.map((item) => [item.label, formatMoney(item.value, a.currency), formatPercent(item.share)])}
           >
             <DonutChart

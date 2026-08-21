@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronRight, Plus, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -22,6 +23,7 @@ import type { PortfolioSummaryItem } from "../../types/api";
  * flusso verticale, stesso principio della pagina di dettaglio asset che
  * l'utente ha giudicato ben fatta. */
 export function InvestmentsOverviewPage() {
+  const { t } = useTranslation("portfolio");
   const summaries = usePortfolioSummaries();
   const [manageOpen, setManageOpen] = useState(false);
   const [txnDialogOpen, setTxnDialogOpen] = useState(false);
@@ -31,19 +33,19 @@ export function InvestmentsOverviewPage() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold text-text">Investimenti</h1>
+        <h1 className="text-lg font-semibold text-text">{t("overview.title")}</h1>
         <Button variant="secondary" size="sm" onClick={() => setManageOpen(true)}>
-          <Settings className="h-4 w-4" /> Gestisci portfolio
+          <Settings className="h-4 w-4" /> {t("overview.managePortfolios")}
         </Button>
       </div>
 
       <PortfolioSummaryBlock scope={{}} />
 
       <Card className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-text">Portfolio</h3>
+        <h3 className="text-sm font-semibold text-text">{t("overview.portfolioSectionTitle")}</h3>
         {summaries.isLoading && <SkeletonRows rows={3} />}
         {summaries.isError && (
-          <ErrorState message="Portfolio non disponibili." onRetry={() => void summaries.refetch()} />
+          <ErrorState message={t("overview.loadError")} onRetry={() => void summaries.refetch()} />
         )}
         {summaries.data && (
           <ul className="flex flex-col gap-2">
@@ -54,22 +56,19 @@ export function InvestmentsOverviewPage() {
           </ul>
         )}
         {summaries.data && summaries.data.items.length === 0 && (
-          <p className="text-sm text-text-muted">
-            Nessun portfolio ancora — crealo per raggruppare più conti sotto un nome (es. "Trade Republic" e
-            "Fineco" insieme).
-          </p>
+          <p className="text-sm text-text-muted">{t("overview.noPortfoliosYet")}</p>
         )}
       </Card>
 
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={() => setTxnDialogOpen(true)}>
-          <Plus className="h-4 w-4" /> Registra movimento
+          <Plus className="h-4 w-4" /> {t("overview.actions.recordTransaction")}
         </Button>
         <Button variant="secondary" size="sm" onClick={() => setAssetDialogOpen(true)}>
-          Nuovo asset
+          {t("overview.actions.newAsset")}
         </Button>
         <Button variant="secondary" size="sm" onClick={() => setOpeningPositionOpen(true)}>
-          Carica posizione esistente
+          {t("overview.actions.loadExistingPosition")}
         </Button>
       </div>
 
@@ -82,6 +81,7 @@ export function InvestmentsOverviewPage() {
 }
 
 function PortfolioRow({ item }: { item: PortfolioSummaryItem }) {
+  const { t } = useTranslation("portfolio");
   const unrealizedPl = Number(item.unrealized_pl);
   const costBasis = Number(item.cost_basis);
   const pct = costBasis !== 0 ? unrealizedPl / costBasis : null;
@@ -93,9 +93,7 @@ function PortfolioRow({ item }: { item: PortfolioSummaryItem }) {
       >
         <div>
           <p className="font-medium text-text">{item.name}</p>
-          <p className="text-sm text-text-muted">
-            {item.account_count} {item.account_count === 1 ? "conto" : "conti"}
-          </p>
+          <p className="text-sm text-text-muted">{t("overview.accountCount", { count: item.account_count })}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
@@ -121,6 +119,7 @@ function PortfolioRow({ item }: { item: PortfolioSummaryItem }) {
  * conto appena rimosso da un portfolio sparirebbe dalla vista finche' non
  * lo si raggruppa di nuovo da qualche parte. */
 function UnassignedRow() {
+  const { t } = useTranslation("portfolio");
   const valuation = usePortfolioValuation(null, true);
   if (valuation.isLoading || valuation.isError || !valuation.data) {
     return null; // riga secondaria: nessun errore bloccante se questa sola chiamata fallisce
@@ -136,8 +135,8 @@ function UnassignedRow() {
         className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border p-3 hover:bg-surface-hover"
       >
         <div>
-          <p className="font-medium text-text">Asset senza portfolio</p>
-          <p className="text-sm text-text-muted">Conti non raggruppati in nessun portfolio</p>
+          <p className="font-medium text-text">{t("overview.unassignedRow.title")}</p>
+          <p className="text-sm text-text-muted">{t("overview.unassignedRow.description")}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">

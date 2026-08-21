@@ -1,0 +1,106 @@
+{
+  "summaryBlock": {
+    "loadError": "Non siamo riusciti a caricare il riepilogo.",
+    "empty": {
+      "title": "Nessuna posizione qui",
+      "description": "Le posizioni derivano automaticamente dai movimenti registrati sui conti in questo ambito."
+    },
+    "missingMarketData": "Alcune posizioni sono valorizzate al costo storico: nessun prezzo di mercato disponibile.",
+    "missingFxRate": "Una o più posizioni in valuta diversa non sono incluse nei totali: manca un tasso di cambio.",
+    "kpi": {
+      "currentValue": "Valore attuale",
+      "costValue": "Valore a costo",
+      "invested": "Investito",
+      "returnLabel": "Rendimento",
+      "realizedPl": "Utile realizzato",
+      "realizedPlHint": "da posizioni chiuse"
+    },
+    "valueChart": {
+      "title": "Andamento del valore",
+      "valueLabel": "Valore",
+      "tableCaption": "Andamento del valore",
+      "tableHeaders": [
+        "Data",
+        "Valore"
+      ],
+      "empty": {
+        "title": "Nessuno storico disponibile",
+        "description": "Registra un movimento su questi conti per iniziare a costruire lo storico."
+      },
+      "footer": "Inizio periodo {{start}} · Fine {{end}} ·"
+    },
+    "compositionChart": {
+      "title": "Composizione",
+      "byAssetType": "Per tipo di asset",
+      "byCurrency": "Per valuta originale",
+      "emptyAssetType": "Nessuna posizione da distribuire.",
+      "tableCaptionAssetType": "Composizione per tipo di asset",
+      "tableCaptionCurrency": "Composizione per valuta originale",
+      "tableHeadersAssetType": [
+        "Tipo",
+        "Valore",
+        "Quota"
+      ],
+      "tableHeadersCurrency": [
+        "Valuta",
+        "Valore",
+        "Quota"
+      ]
+    }
+  },
+  "overview": {
+    "title": "Investimenti",
+    "managePortfolios": "Gestisci portfolio",
+    "portfolioSectionTitle": "Portfolio",
+    "loadError": "Portfolio non disponibili.",
+    "noPortfoliosYet": "Nessun portfolio ancora — crealo per raggruppare più conti sotto un nome (es. \"Trade Republic\" e \"Fineco\" insieme).",
+    "accountCount_one": "{{count}} conto",
+    "accountCount_other": "{{count}} conti",
+    "unassignedRow": {
+      "title": "Asset senza portfolio",
+      "description": "Conti non raggruppati in nessun portfolio"
+    },
+    "actions": {
+      "recordTransaction": "Registra movimento",
+      "newAsset": "Nuovo asset",
+      "loadExistingPosition": "Carica posizione esistente"
+    }
+  },
+  "manageDialog": {
+    "title": "Gestisci portfolio",
+    "description": "Raggruppa più conti sotto un nome. \"Tutti i conti\" resta sempre disponibile anche senza creare portfolio.",
+    "newPortfolio": "Nuovo portfolio",
+    "loadError": "Portfolio non disponibili.",
+    "empty": {
+      "title": "Nessun portfolio",
+      "description": "Crea un portfolio per raggruppare, ad esempio, Trade Republic e Fineco sotto un unico nome."
+    },
+    "editPortfolio": "Modifica portfolio",
+    "deletePortfolio": "Elimina portfolio",
+    "noLinkedAccounts": "Nessun conto associato.",
+    "defaultAccountName": "Conto",
+    "removeAccount": "Rimuovi {{name}}",
+    "addAccountLabel": "Aggiungi conto",
+    "selectAccount": "Seleziona un conto",
+    "add": "Aggiungi",
+    "deleteDialog": {
+      "title": "Eliminare il portfolio?",
+      "body": "I conti restano intatti: viene eliminato solo il raggruppamento \"{{name}}\"."
+    }
+  },
+  "formDialog": {
+    "editTitle": "Modifica portfolio",
+    "createTitle": "Nuovo portfolio",
+    "fields": {
+      "name": "Nome",
+      "description": "Descrizione (opzionale)"
+    },
+    "submitEdit": "Salva",
+    "submitCreate": "Crea portfolio",
+    "validation": {
+      "name": "Inserisci un nome",
+      "currency": "Seleziona una valuta"
+    },
+    "error": "Non è stato possibile salvare il portfolio."
+  }
+}

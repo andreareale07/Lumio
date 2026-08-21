@@ -1,0 +1,106 @@
+{
+  "summaryBlock": {
+    "loadError": "We couldn't load the summary.",
+    "empty": {
+      "title": "No positions here",
+      "description": "Positions are automatically derived from transactions recorded on the accounts in this scope."
+    },
+    "missingMarketData": "Some positions are valued at historical cost: no market price available.",
+    "missingFxRate": "One or more positions in a different currency aren't included in the totals: an exchange rate is missing.",
+    "kpi": {
+      "currentValue": "Current value",
+      "costValue": "Cost value",
+      "invested": "Invested",
+      "returnLabel": "Return",
+      "realizedPl": "Realized profit",
+      "realizedPlHint": "from closed positions"
+    },
+    "valueChart": {
+      "title": "Value over time",
+      "valueLabel": "Value",
+      "tableCaption": "Value over time",
+      "tableHeaders": [
+        "Date",
+        "Value"
+      ],
+      "empty": {
+        "title": "No history available",
+        "description": "Record a transaction on these accounts to start building the history."
+      },
+      "footer": "Period start {{start}} · End {{end}} ·"
+    },
+    "compositionChart": {
+      "title": "Composition",
+      "byAssetType": "By asset type",
+      "byCurrency": "By original currency",
+      "emptyAssetType": "No positions to distribute.",
+      "tableCaptionAssetType": "Composition by asset type",
+      "tableCaptionCurrency": "Composition by original currency",
+      "tableHeadersAssetType": [
+        "Type",
+        "Value",
+        "Share"
+      ],
+      "tableHeadersCurrency": [
+        "Currency",
+        "Value",
+        "Share"
+      ]
+    }
+  },
+  "overview": {
+    "title": "Investments",
+    "managePortfolios": "Manage portfolios",
+    "portfolioSectionTitle": "Portfolios",
+    "loadError": "Portfolios unavailable.",
+    "noPortfoliosYet": "No portfolio yet — create one to group multiple accounts under a name (e.g. \"Trade Republic\" and \"Fineco\" together).",
+    "accountCount_one": "{{count}} account",
+    "accountCount_other": "{{count}} accounts",
+    "unassignedRow": {
+      "title": "Assets with no portfolio",
+      "description": "Accounts not grouped into any portfolio"
+    },
+    "actions": {
+      "recordTransaction": "Record transaction",
+      "newAsset": "New asset",
+      "loadExistingPosition": "Load existing position"
+    }
+  },
+  "manageDialog": {
+    "title": "Manage portfolios",
+    "description": "Group multiple accounts under a name. \"All accounts\" is always available even without creating a portfolio.",
+    "newPortfolio": "New portfolio",
+    "loadError": "Portfolios unavailable.",
+    "empty": {
+      "title": "No portfolio",
+      "description": "Create a portfolio to group, for example, Trade Republic and Fineco under a single name."
+    },
+    "editPortfolio": "Edit portfolio",
+    "deletePortfolio": "Delete portfolio",
+    "noLinkedAccounts": "No linked account.",
+    "defaultAccountName": "Account",
+    "removeAccount": "Remove {{name}}",
+    "addAccountLabel": "Add account",
+    "selectAccount": "Select an account",
+    "add": "Add",
+    "deleteDialog": {
+      "title": "Delete this portfolio?",
+      "body": "Accounts stay untouched: only the grouping \"{{name}}\" is deleted."
+    }
+  },
+  "formDialog": {
+    "editTitle": "Edit portfolio",
+    "createTitle": "New portfolio",
+    "fields": {
+      "name": "Name",
+      "description": "Description (optional)"
+    },
+    "submitEdit": "Save",
+    "submitCreate": "Create portfolio",
+    "validation": {
+      "name": "Enter a name",
+      "currency": "Select a currency"
+    },
+    "error": "We couldn't save the portfolio."
+  }
+}
