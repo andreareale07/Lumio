@@ -92,7 +92,47 @@
     },
     "rules": {
       "label": "Rules",
-      "description": "Automatically classify transactions based on criteria you define."
+      "description": "Automatically classify transactions based on criteria you define.",
+      "page": {
+        "newRule": "New rule",
+        "suggestion": {
+          "text_one": "You classified \"{{value}}\" as {{category}} {{count}} time. Create an automatic rule?",
+          "text_other": "You classified \"{{value}}\" as {{category}} {{count}} times. Create an automatic rule?",
+          "createRule": "Create rule"
+        },
+        "loadError": "We couldn't load the rules.",
+        "empty": {
+          "title": "No rule",
+          "description": "Create a rule to automatically classify future transactions, e.g. NETFLIX → Subscriptions.",
+          "action": "New rule"
+        },
+        "priority": "Priority {{value}}",
+        "badgeInactive": "Deactivated",
+        "toggleActivate": "Activate",
+        "toggleDeactivate": "Deactivate",
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleteDialog": {
+          "title": "Delete this rule?",
+          "body": "\"{{name}}\" will no longer classify new transactions. Already classified transactions are not changed."
+        },
+        "reclassification": {
+          "title": "Apply to existing transactions",
+          "description": "Rules only apply on their own to future transactions. Use this to reclassify history too — transactions corrected by hand are never touched.",
+          "scopeLabel": "Scope",
+          "scopes": {
+            "uncategorized": "Only transactions without a category",
+            "all_except_manual": "All except the ones corrected by hand"
+          },
+          "useAiCheckbox": "Also use AI for rows left without a category",
+          "noneInScope": "No transactions in this scope.",
+          "wouldChange": "<strong>{{count}}</strong> out of {{total}} transactions would change category.",
+          "breakdownExample": " (e.g. \"{{example}}\")",
+          "inProgress": "In progress: {{processed}}/{{total}}",
+          "applyNow": "Apply now",
+          "error": "We couldn't start the reclassification."
+        }
+      }
     },
     "ai": {
       "label": "AI",

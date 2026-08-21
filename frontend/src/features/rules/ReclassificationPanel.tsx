@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Sparkles, Wand2 } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -18,11 +19,6 @@ import {
   useTriggerReclassification,
 } from "./api";
 
-const SCOPE_LABELS: Record<ReclassificationScope, string> = {
-  uncategorized: "Solo transazioni senza categoria",
-  all_except_manual: "Tutte tranne quelle corrette a mano",
-};
-
 /**
  * Riapplica le regole (e opzionalmente l'AI) a transazioni GIA' importate —
  * serve dopo aver creato/modificato una regola, per classificare anche lo
@@ -35,6 +31,7 @@ const SCOPE_LABELS: Record<ReclassificationScope, string> = {
  * per cui "Tutte tranne quelle corrette a mano" è comunque sicuro da offrire.
  */
 export function ReclassificationPanel() {
+  const { t } = useTranslation("settings");
   const { data: categories } = useCategories();
   const [scope, setScope] = useState<ReclassificationScope>("uncategorized");
   const [runAi, setRunAi] = useState(false);
@@ -81,30 +78,27 @@ export function ReclassificationPanel() {
       setProgress({ processed: 0, total: preview.data?.total_candidates ?? 0 });
       setRunning(true);
     } catch (err) {
-      setError(friendlyErrorMessage(err, "Non è stato possibile avviare la riclassificazione."));
+      setError(friendlyErrorMessage(err, t("items.rules.page.reclassification.error")));
     }
   };
 
   return (
     <Card className="flex flex-col gap-3">
       <div>
-        <p className="font-medium text-text">Applica alle transazioni esistenti</p>
-        <p className="text-sm text-text-muted">
-          Le regole si applicano da sole solo ai movimenti futuri. Usa questo per riclassificare anche lo
-          storico — le transazioni corrette a mano non vengono mai toccate.
-        </p>
+        <p className="font-medium text-text">{t("items.rules.page.reclassification.title")}</p>
+        <p className="text-sm text-text-muted">{t("items.rules.page.reclassification.description")}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Select
-          label="Ambito"
+          label={t("items.rules.page.reclassification.scopeLabel")}
           value={scope}
           onChange={(e) => setScope(e.target.value as ReclassificationScope)}
           disabled={running}
         >
           {RECLASSIFICATION_SCOPES.map((s) => (
             <option key={s} value={s}>
-              {SCOPE_LABELS[s]}
+              {t(`items.rules.page.reclassification.scopes.${s}`)}
             </option>
           ))}
         </Select>
@@ -116,7 +110,7 @@ export function ReclassificationPanel() {
             disabled={running}
             className="h-4 w-4 rounded border-border"
           />
-          Usa anche l'AI per le righe rimaste senza categoria
+          {t("items.rules.page.reclassification.useAiCheckbox")}
         </label>
       </div>
 
@@ -124,19 +118,24 @@ export function ReclassificationPanel() {
       {preview.data && !running && (
         <div className="rounded-lg border border-border bg-surface-hover p-3 text-sm">
           {preview.data.total_candidates === 0 ? (
-            <p className="text-text-muted">Nessuna transazione in questo ambito.</p>
+            <p className="text-text-muted">{t("items.rules.page.reclassification.noneInScope")}</p>
           ) : (
             <>
               <p className="text-text">
-                <strong>{preview.data.would_change}</strong> su {preview.data.total_candidates} transazioni
-                cambierebbero categoria.
+                <Trans
+                  t={t}
+                  i18nKey="items.rules.page.reclassification.wouldChange"
+                  values={{ count: preview.data.would_change, total: preview.data.total_candidates }}
+                  components={{ strong: <strong /> }}
+                />
               </p>
               {preview.data.breakdown.length > 0 && (
                 <ul className="mt-1.5 flex flex-col gap-0.5 text-text-muted">
                   {preview.data.breakdown.map((b) => (
                     <li key={b.category_id}>
                       {b.count}× → {categoryLabel(categories, b.category_id) || b.category_name}
-                      {b.examples.length > 0 && ` (es. "${b.examples[0]}")`}
+                      {b.examples.length > 0 &&
+                        t("items.rules.page.reclassification.breakdownExample", { example: b.examples[0] })}
                     </li>
                   ))}
                 </ul>
@@ -149,7 +148,7 @@ export function ReclassificationPanel() {
       {running && progress && (
         <p className="flex items-center gap-1.5 text-sm text-text-muted">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-          In corso: {progress.processed}/{progress.total}
+          {t("items.rules.page.reclassification.inProgress", { processed: progress.processed, total: progress.total })}
           {progress.detail && ` — ${progress.detail}`}
           {eta && ` — ${eta.label}`}
         </p>
@@ -168,7 +167,7 @@ export function ReclassificationPanel() {
         disabled={!preview.data || preview.data.total_candidates === 0}
         onClick={() => void onApply()}
       >
-        <Wand2 className="h-4 w-4" /> Applica ora
+        <Wand2 className="h-4 w-4" /> {t("items.rules.page.reclassification.applyNow")}
       </Button>
 
       {!running && <JobRunStatus run={status.data} />}

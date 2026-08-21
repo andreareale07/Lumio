@@ -1,0 +1,24 @@
+{
+  "fields": {
+    "name": "Nome",
+    "field": "Campo",
+    "operator": "Operatore",
+    "value": "Valore",
+    "priority": "Priorità"
+  },
+  "priorityHint": "Numero più basso = valutata prima",
+  "validation": {
+    "name": "Inserisci un nome",
+    "value": "Inserisci un valore",
+    "category": "Seleziona una categoria",
+    "invalidRegex": "Espressione regolare non valida",
+    "merchantEqualsRequiresMerchant": "'merchant_equals' richiede il campo Merchant"
+  },
+  "dialog": {
+    "editTitle": "Modifica regola",
+    "createTitle": "Nuova regola",
+    "submitEdit": "Salva",
+    "submitCreate": "Crea regola",
+    "error": "Non è stato possibile salvare la regola."
+  }
+}

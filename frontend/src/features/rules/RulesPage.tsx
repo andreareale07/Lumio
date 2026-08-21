@@ -14,11 +14,11 @@ import { categoryLabel } from "../categories/utils";
 import { useDeleteRule, useRuleSuggestions, useRules, useUpdateRule } from "./api";
 import { ReclassificationPanel } from "./ReclassificationPanel";
 import { RuleFormDialog } from "./RuleFormDialog";
-import { RULE_FIELD_LABELS, RULE_OPERATOR_LABELS } from "./schemas";
+import { ruleFieldLabel, ruleOperatorLabel } from "./schemas";
 import type { Rule } from "../../types/api";
 
 export function RulesPage() {
-  const { t } = useTranslation("settings");
+  const { t } = useTranslation(["settings", "rules", "common"]);
   const { data: rules, isLoading, isError, refetch } = useRules();
   const { data: categories } = useCategories();
   const { data: suggestions } = useRuleSuggestions();
@@ -47,7 +47,7 @@ export function RulesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-text">{t("items.rules.label")}</h1>
         <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nuova regola
+          <Plus className="h-4 w-4" /> {t("items.rules.page.newRule")}
         </Button>
       </div>
 
@@ -57,8 +57,11 @@ export function RulesPage() {
             <Card key={`${s.match_field}-${s.match_value}-${s.category_id}`} className="flex items-center justify-between gap-3 border-primary/30 bg-primary/5">
               <p className="flex items-center gap-1.5 text-sm text-text">
                 <Wand2 className="h-4 w-4 text-primary" />
-                Hai classificato "{s.match_value}" come {categoryLabel(categories, s.category_id)}{" "}
-                {s.occurrences} volte. Vuoi creare una regola automatica?
+                {t("items.rules.page.suggestion.text", {
+                  count: s.occurrences,
+                  value: s.match_value,
+                  category: categoryLabel(categories, s.category_id),
+                })}
               </p>
               <Button
                 size="sm"
@@ -72,7 +75,7 @@ export function RulesPage() {
                   })
                 }
               >
-                Crea regola
+                {t("items.rules.page.suggestion.createRule")}
               </Button>
             </Card>
           ))}
@@ -80,14 +83,14 @@ export function RulesPage() {
       )}
 
       {isLoading && <SkeletonRows rows={4} />}
-      {isError && <ErrorState message="Non siamo riusciti a caricare le regole." onRetry={() => void refetch()} />}
+      {isError && <ErrorState message={t("items.rules.page.loadError")} onRetry={() => void refetch()} />}
 
       {!isLoading && !isError && rules && rules.length === 0 && (
         <EmptyState
           icon={Wand2}
-          title="Nessuna regola"
-          description="Crea una regola per classificare automaticamente i movimenti futuri, ad esempio NETFLIX → Abbonamenti."
-          action={<Button onClick={openCreate}>Nuova regola</Button>}
+          title={t("items.rules.page.empty.title")}
+          description={t("items.rules.page.empty.description")}
+          action={<Button onClick={openCreate}>{t("items.rules.page.empty.action")}</Button>}
         />
       )}
 
@@ -101,25 +104,25 @@ export function RulesPage() {
                 <div>
                   <p className="font-medium text-text">{rule.name}</p>
                   <p className="text-sm text-text-muted">
-                    {RULE_FIELD_LABELS[rule.field]} {RULE_OPERATOR_LABELS[rule.operator]} "{rule.value}" →{" "}
+                    {ruleFieldLabel(t, rule.field)} {ruleOperatorLabel(t, rule.operator)} "{rule.value}" →{" "}
                     {categoryLabel(categories, rule.category_id)}
                   </p>
-                  <p className="text-xs text-text-muted">Priorità {rule.priority}</p>
+                  <p className="text-xs text-text-muted">{t("items.rules.page.priority", { value: rule.priority })}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {!rule.is_active && <Badge tone="neutral">Disattiva</Badge>}
+                  {!rule.is_active && <Badge tone="neutral">{t("items.rules.page.badgeInactive")}</Badge>}
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => updateRule.mutate({ id: rule.id, is_active: !rule.is_active })}
                   >
-                    {rule.is_active ? "Disattiva" : "Attiva"}
+                    {t(rule.is_active ? "items.rules.page.toggleDeactivate" : "items.rules.page.toggleActivate")}
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => openEdit(rule)}>
-                    Modifica
+                    {t("items.rules.page.edit")}
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => setRuleToDelete(rule)}>
-                    Elimina
+                    {t("items.rules.page.delete")}
                   </Button>
                 </div>
               </Card>
@@ -139,14 +142,17 @@ export function RulesPage() {
         defaults={suggestionPrefill ?? undefined}
       />
 
-      <Dialog open={!!ruleToDelete} onClose={() => setRuleToDelete(null)} title="Eliminare la regola?">
+      <Dialog
+        open={!!ruleToDelete}
+        onClose={() => setRuleToDelete(null)}
+        title={t("items.rules.page.deleteDialog.title")}
+      >
         <p className="text-sm text-text-muted">
-          "{ruleToDelete?.name}" non classificherà più le nuove transazioni. Le transazioni già classificate non
-          vengono modificate.
+          {t("items.rules.page.deleteDialog.body", { name: ruleToDelete?.name })}
         </p>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setRuleToDelete(null)}>
-            Annulla
+            {t("common:actions.cancel")}
           </Button>
           <Button
             variant="danger"
@@ -155,7 +161,7 @@ export function RulesPage() {
               setRuleToDelete(null);
             }}
           >
-            Elimina
+            {t("items.rules.page.delete")}
           </Button>
         </div>
       </Dialog>

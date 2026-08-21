@@ -1,0 +1,24 @@
+{
+  "fields": {
+    "name": "Name",
+    "field": "Field",
+    "operator": "Operator",
+    "value": "Value",
+    "priority": "Priority"
+  },
+  "priorityHint": "Lower number = evaluated first",
+  "validation": {
+    "name": "Enter a name",
+    "value": "Enter a value",
+    "category": "Select a category",
+    "invalidRegex": "Invalid regular expression",
+    "merchantEqualsRequiresMerchant": "'merchant_equals' requires the Merchant field"
+  },
+  "dialog": {
+    "editTitle": "Edit rule",
+    "createTitle": "New rule",
+    "submitEdit": "Save",
+    "submitCreate": "Create rule",
+    "error": "We couldn't save the rule."
+  }
+}

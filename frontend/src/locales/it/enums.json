@@ -22,5 +22,17 @@
     "stooq": "Stooq (gratuito)",
     "yahoo": "Yahoo Finance (gratuito, non ufficiale)",
     "custom": "Provider personalizzato (con API key)"
+  },
+  "ruleField": {
+    "description": "Descrizione",
+    "merchant": "Merchant"
+  },
+  "ruleOperator": {
+    "equals": "è esattamente",
+    "contains": "contiene",
+    "starts_with": "inizia con",
+    "ends_with": "finisce con",
+    "regex": "corrisponde a (regex)",
+    "merchant_equals": "merchant è esattamente"
   }
 }

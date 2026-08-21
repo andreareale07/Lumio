@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useController, useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
@@ -10,7 +11,7 @@ import { CategoryPicker } from "../categories/CategoryPicker";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import { RULE_FIELDS, RULE_OPERATORS, type Rule } from "../../types/api";
 import { useCreateRule, useUpdateRule } from "./api";
-import { RULE_FIELD_LABELS, RULE_OPERATOR_LABELS, type RuleFormValues, ruleSchema } from "./schemas";
+import { buildRuleSchema, ruleFieldLabel, ruleOperatorLabel, type RuleFormValues } from "./schemas";
 
 export interface RuleDialogDefaults {
   name?: string;
@@ -53,6 +54,7 @@ function valuesFrom(rule: Rule | null | undefined, defaults: RuleDialogDefaults 
 }
 
 export function RuleFormDialog({ open, onClose, onSaved, rule, defaults }: RuleFormDialogProps) {
+  const { t } = useTranslation(["rules", "common"]);
   const createRule = useCreateRule();
   const updateRule = useUpdateRule();
   const [formError, setFormError] = useState<string | null>(null);
@@ -65,7 +67,7 @@ export function RuleFormDialog({ open, onClose, onSaved, rule, defaults }: RuleF
     control,
     formState: { errors, isSubmitting },
   } = useForm<RuleFormValues>({
-    resolver: zodResolver(ruleSchema),
+    resolver: zodResolver(buildRuleSchema(t)),
     defaultValues: valuesFrom(rule, defaults),
   });
   // CategoryPicker e' un componente controllato (si aspetta `value` come
@@ -95,31 +97,31 @@ export function RuleFormDialog({ open, onClose, onSaved, rule, defaults }: RuleF
       onSaved?.();
       onClose();
     } catch (error) {
-      setFormError(friendlyErrorMessage(error, "Non è stato possibile salvare la regola."));
+      setFormError(friendlyErrorMessage(error, t("dialog.error")));
     }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} title={isEditing ? "Modifica regola" : "Nuova regola"}>
+    <Dialog open={open} onClose={onClose} title={isEditing ? t("dialog.editTitle") : t("dialog.createTitle")}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-        <Input label="Nome" error={errors.name?.message} {...register("name")} />
+        <Input label={t("fields.name")} error={errors.name?.message} {...register("name")} />
         <div className="grid grid-cols-2 gap-3">
-          <Select label="Campo" error={errors.field?.message} {...register("field")}>
+          <Select label={t("fields.field")} error={errors.field?.message} {...register("field")}>
             {RULE_FIELDS.map((field) => (
               <option key={field} value={field}>
-                {RULE_FIELD_LABELS[field]}
+                {ruleFieldLabel(t, field)}
               </option>
             ))}
           </Select>
-          <Select label="Operatore" error={errors.operator?.message} {...register("operator")}>
+          <Select label={t("fields.operator")} error={errors.operator?.message} {...register("operator")}>
             {RULE_OPERATORS.map((operator) => (
               <option key={operator} value={operator}>
-                {RULE_OPERATOR_LABELS[operator]}
+                {ruleOperatorLabel(t, operator)}
               </option>
             ))}
           </Select>
         </div>
-        <Input label="Valore" error={errors.value?.message} {...register("value")} />
+        <Input label={t("fields.value")} error={errors.value?.message} {...register("value")} />
         <CategoryPicker
           error={errors.category_id?.message}
           value={categoryField.field.value}
@@ -129,9 +131,9 @@ export function RuleFormDialog({ open, onClose, onSaved, rule, defaults }: RuleF
           ref={categoryField.field.ref}
         />
         <Input
-          label="Priorità"
+          label={t("fields.priority")}
           type="number"
-          hint="Numero più basso = valutata prima"
+          hint={t("priorityHint")}
           error={errors.priority?.message}
           {...register("priority", { valueAsNumber: true })}
         />
@@ -142,10 +144,10 @@ export function RuleFormDialog({ open, onClose, onSaved, rule, defaults }: RuleF
         )}
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>
-            Annulla
+            {t("common:actions.cancel")}
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            {isEditing ? "Salva" : "Crea regola"}
+            {isEditing ? t("dialog.submitEdit") : t("dialog.submitCreate")}
           </Button>
         </div>
       </form>

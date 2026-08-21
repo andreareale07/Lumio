@@ -92,7 +92,47 @@
     },
     "rules": {
       "label": "Regole",
-      "description": "Classifica automaticamente le transazioni in base a criteri che definisci."
+      "description": "Classifica automaticamente le transazioni in base a criteri che definisci.",
+      "page": {
+        "newRule": "Nuova regola",
+        "suggestion": {
+          "text_one": "Hai classificato \"{{value}}\" come {{category}} {{count}} volta. Vuoi creare una regola automatica?",
+          "text_other": "Hai classificato \"{{value}}\" come {{category}} {{count}} volte. Vuoi creare una regola automatica?",
+          "createRule": "Crea regola"
+        },
+        "loadError": "Non siamo riusciti a caricare le regole.",
+        "empty": {
+          "title": "Nessuna regola",
+          "description": "Crea una regola per classificare automaticamente i movimenti futuri, ad esempio NETFLIX → Abbonamenti.",
+          "action": "Nuova regola"
+        },
+        "priority": "Priorità {{value}}",
+        "badgeInactive": "Disattiva",
+        "toggleActivate": "Attiva",
+        "toggleDeactivate": "Disattiva",
+        "edit": "Modifica",
+        "delete": "Elimina",
+        "deleteDialog": {
+          "title": "Eliminare la regola?",
+          "body": "\"{{name}}\" non classificherà più le nuove transazioni. Le transazioni già classificate non vengono modificate."
+        },
+        "reclassification": {
+          "title": "Applica alle transazioni esistenti",
+          "description": "Le regole si applicano da sole solo ai movimenti futuri. Usa questo per riclassificare anche lo storico — le transazioni corrette a mano non vengono mai toccate.",
+          "scopeLabel": "Ambito",
+          "scopes": {
+            "uncategorized": "Solo transazioni senza categoria",
+            "all_except_manual": "Tutte tranne quelle corrette a mano"
+          },
+          "useAiCheckbox": "Usa anche l'AI per le righe rimaste senza categoria",
+          "noneInScope": "Nessuna transazione in questo ambito.",
+          "wouldChange": "<strong>{{count}}</strong> su {{total}} transazioni cambierebbero categoria.",
+          "breakdownExample": " (es. \"{{example}}\")",
+          "inProgress": "In corso: {{processed}}/{{total}}",
+          "applyNow": "Applica ora",
+          "error": "Non è stato possibile avviare la riclassificazione."
+        }
+      }
     },
     "ai": {
       "label": "AI",
