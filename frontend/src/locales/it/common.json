@@ -15,7 +15,9 @@
   "actions": {
     "close": "Chiudi",
     "retry": "Riprova",
-    "save": "Salva"
+    "save": "Salva",
+    "cancel": "Annulla",
+    "editNamed": "Modifica {{name}}"
   },
   "errors": {
     "loadFailed": "Non siamo riusciti a caricare i dati."

@@ -15,7 +15,9 @@
   "actions": {
     "close": "Close",
     "retry": "Retry",
-    "save": "Save"
+    "save": "Save",
+    "cancel": "Cancel",
+    "editNamed": "Edit {{name}}"
   },
   "errors": {
     "loadFailed": "We couldn't load the data."

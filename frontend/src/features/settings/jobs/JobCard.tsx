@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Lock } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -17,6 +18,7 @@ import { JobParameterRow } from "./JobParameterRow";
  * spiegare); disattivare sì, con un testo specifico per job
  * (`job.disable_warning`). */
 export function JobCard({ job }: { job: Job }) {
+  const { t } = useTranslation(["settings", "common"]);
   const [confirmDisableOpen, setConfirmDisableOpen] = useState(false);
   const updateSetting = useUpdateSystemSetting();
 
@@ -45,20 +47,22 @@ export function JobCard({ job }: { job: Job }) {
               title={job.schedule_readonly_reason ?? undefined}
             >
               {job.schedule_readonly_reason && <Lock className="h-3 w-3" aria-hidden="true" />}
-              Cadenza: {job.schedule_description}
+              {t("items.jobs.page.card.schedule", { value: job.schedule_description })}
             </p>
           )}
         </div>
         {job.category === "scheduled" && (
           <div className="flex shrink-0 items-center gap-2">
-            <Badge tone={job.enabled ? "success" : "neutral"}>{job.enabled ? "Attivo" : "Disattivato"}</Badge>
+            <Badge tone={job.enabled ? "success" : "neutral"}>
+              {t(job.enabled ? "items.jobs.page.card.enabled" : "items.jobs.page.card.disabled")}
+            </Badge>
             <Button
               variant="ghost"
               size="sm"
               loading={updateSetting.isPending}
               onClick={() => void handleToggle()}
             >
-              {job.enabled ? "Disattiva" : "Attiva"}
+              {t(job.enabled ? "items.jobs.page.card.disable" : "items.jobs.page.card.enable")}
             </Button>
           </div>
         )}
@@ -75,15 +79,15 @@ export function JobCard({ job }: { job: Job }) {
       <Dialog
         open={confirmDisableOpen}
         onClose={() => setConfirmDisableOpen(false)}
-        title={`Disattivare "${job.name}"?`}
+        title={t("items.jobs.page.card.confirmDisableTitle", { name: job.name })}
       >
         <p className="text-sm text-text-muted">{job.disable_warning}</p>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setConfirmDisableOpen(false)}>
-            Annulla
+            {t("common:actions.cancel")}
           </Button>
           <Button variant="danger" loading={updateSetting.isPending} onClick={() => void confirmDisable()}>
-            Disattiva
+            {t("items.jobs.page.card.disable")}
           </Button>
         </div>
       </Dialog>

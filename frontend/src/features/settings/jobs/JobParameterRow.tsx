@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Check, Lock, Pencil, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "../../../components/ui/Button";
 import type { JobParameter } from "../../../types/api";
@@ -12,6 +13,7 @@ import { useUpdateSystemSetting } from "./api";
  * arq una sola volta all'avvio del worker) — mostrati con un lucchetto e il
  * motivo, mai un campo che finge di essere modificabile. */
 export function JobParameterRow({ parameter }: { parameter: JobParameter }) {
+  const { t } = useTranslation("common");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(parameter.value ?? ""));
   const updateSetting = useUpdateSystemSetting();
@@ -59,13 +61,13 @@ export function JobParameterRow({ parameter }: { parameter: JobParameter }) {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Salva"
+            aria-label={t("actions.save")}
             loading={updateSetting.isPending}
             onClick={() => void handleSave()}
           >
             <Check className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" aria-label="Annulla" onClick={() => setEditing(false)}>
+          <Button variant="ghost" size="icon" aria-label={t("actions.cancel")} onClick={() => setEditing(false)}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -77,7 +79,7 @@ export function JobParameterRow({ parameter }: { parameter: JobParameter }) {
           <Button
             variant="ghost"
             size="icon"
-            aria-label={`Modifica ${parameter.label}`}
+            aria-label={t("actions.editNamed", { name: parameter.label })}
             onClick={() => {
               setDraft(String(parameter.value ?? ""));
               setEditing(true);

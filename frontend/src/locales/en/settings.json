@@ -61,7 +61,33 @@
     },
     "jobs": {
       "label": "System jobs",
-      "description": "Configure automatic jobs and the ones triggered by your actions."
+      "description": "Configure automatic jobs and the ones triggered by your actions.",
+      "page": {
+        "infoButton": "What are the two categories?",
+        "loadError": "We couldn't load the jobs.",
+        "scheduled": {
+          "title": "Scheduled jobs",
+          "description": "They run automatically, with no action needed."
+        },
+        "triggered": {
+          "title": "Action-triggered jobs",
+          "description": "They only start when you import a file, activate an AI profile, or launch an export."
+        },
+        "card": {
+          "schedule": "Frequency: {{value}}",
+          "enabled": "Enabled",
+          "disabled": "Disabled",
+          "enable": "Enable",
+          "disable": "Disable",
+          "confirmDisableTitle": "Disable \"{{name}}\"?"
+        },
+        "info": {
+          "title": "Two categories of job",
+          "scheduled": "<strong>Scheduled jobs</strong> run on their own at fixed intervals (a cron), no matter what you do in the app — which is why they have a real on/off switch here. Turning one off only stops the automatic run: wherever an equivalent manual button exists (e.g. \"Refresh now\"), that one always stays available.",
+          "triggered": "<strong>Action-triggered jobs</strong> only start when you (or another workspace user) do something — import a file, activate an AI profile, launch an export. They have no system switch here: you enable or disable them where you already configure them (the workspace AI profile, the Google integration). Here you only see their operational parameters.",
+          "lock": "<strong>The padlock</strong> on a parameter (including the frequency of scheduled jobs) means the value can't be changed from here: it's fixed in the worker's code and changing it takes more than a simple save."
+        }
+      }
     }
   },
   "errors": {

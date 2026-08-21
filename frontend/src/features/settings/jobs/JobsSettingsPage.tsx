@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Info } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 import { Button } from "../../../components/ui/Button";
 import { Dialog } from "../../../components/ui/Dialog";
@@ -15,7 +15,9 @@ import { JobCard } from "./JobCard";
  * (vedi app/models/workspace_member.py), rischio accettato in attesa del
  * futuro rework — stessa scelta gia' fatta per /system-settings. */
 export function JobsSettingsPage() {
-  const { t } = useTranslation("settings");
+  // Due namespace: "settings" resta il default per le chiavi senza
+  // prefisso, "common:" per le etichette riusate altrove nell'app.
+  const { t } = useTranslation(["settings", "common"]);
   const { data: jobs, isLoading, isError, refetch } = useJobs();
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -27,21 +29,21 @@ export function JobsSettingsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <h1 className="text-lg font-semibold text-text">{t("items.jobs.label")}</h1>
-          <Button variant="ghost" size="icon" aria-label="Cosa sono le due categorie?" onClick={() => setInfoOpen(true)}>
+          <Button variant="ghost" size="icon" aria-label={t("items.jobs.page.infoButton")} onClick={() => setInfoOpen(true)}>
             <Info className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       {isLoading && <SkeletonRows rows={4} />}
-      {isError && <ErrorState message="Non siamo riusciti a caricare i job." onRetry={() => void refetch()} />}
+      {isError && <ErrorState message={t("items.jobs.page.loadError")} onRetry={() => void refetch()} />}
 
       {!isLoading && !isError && (
         <>
           <section className="flex flex-col gap-2">
             <div>
-              <h2 className="text-sm font-semibold text-text">Job schedulati</h2>
-              <p className="text-sm text-text-muted">Girano automaticamente, senza bisogno di un'azione.</p>
+              <h2 className="text-sm font-semibold text-text">{t("items.jobs.page.scheduled.title")}</h2>
+              <p className="text-sm text-text-muted">{t("items.jobs.page.scheduled.description")}</p>
             </div>
             {scheduledJobs.map((job) => (
               <JobCard key={job.kind} job={job} />
@@ -50,10 +52,8 @@ export function JobsSettingsPage() {
 
           <section className="flex flex-col gap-2">
             <div>
-              <h2 className="text-sm font-semibold text-text">Job innescati da un'azione</h2>
-              <p className="text-sm text-text-muted">
-                Partono solo quando importi un file, attivi un profilo AI o avvii un export.
-              </p>
+              <h2 className="text-sm font-semibold text-text">{t("items.jobs.page.triggered.title")}</h2>
+              <p className="text-sm text-text-muted">{t("items.jobs.page.triggered.description")}</p>
             </div>
             {triggeredJobs.map((job) => (
               <JobCard key={job.kind} job={job} />
@@ -62,29 +62,24 @@ export function JobsSettingsPage() {
         </>
       )}
 
-      <Dialog open={infoOpen} onClose={() => setInfoOpen(false)} title="Due categorie di job">
+      <Dialog open={infoOpen} onClose={() => setInfoOpen(false)} title={t("items.jobs.page.info.title")}>
         <div className="flex flex-col gap-3 text-sm text-text-muted">
-          <p>
-            <span className="font-medium text-text">Job schedulati</span> girano da soli, a intervalli fissi (un
-            cron), indipendentemente da cosa fai nell'app — per questo hanno un vero interruttore
-            attivo/disattivato qui. Disattivarli ferma solo l'esecuzione automatica: dove esiste un bottone
-            manuale equivalente (es. "Aggiorna ora"), quello resta sempre disponibile.
-          </p>
-          <p>
-            <span className="font-medium text-text">Job innescati da un'azione</span> partono solo quando tu
-            (o un altro utente del workspace) fai qualcosa — importi un file, attivi un profilo AI, avvii un
-            export. Non hanno un interruttore di sistema qui: si abilitano o disabilitano da dove già li
-            configuri (profilo AI per workspace, integrazione Google). Qui vedi solo i loro parametri operativi.
-          </p>
-          <p>
-            <span className="font-medium text-text">Il lucchetto</span> su un parametro (inclusa la cadenza
-            dei job schedulati) indica che il valore non è modificabile da qui: è fissato nel codice del
-            worker e cambiarlo richiede più di un semplice salvataggio.
-          </p>
+          {/* Ogni paragrafo apre con un'espressione in evidenza: <Trans> lo
+              tiene in una sola chiave per paragrafo, invece di spezzare la
+              frase in due stringhe non traducibili separatamente. */}
+          {(["scheduled", "triggered", "lock"] as const).map((key) => (
+            <p key={key}>
+              <Trans
+                t={t}
+                i18nKey={`items.jobs.page.info.${key}`}
+                components={{ strong: <span className="font-medium text-text" /> }}
+              />
+            </p>
+          ))}
         </div>
         <div className="mt-4 flex justify-end">
           <Button variant="secondary" onClick={() => setInfoOpen(false)}>
-            Chiudi
+            {t("common:actions.close")}
           </Button>
         </div>
       </Dialog>

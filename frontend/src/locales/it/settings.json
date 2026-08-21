@@ -61,7 +61,33 @@
     },
     "jobs": {
       "label": "Job di sistema",
-      "description": "Configura i job automatici e quelli innescati dalle tue azioni."
+      "description": "Configura i job automatici e quelli innescati dalle tue azioni.",
+      "page": {
+        "infoButton": "Cosa sono le due categorie?",
+        "loadError": "Non siamo riusciti a caricare i job.",
+        "scheduled": {
+          "title": "Job schedulati",
+          "description": "Girano automaticamente, senza bisogno di un'azione."
+        },
+        "triggered": {
+          "title": "Job innescati da un'azione",
+          "description": "Partono solo quando importi un file, attivi un profilo AI o avvii un export."
+        },
+        "card": {
+          "schedule": "Cadenza: {{value}}",
+          "enabled": "Attivo",
+          "disabled": "Disattivato",
+          "enable": "Attiva",
+          "disable": "Disattiva",
+          "confirmDisableTitle": "Disattivare \"{{name}}\"?"
+        },
+        "info": {
+          "title": "Due categorie di job",
+          "scheduled": "<strong>Job schedulati</strong> girano da soli, a intervalli fissi (un cron), indipendentemente da cosa fai nell'app — per questo hanno un vero interruttore attivo/disattivato qui. Disattivarli ferma solo l'esecuzione automatica: dove esiste un bottone manuale equivalente (es. \"Aggiorna ora\"), quello resta sempre disponibile.",
+          "triggered": "<strong>Job innescati da un'azione</strong> partono solo quando tu (o un altro utente del workspace) fai qualcosa — importi un file, attivi un profilo AI, avvii un export. Non hanno un interruttore di sistema qui: si abilitano o disabilitano da dove già li configuri (profilo AI per workspace, integrazione Google). Qui vedi solo i loro parametri operativi.",
+          "lock": "<strong>Il lucchetto</strong> su un parametro (inclusa la cadenza dei job schedulati) indica che il valore non è modificabile da qui: è fissato nel codice del worker e cambiarlo richiede più di un semplice salvataggio."
+        }
+      }
     }
   },
   "errors": {
