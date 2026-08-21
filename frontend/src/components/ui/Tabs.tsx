@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 interface Tab {
   key: string;
   label: string;
@@ -27,10 +29,12 @@ interface TabsProps {
  * mostrava una scrollbar verticale spuria sul lato destro della barra delle
  * tab (bug osservato in Investimenti, 6 tab, su desktop). */
 export function Tabs({ tabs, active, onChange }: TabsProps) {
+  const { t } = useTranslation("common");
+
   return (
     <div
       role="tablist"
-      aria-label="Sezioni"
+      aria-label={t("tabs.label")}
       className="flex flex-nowrap gap-1 overflow-x-auto overflow-y-hidden border-b border-border"
     >
       {tabs.map((tab) => (

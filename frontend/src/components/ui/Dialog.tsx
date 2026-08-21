@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 import { X } from "lucide-react";
 
@@ -13,6 +14,7 @@ interface DialogProps {
 }
 
 export function Dialog({ open, onClose, title, children, footer }: DialogProps) {
+  const { t } = useTranslation("common");
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
           <button
             type="button"
             onClick={onClose}
-            aria-label="Chiudi"
+            aria-label={t("actions.close")}
             className="rounded-md p-1 text-text-muted hover:bg-surface-hover hover:text-text"
           >
             <X className="h-4 w-4" />

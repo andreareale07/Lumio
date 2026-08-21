@@ -6,6 +6,12 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: "http://localhost:5173",
+    // Locale deterministico, stesso motivo di `tests/setup.ts` per Vitest
+    // (PHASE 3 i18n): senza questo il browser di Playwright espone il
+    // proprio `navigator.language` (tipicamente "en-US"), l'app sceglie
+    // "en" e ogni assertion in italiano di questi E2E fallirebbe a seconda
+    // della macchina su cui girano.
+    locale: "it-IT",
   },
   webServer: {
     command: "npm run dev",

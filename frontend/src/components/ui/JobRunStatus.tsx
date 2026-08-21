@@ -1,12 +1,9 @@
+import { useTranslation } from "react-i18next";
+
 import type { JobRun } from "../../types/api";
 import { formatDateTime } from "../../lib/format";
 import { Badge } from "./Badge";
 
-const STATUS_LABEL: Record<JobRun["status"], string> = {
-  running: "In corso",
-  success: "Completato",
-  failed: "Non riuscito",
-};
 const STATUS_TONE: Record<JobRun["status"], "primary" | "success" | "danger"> = {
   running: "primary",
   success: "success",
@@ -20,13 +17,15 @@ const STATUS_TONE: Record<JobRun["status"], "primary" | "success" | "danger"> = 
  * solo stato/orario/messaggio, tutti pensati per essere letti da chi non
  * conosce l'implementazione. */
 export function JobRunStatus({ run }: { run: JobRun | null | undefined }) {
+  const { t } = useTranslation("common");
+
   if (!run) {
-    return <p className="text-sm text-text-muted">Non ancora eseguito.</p>;
+    return <p className="text-sm text-text-muted">{t("jobRun.never")}</p>;
   }
   const timestamp = run.finished_at ?? run.started_at;
   return (
     <p className="flex flex-wrap items-center gap-2 text-sm text-text-muted">
-      <Badge tone={STATUS_TONE[run.status]}>{STATUS_LABEL[run.status]}</Badge>
+      <Badge tone={STATUS_TONE[run.status]}>{t(`jobRun.status.${run.status}`)}</Badge>
       <span>{formatDateTime(timestamp)}</span>
       {run.message && <span>· {run.message}</span>}
     </p>

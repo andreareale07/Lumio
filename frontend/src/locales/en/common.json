@@ -11,5 +11,27 @@
     "label": "Theme: {{value}}"
   },
   "logout": "Log out",
-  "loading": "Loading…"
+  "loading": "Loading…",
+  "actions": {
+    "close": "Close",
+    "retry": "Retry"
+  },
+  "errors": {
+    "loadFailed": "We couldn't load the data."
+  },
+  "select": {
+    "placeholder": "Select…",
+    "searchPlaceholder": "Search…"
+  },
+  "tabs": {
+    "label": "Sections"
+  },
+  "jobRun": {
+    "never": "Never run yet.",
+    "status": {
+      "running": "Running",
+      "success": "Completed",
+      "failed": "Failed"
+    }
+  }
 }

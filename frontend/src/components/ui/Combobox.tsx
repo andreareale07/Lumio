@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, Search } from "lucide-react";
 
 export interface ComboboxOption {
@@ -59,13 +60,14 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
     onChange,
     onBlur,
     options,
-    placeholder = "Seleziona…",
+    placeholder,
     emptyOptionLabel,
-    searchPlaceholder = "Cerca…",
+    searchPlaceholder,
     footer,
   },
   forwardedRef,
 ) {
+  const { t } = useTranslation("common");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlighted, setHighlighted] = useState(0);
@@ -186,7 +188,7 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
           }`}
         >
           <span className={selected ? "truncate text-text" : "truncate text-text-muted"}>
-            {selected ? selected.label : placeholder}
+            {selected ? selected.label : placeholder ?? t("select.placeholder")}
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
         </button>
@@ -206,7 +208,7 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
                   setHighlighted(0);
                 }}
                 onKeyDown={onSearchKeyDown}
-                placeholder={searchPlaceholder}
+                placeholder={searchPlaceholder ?? t("select.searchPlaceholder")}
                 className="w-full bg-transparent text-sm text-text placeholder:text-text-muted focus:outline-none"
               />
             </div>

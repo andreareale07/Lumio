@@ -11,5 +11,27 @@
     "label": "Tema: {{value}}"
   },
   "logout": "Esci",
-  "loading": "Caricamento…"
+  "loading": "Caricamento…",
+  "actions": {
+    "close": "Chiudi",
+    "retry": "Riprova"
+  },
+  "errors": {
+    "loadFailed": "Non siamo riusciti a caricare i dati."
+  },
+  "select": {
+    "placeholder": "Seleziona…",
+    "searchPlaceholder": "Cerca…"
+  },
+  "tabs": {
+    "label": "Sezioni"
+  },
+  "jobRun": {
+    "never": "Non ancora eseguito.",
+    "status": {
+      "running": "In corso",
+      "success": "Completato",
+      "failed": "Non riuscito"
+    }
+  }
 }

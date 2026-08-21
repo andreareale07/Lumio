@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 import { X } from "lucide-react";
 
@@ -18,6 +19,8 @@ interface DrawerProps {
 /** Su mobile occupa lo schermo intero (SPEC_FE §100: Drawer per dettagli
  * contestuali senza cambiare pagina), su desktop resta un pannello laterale. */
 export function Drawer({ open, onClose, title, children, widthClassName = "max-w-md" }: DrawerProps) {
+  const { t } = useTranslation("common");
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -52,7 +55,7 @@ export function Drawer({ open, onClose, title, children, widthClassName = "max-w
           <button
             type="button"
             onClick={onClose}
-            aria-label="Chiudi"
+            aria-label={t("actions.close")}
             className="rounded-md p-1 text-text-muted hover:bg-surface-hover hover:text-text"
           >
             <X className="h-4 w-4" />
