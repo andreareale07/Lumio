@@ -23,7 +23,23 @@
     },
     "currency": {
       "label": "Currency",
-      "description": "Set the workspace's reference currency."
+      "description": "Set the workspace's reference currency.",
+      "page": {
+        "infoButton": "What does changing the currency mean?",
+        "baseCurrency": {
+          "label": "Reference currency",
+          "description": "Used to add up net worth, portfolio, and income/expenses when accounts or investments are in different currencies. It doesn't change the original data, only how it is aggregated."
+        },
+        "saveError": "We couldn't change the currency.",
+        "saved": "Currency updated.",
+        "fxRefresh": "Exchange rate refresh:",
+        "info": {
+          "title": "What changes",
+          "aggregated": "The reference currency decides which currency is used to <strong>add up</strong> totals that mix accounts/assets in different currencies — net worth, portfolio value, overall income/expenses.",
+          "originalPreserved": "Every transaction, account, and position ALWAYS keeps its own original currency: changing this setting touches no historical data, only how aggregated totals are computed from now on.",
+          "missingRate": "If an exchange rate is missing for a currency in use, that part stays out of the total but is flagged — never a silent exclusion."
+        }
+      }
     },
     "rules": {
       "label": "Rules",
@@ -47,5 +63,8 @@
       "label": "System jobs",
       "description": "Configure automatic jobs and the ones triggered by your actions."
     }
+  },
+  "errors": {
+    "loadFailed": "We couldn't load the settings."
   }
 }

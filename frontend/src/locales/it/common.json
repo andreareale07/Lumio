@@ -14,7 +14,8 @@
   "loading": "Caricamento…",
   "actions": {
     "close": "Chiudi",
-    "retry": "Riprova"
+    "retry": "Riprova",
+    "save": "Salva"
   },
   "errors": {
     "loadFailed": "Non siamo riusciti a caricare i dati."
@@ -33,5 +34,8 @@
       "success": "Completato",
       "failed": "Non riuscito"
     }
+  },
+  "fields": {
+    "currency": "Valuta"
   }
 }

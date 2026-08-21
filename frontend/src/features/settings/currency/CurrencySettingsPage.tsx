@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Info, Loader2 } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 import { useAuth } from "../../../app/providers/AuthProvider";
 import { Button } from "../../../components/ui/Button";
@@ -21,7 +21,9 @@ import { useUpdateWorkspaceCurrency, useWorkspace } from "./api";
  * nella loro valuta originale — solo i totali si ricalcolano da quel
  * momento in poi. */
 export function CurrencySettingsPage() {
-  const { t } = useTranslation("settings");
+  // Due namespace: "settings" resta il default (chiavi senza prefisso), le
+  // etichette riusate altrove nell'app arrivano da "common:".
+  const { t } = useTranslation(["settings", "common"]);
   const { data: workspace, isLoading, isError, refetch } = useWorkspace();
   const updateCurrency = useUpdateWorkspaceCurrency();
   // Cambiare valuta accoda in background lo stesso job di refresh usato dal
@@ -49,7 +51,7 @@ export function CurrencySettingsPage() {
       await refreshStatus.refetch();
       setSaved(true);
     } catch (err) {
-      setError(friendlyErrorMessage(err, "Non è stato possibile cambiare la valuta."));
+      setError(friendlyErrorMessage(err, t("items.currency.page.saveError")));
     }
   };
 
@@ -57,22 +59,24 @@ export function CurrencySettingsPage() {
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div className="flex items-center gap-1.5">
         <h1 className="text-lg font-semibold text-text">{t("items.currency.label")}</h1>
-        <Button variant="ghost" size="icon" aria-label="Cosa significa cambiare la valuta?" onClick={() => setInfoOpen(true)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t("items.currency.page.infoButton")}
+          onClick={() => setInfoOpen(true)}
+        >
           <Info className="h-4 w-4" />
         </Button>
       </div>
 
       {isLoading && <SkeletonRows rows={2} />}
-      {isError && <ErrorState message="Non siamo riusciti a caricare le impostazioni." onRetry={() => void refetch()} />}
+      {isError && <ErrorState message={t("errors.loadFailed")} onRetry={() => void refetch()} />}
 
       {!isLoading && !isError && workspace && (
         <Card className="flex flex-col gap-3">
           <div>
-            <p className="font-medium text-text">Valuta di riferimento</p>
-            <p className="text-sm text-text-muted">
-              Usata per sommare patrimonio, portafoglio ed entrate/uscite quando conti o investimenti sono in
-              valute diverse. Non cambia i dati originali, solo come vengono aggregati.
-            </p>
+            <p className="font-medium text-text">{t("items.currency.page.baseCurrency.label")}</p>
+            <p className="text-sm text-text-muted">{t("items.currency.page.baseCurrency.description")}</p>
           </div>
           <CurrencyPicker
             value={selected}
@@ -87,7 +91,7 @@ export function CurrencySettingsPage() {
               {error}
             </p>
           )}
-          {saved && <p className="text-sm text-success">Valuta aggiornata.</p>}
+          {saved && <p className="text-sm text-success">{t("items.currency.page.saved")}</p>}
           <Button
             size="sm"
             className="self-start"
@@ -95,12 +99,12 @@ export function CurrencySettingsPage() {
             disabled={selected === workspace.base_currency}
             onClick={() => void onSave()}
           >
-            Salva
+            {t("common:actions.save")}
           </Button>
           {saved && (
             <div>
               <p className="flex items-center gap-1.5 text-sm text-text-muted">
-                Aggiornamento tassi di cambio:
+                {t("items.currency.page.fxRefresh")}
                 {refreshStatus.data?.status === "running" && (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                 )}
@@ -111,26 +115,24 @@ export function CurrencySettingsPage() {
         </Card>
       )}
 
-      <Dialog open={infoOpen} onClose={() => setInfoOpen(false)} title="Cosa cambia">
+      <Dialog open={infoOpen} onClose={() => setInfoOpen(false)} title={t("items.currency.page.info.title")}>
         <div className="flex flex-col gap-3 text-sm text-text-muted">
           <p>
-            La valuta di riferimento decide in quale valuta vengono <span className="font-medium text-text">sommati</span>{" "}
-            i totali che mescolano conti/asset in valute diverse — patrimonio, valore del portafoglio,
-            entrate/uscite complessive.
+            {/* Enfasi in mezzo alla frase: <Trans> tiene la frase INTERA in
+                una sola chiave (l'ordine delle parole cambia da lingua a
+                lingua, spezzarla in tre pezzi la renderebbe intraducibile). */}
+            <Trans
+              t={t}
+              i18nKey="items.currency.page.info.aggregated"
+              components={{ strong: <span className="font-medium text-text" /> }}
+            />
           </p>
-          <p>
-            Ogni transazione, conto e posizione conserva SEMPRE la propria valuta originale: cambiare questa
-            impostazione non tocca nessun dato storico, solo il calcolo dei totali aggregati da questo momento
-            in poi.
-          </p>
-          <p>
-            Se manca un tasso di cambio per una valuta in uso, quella parte resta esclusa dal totale ma viene
-            segnalata — mai un'esclusione silenziosa.
-          </p>
+          <p>{t("items.currency.page.info.originalPreserved")}</p>
+          <p>{t("items.currency.page.info.missingRate")}</p>
         </div>
         <div className="mt-4 flex justify-end">
           <Button variant="secondary" onClick={() => setInfoOpen(false)}>
-            Chiudi
+            {t("common:actions.close")}
           </Button>
         </div>
       </Dialog>

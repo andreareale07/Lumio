@@ -14,7 +14,8 @@
   "loading": "Loading…",
   "actions": {
     "close": "Close",
-    "retry": "Retry"
+    "retry": "Retry",
+    "save": "Save"
   },
   "errors": {
     "loadFailed": "We couldn't load the data."
@@ -33,5 +34,8 @@
       "success": "Completed",
       "failed": "Failed"
     }
+  },
+  "fields": {
+    "currency": "Currency"
   }
 }

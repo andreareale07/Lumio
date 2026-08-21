@@ -1,4 +1,5 @@
 import { forwardRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Select } from "../../../components/ui/Select";
 import { useCurrencies } from "./api";
@@ -20,9 +21,10 @@ interface CurrencyPickerProps {
  * `CategoryPicker`, che serve un Combobox con ricerca per ~150 categorie).
  */
 export const CurrencyPicker = forwardRef<HTMLSelectElement, CurrencyPickerProps>(function CurrencyPicker(
-  { label = "Valuta", error, disabled, ...rest },
+  { label, error, disabled, ...rest },
   ref,
 ) {
+  const { t } = useTranslation("common");
   const { data: currencies, isLoading } = useCurrencies();
 
   return (
@@ -36,7 +38,7 @@ export const CurrencyPicker = forwardRef<HTMLSelectElement, CurrencyPickerProps>
       // iniziale viene riapplicato con le opzioni gia' presenti.
       key={isLoading ? "loading" : "loaded"}
       ref={ref}
-      label={label}
+      label={label ?? t("fields.currency")}
       error={error}
       disabled={disabled || isLoading}
       {...rest}

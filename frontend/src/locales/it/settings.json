@@ -23,7 +23,23 @@
     },
     "currency": {
       "label": "Valuta",
-      "description": "Imposta la valuta di riferimento del workspace."
+      "description": "Imposta la valuta di riferimento del workspace.",
+      "page": {
+        "infoButton": "Cosa significa cambiare la valuta?",
+        "baseCurrency": {
+          "label": "Valuta di riferimento",
+          "description": "Usata per sommare patrimonio, portafoglio ed entrate/uscite quando conti o investimenti sono in valute diverse. Non cambia i dati originali, solo come vengono aggregati."
+        },
+        "saveError": "Non è stato possibile cambiare la valuta.",
+        "saved": "Valuta aggiornata.",
+        "fxRefresh": "Aggiornamento tassi di cambio:",
+        "info": {
+          "title": "Cosa cambia",
+          "aggregated": "La valuta di riferimento decide in quale valuta vengono <strong>sommati</strong> i totali che mescolano conti/asset in valute diverse — patrimonio, valore del portafoglio, entrate/uscite complessive.",
+          "originalPreserved": "Ogni transazione, conto e posizione conserva SEMPRE la propria valuta originale: cambiare questa impostazione non tocca nessun dato storico, solo il calcolo dei totali aggregati da questo momento in poi.",
+          "missingRate": "Se manca un tasso di cambio per una valuta in uso, quella parte resta esclusa dal totale ma viene segnalata — mai un'esclusione silenziosa."
+        }
+      }
     },
     "rules": {
       "label": "Regole",
@@ -47,5 +63,8 @@
       "label": "Job di sistema",
       "description": "Configura i job automatici e quelli innescati dalle tue azioni."
     }
+  },
+  "errors": {
+    "loadFailed": "Non siamo riusciti a caricare le impostazioni."
   }
 }
