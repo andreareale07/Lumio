@@ -1,0 +1,107 @@
+{
+  "page": {
+    "title": "Accounts",
+    "addAccount": "Add account",
+    "loadError": "We couldn't load your accounts.",
+    "empty": {
+      "title": "No account",
+      "description": "Add your first account to start using Lumio."
+    },
+    "archivedBadge": "Archived",
+    "open": "Open",
+    "edit": "Edit",
+    "archive": "Archive",
+    "unarchive": "Unarchive"
+  },
+  "form": {
+    "editTitle": "Edit account",
+    "createTitle": "New account",
+    "fields": {
+      "name": "Name",
+      "type": "Type",
+      "iban": "IBAN (optional)"
+    },
+    "ibanHint": "Used to match bank transfers",
+    "submitEdit": "Save",
+    "submitCreate": "Create account",
+    "validation": {
+      "name": "Enter a name",
+      "currency": "Select a currency",
+      "invalidIban": "Invalid IBAN"
+    },
+    "error": "We couldn't save the account.",
+    "ibanHistory": {
+      "title": "Previous IBANs",
+      "description": "If this account had a different IBAN in the past (e.g. an institution that changed it), add it here: historical transfers referencing it will keep being recognized as internal transfers.",
+      "remove": "Remove",
+      "placeholder": "New historical IBAN",
+      "add": "Add",
+      "addError": "We couldn't add the IBAN."
+    }
+  },
+  "detail": {
+    "loadError": "We couldn't load the account.",
+    "notFound": {
+      "title": "Account not found",
+      "description": "The requested account doesn't exist or is no longer available.",
+      "action": "Back to accounts"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "transactions": "Transactions",
+      "analytics": "Analytics"
+    },
+    "overview": {
+      "recentTransactions": "Recent transactions",
+      "seeAll": "See all",
+      "transactionsError": "Transactions unavailable.",
+      "empty": {
+        "title": "No transactions",
+        "description": "Transactions on this account will appear here."
+      }
+    },
+    "transactionsTab": {
+      "error": "Transactions unavailable.",
+      "empty": {
+        "title": "No transactions",
+        "description": "Imported or manually created transactions will appear here."
+      },
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "analyticsTab": {
+      "balanceChart": {
+        "title": "Balance over time",
+        "tableCaption": "Account balance over time",
+        "tableHeaders": [
+          "Period",
+          "Balance"
+        ],
+        "valueLabel": "Balance",
+        "empty": "No data",
+        "emptyDescription": "History will appear with the first transactions."
+      },
+      "cashFlowChart": {
+        "title": "Income vs Expenses",
+        "tableCaption": "Income and expenses by month",
+        "tableHeaders": [
+          "Period",
+          "Income",
+          "Expenses"
+        ],
+        "empty": "No transactions",
+        "emptyDescription": "No income or expenses in this period."
+      },
+      "byCategoryChart": {
+        "title": "Expenses by category",
+        "tableCaption": "Expenses by category",
+        "tableHeaders": [
+          "Category",
+          "Total"
+        ],
+        "empty": "No expenses",
+        "emptyDescription": "No classified expenses in this period."
+      }
+    }
+  }
+}

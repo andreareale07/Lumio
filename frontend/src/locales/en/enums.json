@@ -41,5 +41,13 @@
     "transfer": "Transfers",
     "investment": "Investments",
     "neutral": "Neutral"
+  },
+  "accountType": {
+    "checking": "Checking account",
+    "savings": "Savings account",
+    "brokerage": "Brokerage account",
+    "cash": "Cash",
+    "credit_card": "Credit card",
+    "other": "Other"
   }
 }

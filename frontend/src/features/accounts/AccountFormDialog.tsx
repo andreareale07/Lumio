@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import type { TFunction } from "i18next";
 
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
@@ -12,27 +14,29 @@ import { useAuth } from "../../app/providers/AuthProvider";
 import { CurrencyPicker } from "../settings/currency/CurrencyPicker";
 import { ACCOUNT_TYPES, type FinancialAccount } from "../../types/api";
 import { useAddIbanHistory, useCreateAccount, useDeleteIbanHistory, useIbanHistory, useUpdateAccount } from "./api";
-import { ACCOUNT_TYPE_LABELS } from "./labels";
+import { useAccountTypeLabel } from "./labels";
 
 // Nessun controllo di checksum IBAN in questa fase (milestone 09.5b): solo
 // una sanity-check di lunghezza/charset, sufficiente a evitare un valore
 // palesemente sbagliato senza inventare una validazione completa non richiesta.
 const IBAN_PATTERN = /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/;
 
-const schema = z.object({
-  name: z.string().min(1, "Inserisci un nome"),
-  account_type: z.enum(ACCOUNT_TYPES),
-  // Sistema di valute: il codice viene scelto da CurrencyPicker (sempre
-  // valido), non piu' digitato — il vincolo qui e' solo "non vuoto".
-  currency: z.string().min(2, "Seleziona una valuta"),
-  iban: z
-    .string()
-    .trim()
-    .transform((v) => v.toUpperCase().replace(/\s+/g, ""))
-    .refine((v) => v === "" || IBAN_PATTERN.test(v), "IBAN non valido")
-    .optional(),
-});
-type FormValues = z.infer<typeof schema>;
+function buildSchema(t: TFunction) {
+  return z.object({
+    name: z.string().min(1, t("form.validation.name")),
+    account_type: z.enum(ACCOUNT_TYPES),
+    // Sistema di valute: il codice viene scelto da CurrencyPicker (sempre
+    // valido), non piu' digitato — il vincolo qui e' solo "non vuoto".
+    currency: z.string().min(2, t("form.validation.currency")),
+    iban: z
+      .string()
+      .trim()
+      .transform((v) => v.toUpperCase().replace(/\s+/g, ""))
+      .refine((v) => v === "" || IBAN_PATTERN.test(v), t("form.validation.invalidIban"))
+      .optional(),
+  });
+}
+type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 
 interface AccountFormDialogProps {
   open: boolean;
@@ -61,6 +65,8 @@ function valuesFrom(account: FinancialAccount | null | undefined, defaultCurrenc
  * tracciamento delle posizioni (M09, `investment_transactions`/`positions`)
  * si lega all'id del conto, non al suo `account_type`. */
 export function AccountFormDialog({ open, onClose, account }: AccountFormDialogProps) {
+  const { t } = useTranslation(["accounts", "common"]);
+  const accountTypeLabel = useAccountTypeLabel();
   const createAccount = useCreateAccount();
   const updateAccount = useUpdateAccount();
   const { user } = useAuth();
@@ -74,7 +80,7 @@ export function AccountFormDialog({ open, onClose, account }: AccountFormDialogP
     reset,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(buildSchema(t)),
     defaultValues: valuesFrom(account, defaultCurrency),
   });
 
@@ -102,26 +108,26 @@ export function AccountFormDialog({ open, onClose, account }: AccountFormDialogP
       }
       close();
     } catch (error) {
-      setFormError(friendlyErrorMessage(error, "Non è stato possibile salvare il conto."));
+      setFormError(friendlyErrorMessage(error, t("form.error")));
     }
   };
 
   return (
-    <Dialog open={open} onClose={close} title={isEditing ? "Modifica conto" : "Nuovo conto"}>
+    <Dialog open={open} onClose={close} title={isEditing ? t("form.editTitle") : t("form.createTitle")}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-        <Input label="Nome" error={errors.name?.message} {...register("name")} />
-        <Select label="Tipo" error={errors.account_type?.message} {...register("account_type")}>
+        <Input label={t("form.fields.name")} error={errors.name?.message} {...register("name")} />
+        <Select label={t("form.fields.type")} error={errors.account_type?.message} {...register("account_type")}>
           {ACCOUNT_TYPES.map((type) => (
             <option key={type} value={type}>
-              {ACCOUNT_TYPE_LABELS[type]}
+              {accountTypeLabel(type)}
             </option>
           ))}
         </Select>
         <CurrencyPicker error={errors.currency?.message} {...register("currency")} />
         <Input
-          label="IBAN (opzionale)"
+          label={t("form.fields.iban")}
           className="uppercase"
-          hint="Serve per il match dei bonifici"
+          hint={t("form.ibanHint")}
           error={errors.iban?.message}
           {...register("iban")}
         />
@@ -132,10 +138,10 @@ export function AccountFormDialog({ open, onClose, account }: AccountFormDialogP
         )}
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={close}>
-            Annulla
+            {t("common:actions.cancel")}
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            {isEditing ? "Salva" : "Crea conto"}
+            {isEditing ? t("form.submitEdit") : t("form.submitCreate")}
           </Button>
         </div>
       </form>
@@ -149,6 +155,7 @@ export function AccountFormDialog({ open, onClose, account }: AccountFormDialogP
 }
 
 function IbanHistorySection({ accountId }: { accountId: string }) {
+  const { t } = useTranslation("accounts");
   const { data: history } = useIbanHistory(accountId);
   const addHistory = useAddIbanHistory(accountId);
   const deleteHistory = useDeleteIbanHistory(accountId);
@@ -159,25 +166,21 @@ function IbanHistorySection({ accountId }: { accountId: string }) {
     setError(null);
     const normalized = newIban.trim().toUpperCase().replace(/\s+/g, "");
     if (!IBAN_PATTERN.test(normalized)) {
-      setError("IBAN non valido");
+      setError(t("form.validation.invalidIban"));
       return;
     }
     try {
       await addHistory.mutateAsync(normalized);
       setNewIban("");
     } catch (err) {
-      setError(friendlyErrorMessage(err, "Non è stato possibile aggiungere l'IBAN."));
+      setError(friendlyErrorMessage(err, t("form.ibanHistory.addError")));
     }
   };
 
   return (
     <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
-      <p className="text-sm font-medium text-text">IBAN precedenti</p>
-      <p className="text-sm text-text-muted">
-        Se questo conto ha avuto un IBAN diverso in passato (es. un istituto che l'ha cambiato), aggiungilo
-        qui: i bonifici storici che lo riportano continueranno a essere riconosciuti come trasferimenti
-        interni.
-      </p>
+      <p className="text-sm font-medium text-text">{t("form.ibanHistory.title")}</p>
+      <p className="text-sm text-text-muted">{t("form.ibanHistory.description")}</p>
       {history && history.length > 0 && (
         <ul className="flex flex-col gap-1">
           {history.map((entry) => (
@@ -190,7 +193,7 @@ function IbanHistorySection({ accountId }: { accountId: string }) {
                 loading={deleteHistory.isPending}
                 onClick={() => deleteHistory.mutate(entry.id)}
               >
-                Rimuovi
+                {t("form.ibanHistory.remove")}
               </Button>
             </li>
           ))}
@@ -199,12 +202,12 @@ function IbanHistorySection({ accountId }: { accountId: string }) {
       <div className="flex items-center gap-2">
         <Input
           className="uppercase"
-          placeholder="Nuovo IBAN storico"
+          placeholder={t("form.ibanHistory.placeholder")}
           value={newIban}
           onChange={(e) => setNewIban(e.target.value)}
         />
         <Button type="button" variant="secondary" size="sm" loading={addHistory.isPending} onClick={() => void onAdd()}>
-          Aggiungi
+          {t("form.ibanHistory.add")}
         </Button>
       </div>
       {error && (

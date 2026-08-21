@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Landmark, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -13,9 +14,11 @@ import { useAnalyticsBalances } from "../analytics/api";
 import type { FinancialAccount } from "../../types/api";
 import { AccountFormDialog } from "./AccountFormDialog";
 import { useAccounts, useSetAccountActive } from "./api";
-import { ACCOUNT_TYPE_LABELS } from "./labels";
+import { useAccountTypeLabel } from "./labels";
 
 export function AccountsPage() {
+  const { t } = useTranslation("accounts");
+  const accountTypeLabel = useAccountTypeLabel();
   const { data: accounts, isLoading, isError, refetch } = useAccounts();
   const setActive = useSetAccountActive();
   const [formAccount, setFormAccount] = useState<FinancialAccount | null | undefined>(undefined);
@@ -26,9 +29,9 @@ export function AccountsPage() {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-text">Conti</h1>
+        <h1 className="text-lg font-semibold text-text">{t("page.title")}</h1>
         <Button size="sm" onClick={() => setFormAccount(null)}>
-          <Plus className="h-4 w-4" /> Aggiungi conto
+          <Plus className="h-4 w-4" /> {t("page.addAccount")}
         </Button>
       </div>
 
@@ -40,14 +43,14 @@ export function AccountsPage() {
         </div>
       )}
 
-      {isError && <ErrorState message="Non siamo riusciti a caricare i tuoi conti." onRetry={() => void refetch()} />}
+      {isError && <ErrorState message={t("page.loadError")} onRetry={() => void refetch()} />}
 
       {!isLoading && !isError && accounts && accounts.length === 0 && (
         <EmptyState
           icon={Landmark}
-          title="Nessun conto"
-          description="Aggiungi il tuo primo conto per iniziare a usare Lumio."
-          action={<Button onClick={() => setFormAccount(null)}>Aggiungi conto</Button>}
+          title={t("page.empty.title")}
+          description={t("page.empty.description")}
+          action={<Button onClick={() => setFormAccount(null)}>{t("page.addAccount")}</Button>}
         />
       )}
 
@@ -60,9 +63,9 @@ export function AccountsPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-semibold text-text">{account.name}</p>
-                    <p className="text-sm text-text-muted">{ACCOUNT_TYPE_LABELS[account.account_type]}</p>
+                    <p className="text-sm text-text-muted">{accountTypeLabel(account.account_type)}</p>
                   </div>
-                  {!account.is_active && <Badge tone="neutral">Archiviato</Badge>}
+                  {!account.is_active && <Badge tone="neutral">{t("page.archivedBadge")}</Badge>}
                 </div>
                 {balance ? (
                   <span className="font-numeric text-xl font-semibold text-text">
@@ -74,14 +77,14 @@ export function AccountsPage() {
                 <div className="mt-2 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Link to={`/accounts/${account.id}`} className="text-sm font-medium text-primary hover:underline">
-                      Apri
+                      {t("page.open")}
                     </Link>
                     <button
                       type="button"
                       onClick={() => setFormAccount(account)}
                       className="text-sm text-text-muted hover:text-text"
                     >
-                      Modifica
+                      {t("page.edit")}
                     </button>
                   </div>
                   <button
@@ -89,7 +92,7 @@ export function AccountsPage() {
                     onClick={() => setActive.mutate({ id: account.id, isActive: !account.is_active })}
                     className="text-sm text-text-muted hover:text-text"
                   >
-                    {account.is_active ? "Archivia" : "Riattiva"}
+                    {account.is_active ? t("page.archive") : t("page.unarchive")}
                   </button>
                 </div>
               </Card>

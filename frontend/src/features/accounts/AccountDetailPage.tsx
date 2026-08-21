@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Landmark, Wallet } from "lucide-react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { BarComparisonChart } from "../../components/charts/BarComparisonChart";
@@ -23,15 +24,16 @@ import {
 import { formatBucketLabel } from "../analytics/chartData";
 import { useTransactions } from "../transactions/api";
 import { useAccounts } from "./api";
-import { ACCOUNT_TYPE_LABELS } from "./labels";
-
-const TABS = [
-  { key: "overview", label: "Overview" },
-  { key: "transactions", label: "Movimenti" },
-  { key: "analytics", label: "Analytics" },
-];
+import { useAccountTypeLabel } from "./labels";
 
 export function AccountDetailPage() {
+  const { t } = useTranslation("accounts");
+  const accountTypeLabel = useAccountTypeLabel();
+  const TABS = [
+    { key: "overview", label: t("detail.tabs.overview") },
+    { key: "transactions", label: t("detail.tabs.transactions") },
+    { key: "analytics", label: t("detail.tabs.analytics") },
+  ];
   const { accountId } = useParams<{ accountId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get("tab") ?? "overview";
@@ -49,15 +51,19 @@ export function AccountDetailPage() {
 
   if (isLoading) return <SkeletonRows rows={4} />;
   if (isError) {
-    return <ErrorState message="Non siamo riusciti a caricare il conto." onRetry={() => void refetch()} />;
+    return <ErrorState message={t("detail.loadError")} onRetry={() => void refetch()} />;
   }
   if (!account || !accountId) {
     return (
       <EmptyState
         icon={Landmark}
-        title="Conto non trovato"
-        description="Il conto richiesto non esiste o non è più disponibile."
-        action={<LinkButton to="/accounts" size="sm">Torna ai conti</LinkButton>}
+        title={t("detail.notFound.title")}
+        description={t("detail.notFound.description")}
+        action={
+          <LinkButton to="/accounts" size="sm">
+            {t("detail.notFound.action")}
+          </LinkButton>
+        }
       />
     );
   }
@@ -68,7 +74,7 @@ export function AccountDetailPage() {
         <div>
           <h1 className="text-lg font-semibold text-text">{account.name}</h1>
           <p className="text-sm text-text-muted">
-            {ACCOUNT_TYPE_LABELS[account.account_type]} · {account.currency}
+            {accountTypeLabel(account.account_type)} · {account.currency}
           </p>
         </div>
         {accountBalance && (
@@ -88,25 +94,26 @@ export function AccountDetailPage() {
 }
 
 function AccountOverviewTab({ accountId, onSeeAll }: { accountId: string; onSeeAll: () => void }) {
+  const { t } = useTranslation("accounts");
   const recent = useTransactions({ financial_account_id: accountId, limit: 5 });
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text">Ultimi movimenti</h3>
+        <h3 className="text-sm font-semibold text-text">{t("detail.overview.recentTransactions")}</h3>
         <button type="button" onClick={onSeeAll} className="text-sm font-medium text-primary hover:underline">
-          Vedi tutti
+          {t("detail.overview.seeAll")}
         </button>
       </div>
       {recent.isLoading && <SkeletonRows rows={4} />}
       {recent.isError && (
-        <ErrorState message="Movimenti non disponibili." onRetry={() => void recent.refetch()} />
+        <ErrorState message={t("detail.overview.transactionsError")} onRetry={() => void recent.refetch()} />
       )}
       {recent.data && recent.data.length === 0 && (
         <EmptyState
           icon={Wallet}
-          title="Nessun movimento"
-          description="I movimenti di questo conto appariranno qui."
+          title={t("detail.overview.empty.title")}
+          description={t("detail.overview.empty.description")}
         />
       )}
       {recent.data && recent.data.length > 0 && (
@@ -132,6 +139,7 @@ function AccountOverviewTab({ accountId, onSeeAll }: { accountId: string; onSeeA
 }
 
 function AccountTransactionsTab({ accountId }: { accountId: string }) {
+  const { t } = useTranslation("accounts");
   const PAGE_SIZE = 25;
   const [offset, setOffset] = useState(0);
   const { data: transactions, isLoading, isError, refetch } = useTransactions({
@@ -143,12 +151,12 @@ function AccountTransactionsTab({ accountId }: { accountId: string }) {
   return (
     <div className="flex flex-col gap-3">
       {isLoading && <SkeletonRows rows={6} />}
-      {isError && <ErrorState message="Movimenti non disponibili." onRetry={() => void refetch()} />}
+      {isError && <ErrorState message={t("detail.transactionsTab.error")} onRetry={() => void refetch()} />}
       {transactions && transactions.length === 0 && (
         <EmptyState
           icon={Wallet}
-          title="Nessun movimento"
-          description="I movimenti importati o creati manualmente appariranno qui."
+          title={t("detail.transactionsTab.empty.title")}
+          description={t("detail.transactionsTab.empty.description")}
         />
       )}
       {transactions && transactions.length > 0 && (
@@ -174,7 +182,7 @@ function AccountTransactionsTab({ accountId }: { accountId: string }) {
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
               className="text-sm text-text-muted disabled:opacity-40"
             >
-              Precedenti
+              {t("detail.transactionsTab.previous")}
             </button>
             <button
               type="button"
@@ -182,7 +190,7 @@ function AccountTransactionsTab({ accountId }: { accountId: string }) {
               onClick={() => setOffset(offset + PAGE_SIZE)}
               className="text-sm text-text-muted disabled:opacity-40"
             >
-              Successivi
+              {t("detail.transactionsTab.next")}
             </button>
           </div>
         </div>
@@ -192,6 +200,7 @@ function AccountTransactionsTab({ accountId }: { accountId: string }) {
 }
 
 function AccountAnalyticsTab({ accountId, currency }: { accountId: string; currency: string }) {
+  const { t } = useTranslation("accounts");
   const { granularity: navGranularity, currentPeriod, trendWindow } = usePeriodNavigator({
     granularities: ["month", "quarter", "year"],
   });
@@ -224,26 +233,38 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
       {history.isLoading && <Skeleton className="h-64 w-full" />}
       {history.data && (
         <ChartCard
-          title="Saldo nel tempo"
+          title={t("detail.analyticsTab.balanceChart.title")}
           subtitle={formatPeriodLabel(history.data.period.date_from, history.data.period.date_to)}
           empty={trendPoints.length === 0}
-          emptyState={<EmptyState icon={Landmark} title="Nessun dato" description="Lo storico apparirà con i primi movimenti." />}
-          tableCaption="Saldo del conto nel tempo"
-          tableHeaders={["Periodo", "Saldo"]}
+          emptyState={
+            <EmptyState
+              icon={Landmark}
+              title={t("detail.analyticsTab.balanceChart.empty")}
+              description={t("detail.analyticsTab.balanceChart.emptyDescription")}
+            />
+          }
+          tableCaption={t("detail.analyticsTab.balanceChart.tableCaption")}
+          tableHeaders={t("detail.analyticsTab.balanceChart.tableHeaders", { returnObjects: true }) as string[]}
           tableRows={trendPoints.map((p) => [p.label, formatMoney(p.value, currency)])}
         >
-          <AreaTrendChart data={trendPoints} currency={currency} valueLabel="Saldo" />
+          <AreaTrendChart data={trendPoints} currency={currency} valueLabel={t("detail.analyticsTab.balanceChart.valueLabel")} />
         </ChartCard>
       )}
 
       {cashFlow.isLoading && <Skeleton className="h-64 w-full" />}
       {cashFlow.data && (
         <ChartCard
-          title="Entrate vs Uscite"
+          title={t("detail.analyticsTab.cashFlowChart.title")}
           empty={cashFlowBars.every((p) => p.income === 0 && p.expenses === 0)}
-          emptyState={<EmptyState icon={Wallet} title="Nessun movimento" description="Nessuna entrata o uscita in questo periodo." />}
-          tableCaption="Entrate e uscite per mese"
-          tableHeaders={["Periodo", "Entrate", "Uscite"]}
+          emptyState={
+            <EmptyState
+              icon={Wallet}
+              title={t("detail.analyticsTab.cashFlowChart.empty")}
+              description={t("detail.analyticsTab.cashFlowChart.emptyDescription")}
+            />
+          }
+          tableCaption={t("detail.analyticsTab.cashFlowChart.tableCaption")}
+          tableHeaders={t("detail.analyticsTab.cashFlowChart.tableHeaders", { returnObjects: true }) as string[]}
           tableRows={cashFlow.data.points.map((p) => [
             formatBucketLabel(p.period, cashFlowGranularity),
             formatMoney(p.income, currency),
@@ -257,11 +278,17 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
       {byCategory.isLoading && <Skeleton className="h-64 w-full" />}
       {byCategory.data && (
         <ChartCard
-          title="Spese per categoria"
+          title={t("detail.analyticsTab.byCategoryChart.title")}
           empty={byCategory.data.items.length === 0}
-          emptyState={<EmptyState icon={Landmark} title="Nessuna spesa" description="Nessuna spesa classificata in questo periodo." />}
-          tableCaption="Spese per categoria"
-          tableHeaders={["Categoria", "Totale"]}
+          emptyState={
+            <EmptyState
+              icon={Landmark}
+              title={t("detail.analyticsTab.byCategoryChart.empty")}
+              description={t("detail.analyticsTab.byCategoryChart.emptyDescription")}
+            />
+          }
+          tableCaption={t("detail.analyticsTab.byCategoryChart.tableCaption")}
+          tableHeaders={t("detail.analyticsTab.byCategoryChart.tableHeaders", { returnObjects: true }) as string[]}
           tableRows={byCategory.data.items.map((item) => [item.name, formatMoney(item.total, currency)])}
         >
           <DonutChart

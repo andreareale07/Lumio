@@ -1,0 +1,107 @@
+{
+  "page": {
+    "title": "Conti",
+    "addAccount": "Aggiungi conto",
+    "loadError": "Non siamo riusciti a caricare i tuoi conti.",
+    "empty": {
+      "title": "Nessun conto",
+      "description": "Aggiungi il tuo primo conto per iniziare a usare Lumio."
+    },
+    "archivedBadge": "Archiviato",
+    "open": "Apri",
+    "edit": "Modifica",
+    "archive": "Archivia",
+    "unarchive": "Riattiva"
+  },
+  "form": {
+    "editTitle": "Modifica conto",
+    "createTitle": "Nuovo conto",
+    "fields": {
+      "name": "Nome",
+      "type": "Tipo",
+      "iban": "IBAN (opzionale)"
+    },
+    "ibanHint": "Serve per il match dei bonifici",
+    "submitEdit": "Salva",
+    "submitCreate": "Crea conto",
+    "validation": {
+      "name": "Inserisci un nome",
+      "currency": "Seleziona una valuta",
+      "invalidIban": "IBAN non valido"
+    },
+    "error": "Non è stato possibile salvare il conto.",
+    "ibanHistory": {
+      "title": "IBAN precedenti",
+      "description": "Se questo conto ha avuto un IBAN diverso in passato (es. un istituto che l'ha cambiato), aggiungilo qui: i bonifici storici che lo riportano continueranno a essere riconosciuti come trasferimenti interni.",
+      "remove": "Rimuovi",
+      "placeholder": "Nuovo IBAN storico",
+      "add": "Aggiungi",
+      "addError": "Non è stato possibile aggiungere l'IBAN."
+    }
+  },
+  "detail": {
+    "loadError": "Non siamo riusciti a caricare il conto.",
+    "notFound": {
+      "title": "Conto non trovato",
+      "description": "Il conto richiesto non esiste o non è più disponibile.",
+      "action": "Torna ai conti"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "transactions": "Movimenti",
+      "analytics": "Analytics"
+    },
+    "overview": {
+      "recentTransactions": "Ultimi movimenti",
+      "seeAll": "Vedi tutti",
+      "transactionsError": "Movimenti non disponibili.",
+      "empty": {
+        "title": "Nessun movimento",
+        "description": "I movimenti di questo conto appariranno qui."
+      }
+    },
+    "transactionsTab": {
+      "error": "Movimenti non disponibili.",
+      "empty": {
+        "title": "Nessun movimento",
+        "description": "I movimenti importati o creati manualmente appariranno qui."
+      },
+      "previous": "Precedenti",
+      "next": "Successivi"
+    },
+    "analyticsTab": {
+      "balanceChart": {
+        "title": "Saldo nel tempo",
+        "tableCaption": "Saldo del conto nel tempo",
+        "tableHeaders": [
+          "Periodo",
+          "Saldo"
+        ],
+        "valueLabel": "Saldo",
+        "empty": "Nessun dato",
+        "emptyDescription": "Lo storico apparirà con i primi movimenti."
+      },
+      "cashFlowChart": {
+        "title": "Entrate vs Uscite",
+        "tableCaption": "Entrate e uscite per mese",
+        "tableHeaders": [
+          "Periodo",
+          "Entrate",
+          "Uscite"
+        ],
+        "empty": "Nessun movimento",
+        "emptyDescription": "Nessuna entrata o uscita in questo periodo."
+      },
+      "byCategoryChart": {
+        "title": "Spese per categoria",
+        "tableCaption": "Spese per categoria",
+        "tableHeaders": [
+          "Categoria",
+          "Totale"
+        ],
+        "empty": "Nessuna spesa",
+        "emptyDescription": "Nessuna spesa classificata in questo periodo."
+      }
+    }
+  }
+}

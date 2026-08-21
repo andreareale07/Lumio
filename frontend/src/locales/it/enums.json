@@ -41,5 +41,13 @@
     "transfer": "Trasferimenti",
     "investment": "Investimenti",
     "neutral": "Neutro"
+  },
+  "accountType": {
+    "checking": "Conto corrente",
+    "savings": "Conto di risparmio",
+    "brokerage": "Conto titoli",
+    "cash": "Contanti",
+    "credit_card": "Carta di credito",
+    "other": "Altro"
   }
 }

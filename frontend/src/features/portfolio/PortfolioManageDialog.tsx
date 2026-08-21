@@ -10,7 +10,7 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { Select } from "../../components/ui/Select";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { useAccounts } from "../accounts/api";
-import { ACCOUNT_TYPE_LABELS } from "../accounts/labels";
+import { useAccountTypeLabel } from "../accounts/labels";
 import type { Portfolio } from "../../types/api";
 import {
   useAddPortfolioAccount,
@@ -119,6 +119,7 @@ function PortfolioCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const accountTypeLabel = useAccountTypeLabel();
   const { data: accounts } = useAccounts();
   const links = usePortfolioAccounts(portfolio.id);
   const addAccount = useAddPortfolioAccount(portfolio.id);
@@ -181,7 +182,7 @@ function PortfolioCard({
             <option value="">Seleziona un conto</option>
             {availableAccounts.map((account) => (
               <option key={account.id} value={account.id}>
-                {account.name} · {ACCOUNT_TYPE_LABELS[account.account_type]}
+                {account.name} · {accountTypeLabel(account.account_type)}
               </option>
             ))}
           </Select>
