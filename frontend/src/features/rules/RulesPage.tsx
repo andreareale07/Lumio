@@ -10,7 +10,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { useCategories } from "../categories/api";
-import { categoryLabel } from "../categories/utils";
+import { useCategoryLabel } from "../categories/utils";
 import { useDeleteRule, useRuleSuggestions, useRules, useUpdateRule } from "./api";
 import { ReclassificationPanel } from "./ReclassificationPanel";
 import { RuleFormDialog } from "./RuleFormDialog";
@@ -19,6 +19,7 @@ import type { Rule } from "../../types/api";
 
 export function RulesPage() {
   const { t } = useTranslation(["settings", "rules", "common"]);
+  const categoryLabel = useCategoryLabel();
   const { data: rules, isLoading, isError, refetch } = useRules();
   const { data: categories } = useCategories();
   const { data: suggestions } = useRuleSuggestions();

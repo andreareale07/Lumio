@@ -29,5 +29,6 @@
     "searchPlaceholder": "Cerca per nome…",
     "emptyOption": "Nessuna categoria",
     "newCategoryButton": "Nuova categoria…"
-  }
+  },
+  "uncategorized": "Non categorizzato"
 }

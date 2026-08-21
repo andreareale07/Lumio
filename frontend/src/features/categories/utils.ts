@@ -1,3 +1,6 @@
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+
 import type { ComboboxOption } from "../../components/ui/Combobox";
 import type { Category, CategoryKind } from "../../types/api";
 
@@ -6,13 +9,11 @@ export interface CategoryOption {
   label: string;
 }
 
-export const CATEGORY_KIND_LABELS: Record<CategoryKind, string> = {
-  expense: "Spese",
-  income: "Entrate",
-  transfer: "Trasferimenti",
-  investment: "Investimenti",
-  neutral: "Neutro",
-};
+/** Etichetta del kind: namespace "enums" (SPEC_FE_REDESIGN §27), stesso
+ * pattern di `ruleFieldLabel`/`aiProviderLabel`. */
+export function categoryKindLabel(t: TFunction, kind: CategoryKind): string {
+  return t(`enums:categoryKind.${kind}`);
+}
 
 /** Etichetta gerarchica ("Alimentari › Supermercato") invece di un vero
  * albero navigabile — sufficiente per selezionare una categoria in un form
@@ -65,9 +66,18 @@ function labelsById(categories: Category[]): Map<string, string> {
   return labels;
 }
 
-export function categoryLabel(categories: Category[] | undefined, categoryId: string | null): string {
-  if (!categoryId || !categories) return "Non categorizzato";
-  return labelsById(categories).get(categoryId) ?? "Non categorizzato";
+function categoryLabel(categories: Category[] | undefined, categoryId: string | null, uncategorized: string): string {
+  if (!categoryId || !categories) return uncategorized;
+  return labelsById(categories).get(categoryId) ?? uncategorized;
+}
+
+/** Hook che lega `categoryLabel` alla lingua corrente — il fallback
+ * "Non categorizzato" vive in i18next (namespace "categories"), non piu'
+ * come stringa italiana hardcoded nella funzione pura. */
+export function useCategoryLabel(): (categories: Category[] | undefined, categoryId: string | null) => string {
+  const { t } = useTranslation("categories");
+  const uncategorized = t("uncategorized");
+  return (categories, categoryId) => categoryLabel(categories, categoryId, uncategorized);
 }
 
 /** Opzioni per `Combobox` (rework tassonomia, da ~14 a ~150 categorie: un

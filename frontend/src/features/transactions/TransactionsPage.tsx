@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { Badge } from "../../components/ui/Badge";
@@ -11,7 +12,7 @@ import { Select } from "../../components/ui/Select";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { useAccounts } from "../accounts/api";
 import { useCategories } from "../categories/api";
-import { buildCategoryOptions, categoryLabel } from "../categories/utils";
+import { buildCategoryOptions, useCategoryLabel } from "../categories/utils";
 import { formatDate, formatSignedMoney } from "../../lib/format";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { TRANSACTION_TYPES, type Transaction } from "../../types/api";
@@ -22,7 +23,9 @@ import { TransactionDetailDrawer } from "./TransactionDetailDrawer";
 const PAGE_SIZE = 25;
 
 export function TransactionsPage() {
+  const { t } = useTranslation("transactions");
   const transactionTypeLabel = useTransactionTypeLabel();
+  const categoryLabel = useCategoryLabel();
   const [searchParams, setSearchParams] = useSearchParams();
   const [offset, setOffset] = useState(0);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
@@ -90,18 +93,18 @@ export function TransactionsPage() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-lg font-semibold text-text">Movimenti</h1>
+        <h1 className="text-lg font-semibold text-text">{t("page.title")}</h1>
         <PeriodNavigator granularities={["day", "week", "month", "quarter", "semester", "year"]} allowAll />
       </div>
 
       <div className="flex flex-wrap gap-3">
         <Select
-          aria-label="Conto"
+          aria-label={t("page.filters.account")}
           value={accountId}
           onChange={(e) => updateFilter("account", e.target.value)}
           className="w-auto"
         >
-          <option value="">Tutti i conti</option>
+          <option value="">{t("page.filters.allAccounts")}</option>
           {(accounts ?? []).map((account) => (
             <option key={account.id} value={account.id}>
               {account.name}
@@ -109,12 +112,12 @@ export function TransactionsPage() {
           ))}
         </Select>
         <Select
-          aria-label="Categoria"
+          aria-label={t("page.filters.category")}
           value={categoryId}
           onChange={(e) => updateFilter("category", e.target.value)}
           className="w-auto"
         >
-          <option value="">Tutte le categorie</option>
+          <option value="">{t("page.filters.allCategories")}</option>
           {categoryOptions.map((option) => (
             <option key={option.id} value={option.id}>
               {option.label}
@@ -122,12 +125,12 @@ export function TransactionsPage() {
           ))}
         </Select>
         <Select
-          aria-label="Tipo"
+          aria-label={t("page.filters.type")}
           value={transactionType}
           onChange={(e) => updateFilter("type", e.target.value)}
           className="w-auto"
         >
-          <option value="">Tutti i tipi</option>
+          <option value="">{t("page.filters.allTypes")}</option>
           {TRANSACTION_TYPES.map((type) => (
             <option key={type} value={type}>
               {transactionTypeLabel(type)}
@@ -142,7 +145,7 @@ export function TransactionsPage() {
             className={`inline-flex ${reviewOnly ? "" : "opacity-80 hover:opacity-100"}`}
           >
             <Badge tone={reviewOnly ? "warning" : "neutral"}>
-              ⚠ {reviewSummary.needs_review} da verificare
+              ⚠ {t("page.needsReview", { count: reviewSummary.needs_review })}
             </Badge>
           </button>
         )}
@@ -150,14 +153,14 @@ export function TransactionsPage() {
 
       {isLoading && <SkeletonRows rows={6} />}
       {isError && (
-        <ErrorState message="Non siamo riusciti a caricare i tuoi movimenti." onRetry={() => void refetch()} />
+        <ErrorState message={t("page.loadError")} onRetry={() => void refetch()} />
       )}
 
       {!isLoading && !isError && transactions && transactions.length === 0 && (
         <EmptyState
           icon={ArrowLeftRight}
-          title="Nessun movimento"
-          description="I movimenti importati o creati manualmente appariranno qui."
+          title={t("page.empty.title")}
+          description={t("page.empty.description")}
         />
       )}
 
@@ -168,12 +171,12 @@ export function TransactionsPage() {
             <table className="w-full text-sm">
               <thead className="bg-surface-hover text-left text-text-muted">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Data</th>
-                  <th className="px-3 py-2 font-medium">Descrizione</th>
-                  <th className="px-3 py-2 font-medium">Conto</th>
-                  <th className="px-3 py-2 font-medium">Categoria</th>
-                  <th className="px-3 py-2 font-medium">Tipo</th>
-                  <th className="px-3 py-2 text-right font-medium">Importo</th>
+                  <th className="px-3 py-2 font-medium">{t("page.table.date")}</th>
+                  <th className="px-3 py-2 font-medium">{t("page.table.description")}</th>
+                  <th className="px-3 py-2 font-medium">{t("page.table.account")}</th>
+                  <th className="px-3 py-2 font-medium">{t("page.table.category")}</th>
+                  <th className="px-3 py-2 font-medium">{t("page.table.type")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("page.table.amount")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -186,12 +189,12 @@ export function TransactionsPage() {
                     <td className="px-3 py-2 text-text-muted">{formatDate(transaction.transaction_date)}</td>
                     <td className="px-3 py-2 text-text">{transaction.merchant ?? transaction.description_raw}</td>
                     <td className="px-3 py-2 text-text-muted">
-                      {accountsById.get(transaction.financial_account_id)?.name ?? "—"}
+                      {accountsById.get(transaction.financial_account_id)?.name ?? t("page.table.noAccount")}
                     </td>
                     <td className="px-3 py-2 text-text-muted">
                       <span className="inline-flex items-center gap-1.5">
                         {categoryLabel(categories, transaction.category_id)}
-                        {transaction.needs_review && <Badge tone="warning">da verificare</Badge>}
+                        {transaction.needs_review && <Badge tone="warning">{t("page.table.needsReviewBadge")}</Badge>}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-text-muted">{transactionTypeLabel(transaction.transaction_type)}</td>
@@ -221,7 +224,7 @@ export function TransactionsPage() {
                 <div className="flex items-center justify-between text-sm text-text-muted">
                   <span className="inline-flex items-center gap-1.5">
                     {categoryLabel(categories, transaction.category_id)}
-                    {transaction.needs_review && <Badge tone="warning">da verificare</Badge>}
+                    {transaction.needs_review && <Badge tone="warning">{t("page.table.needsReviewBadge")}</Badge>}
                   </span>
                   <span>{formatDate(transaction.transaction_date)}</span>
                 </div>
@@ -236,7 +239,7 @@ export function TransactionsPage() {
               disabled={offset === 0}
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
             >
-              <ChevronLeft className="h-4 w-4" /> Precedenti
+              <ChevronLeft className="h-4 w-4" /> {t("page.pagination.previous")}
             </Button>
             <Button
               variant="link"
@@ -244,7 +247,7 @@ export function TransactionsPage() {
               disabled={transactions.length < PAGE_SIZE}
               onClick={() => setOffset(offset + PAGE_SIZE)}
             >
-              Successivi <ChevronRight className="h-4 w-4" />
+              {t("page.pagination.next")} <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </>

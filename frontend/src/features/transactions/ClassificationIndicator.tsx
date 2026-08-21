@@ -1,4 +1,5 @@
 import { Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../components/ui/Badge";
 import type { Classification } from "../../types/api";
@@ -10,27 +11,30 @@ import type { Classification } from "../../types/api";
  * (backend). `system` non è ancora scritto da nessun percorso in M06,
  * incluso per completezza dello schema. */
 export function ClassificationIndicator({ classification }: { classification: Classification | null | undefined }) {
+  const { t } = useTranslation("transactions");
+
   if (!classification) {
-    return <Badge tone="neutral">Non categorizzato</Badge>;
+    return <Badge tone="neutral">{t("classification.uncategorized")}</Badge>;
   }
 
   switch (classification.method) {
     case "rule":
-      return <Badge tone="primary">● Regola</Badge>;
+      return <Badge tone="primary">● {t("classification.rule")}</Badge>;
     case "manual":
     case "user":
-      return <Badge tone="neutral">● Manuale</Badge>;
+      return <Badge tone="neutral">● {t("classification.manual")}</Badge>;
     case "system":
-      return <Badge tone="neutral">● Sistema</Badge>;
+      return <Badge tone="neutral">● {t("classification.system")}</Badge>;
     case "ai": {
       const score = classification.score ? Math.round(Number(classification.score) * 100) : null;
       return (
         <Badge tone="warning">
-          <Sparkles className="h-3 w-3" /> AI{score !== null ? ` ${score}%` : ""}
+          <Sparkles className="h-3 w-3" /> {t("classification.ai")}
+          {score !== null ? ` ${score}%` : ""}
         </Badge>
       );
     }
     default:
-      return <Badge tone="neutral">Non categorizzato</Badge>;
+      return <Badge tone="neutral">{t("classification.uncategorized")}</Badge>;
   }
 }

@@ -12,7 +12,7 @@ import { Select } from "../../components/ui/Select";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import { CATEGORY_KINDS, type Category } from "../../types/api";
 import { useCategories, useCreateCategory, useUpdateCategory } from "./api";
-import { CATEGORY_KIND_LABELS } from "./utils";
+import { categoryKindLabel } from "./utils";
 
 function buildSchema(t: TFunction) {
   return z.object({
@@ -130,7 +130,7 @@ export function CategoryFormDialog({ open, onClose, category }: CategoryFormDial
           <Select label={t("fields.kind")} error={errors.kind?.message} {...register("kind")}>
             {CATEGORY_KINDS.map((kind) => (
               <option key={kind} value={kind}>
-                {CATEGORY_KIND_LABELS[kind]}
+                {categoryKindLabel(t, kind)}
               </option>
             ))}
           </Select>

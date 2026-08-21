@@ -13,7 +13,7 @@ import { SkeletonRows } from "../../components/ui/Skeleton";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import type { Category, CategoryKind } from "../../types/api";
 import { useCategories, useDeleteCategory, useUpdateCategory } from "./api";
-import { CATEGORY_KIND_LABELS } from "./utils";
+import { categoryKindLabel } from "./utils";
 import { CategoryFormDialog } from "./CategoryFormDialog";
 
 const KIND_ORDER: CategoryKind[] = ["expense", "income", "transfer", "investment", "neutral"];
@@ -130,7 +130,7 @@ export function CategoriesSettingsPage() {
         <div className="flex flex-col gap-5">
           {KIND_ORDER.filter((kind) => (byKind.get(kind) ?? []).length > 0).map((kind) => (
             <section key={kind} className="flex flex-col gap-2">
-              <h2 className="text-sm font-semibold text-text-muted">{CATEGORY_KIND_LABELS[kind]}</h2>
+              <h2 className="text-sm font-semibold text-text-muted">{categoryKindLabel(t, kind)}</h2>
               {(byKind.get(kind) ?? []).map((root) => {
                 const children = childrenOf(root.id);
                 return (

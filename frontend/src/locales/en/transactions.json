@@ -1,0 +1,60 @@
+{
+  "classification": {
+    "uncategorized": "Uncategorized",
+    "rule": "Rule",
+    "manual": "Manual",
+    "system": "System",
+    "ai": "AI"
+  },
+  "detail": {
+    "fields": {
+      "type": "Type",
+      "originalDescription": "Original description",
+      "category": "Category"
+    },
+    "classificationLabel": "Classification",
+    "categoryUpdateError": "We couldn't update the category.",
+    "suggestion": {
+      "text_one": "You classified \"{{value}}\" as {{category}} {{count}} time.",
+      "text_other": "You classified \"{{value}}\" as {{category}} {{count}} times.",
+      "prompt": "Do you want to apply this choice to future transactions too?",
+      "createRule": "Create rule"
+    },
+    "createRuleFromTransaction": "Create rule from this transaction",
+    "history": {
+      "title": "Classification history"
+    }
+  },
+  "page": {
+    "title": "Transactions",
+    "filters": {
+      "account": "Account",
+      "allAccounts": "All accounts",
+      "category": "Category",
+      "allCategories": "All categories",
+      "type": "Type",
+      "allTypes": "All types"
+    },
+    "needsReview_one": "{{count}} to review",
+    "needsReview_other": "{{count}} to review",
+    "loadError": "We couldn't load your transactions.",
+    "empty": {
+      "title": "No transactions",
+      "description": "Imported or manually created transactions will appear here."
+    },
+    "table": {
+      "date": "Date",
+      "description": "Description",
+      "account": "Account",
+      "category": "Category",
+      "type": "Type",
+      "amount": "Amount",
+      "noAccount": "—",
+      "needsReviewBadge": "to review"
+    },
+    "pagination": {
+      "previous": "Previous",
+      "next": "Next"
+    }
+  }
+}

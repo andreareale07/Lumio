@@ -34,5 +34,12 @@
     "ends_with": "ends with",
     "regex": "matches (regex)",
     "merchant_equals": "merchant is exactly"
+  },
+  "categoryKind": {
+    "expense": "Expenses",
+    "income": "Income",
+    "transfer": "Transfers",
+    "investment": "Investments",
+    "neutral": "Neutral"
   }
 }

@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { Wand2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "../../components/ui/Button";
 import { Drawer } from "../../components/ui/Drawer";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { CategoryPicker } from "../categories/CategoryPicker";
 import { useCategories } from "../categories/api";
-import { categoryLabel } from "../categories/utils";
+import { useCategoryLabel } from "../categories/utils";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import { formatDateTime, formatSignedMoney } from "../../lib/format";
 import { RuleFormDialog, type RuleDialogDefaults } from "../rules/RuleFormDialog";
@@ -22,6 +23,8 @@ export function TransactionDetailDrawer({
   transaction: Transaction | null;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("transactions");
+  const categoryLabel = useCategoryLabel();
   const { data: categories } = useCategories();
   const { data: classifications, isLoading: classificationsLoading } = useClassifications(
     transaction?.id ?? null,
@@ -45,7 +48,7 @@ export function TransactionDetailDrawer({
     try {
       await updateCategory.mutateAsync({ id: transaction.id, categoryId: categoryId || null });
     } catch (error) {
-      setCategoryError(friendlyErrorMessage(error, "Non è stato possibile aggiornare la categoria."));
+      setCategoryError(friendlyErrorMessage(error, t("detail.categoryUpdateError")));
     }
   };
 
@@ -82,14 +85,14 @@ export function TransactionDetailDrawer({
           </div>
 
           <dl className="grid grid-cols-2 gap-y-2 text-sm">
-            <dt className="text-text-muted">Tipo</dt>
+            <dt className="text-text-muted">{t("detail.fields.type")}</dt>
             <dd className="text-text">{transaction.transaction_type}</dd>
-            <dt className="text-text-muted">Descrizione originale</dt>
+            <dt className="text-text-muted">{t("detail.fields.originalDescription")}</dt>
             <dd className="col-span-2 text-text">{transaction.description_raw}</dd>
           </dl>
 
           <div>
-            <p className="mb-1.5 text-sm font-medium text-text">Categoria</p>
+            <p className="mb-1.5 text-sm font-medium text-text">{t("detail.fields.category")}</p>
             <CategoryPicker
               includeEmptyOption
               value={transaction.category_id ?? ""}
@@ -100,7 +103,7 @@ export function TransactionDetailDrawer({
           </div>
 
           <div>
-            <p className="mb-1.5 text-sm font-medium text-text">Classificazione</p>
+            <p className="mb-1.5 text-sm font-medium text-text">{t("detail.classificationLabel")}</p>
             {classificationsLoading ? (
               <Skeleton className="h-6 w-24" />
             ) : (
@@ -111,23 +114,27 @@ export function TransactionDetailDrawer({
           {matchingSuggestion && (
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
               <p className="flex items-center gap-1.5 text-sm font-medium text-text">
-                <Wand2 className="h-4 w-4 text-primary" /> Hai classificato "{matchingSuggestion.match_value}" come{" "}
-                {categoryLabel(categories, matchingSuggestion.category_id)} {matchingSuggestion.occurrences} volte.
+                <Wand2 className="h-4 w-4 text-primary" />
+                {t("detail.suggestion.text", {
+                  count: matchingSuggestion.occurrences,
+                  value: matchingSuggestion.match_value,
+                  category: categoryLabel(categories, matchingSuggestion.category_id),
+                })}
               </p>
-              <p className="mb-2 text-sm text-text-muted">Vuoi applicare questa scelta anche ai prossimi movimenti?</p>
+              <p className="mb-2 text-sm text-text-muted">{t("detail.suggestion.prompt")}</p>
               <Button size="sm" onClick={openRuleDialogFromSuggestion}>
-                Crea regola
+                {t("detail.suggestion.createRule")}
               </Button>
             </div>
           )}
 
           <Button variant="secondary" size="sm" onClick={openRuleDialogFromTransaction} className="self-start">
-            <Wand2 className="h-4 w-4" /> Crea regola da questa transazione
+            <Wand2 className="h-4 w-4" /> {t("detail.createRuleFromTransaction")}
           </Button>
 
           {classifications && classifications.length > 0 && (
             <div>
-              <p className="mb-1.5 text-sm font-medium text-text">Storico classificazioni</p>
+              <p className="mb-1.5 text-sm font-medium text-text">{t("detail.history.title")}</p>
               <ul className="flex flex-col gap-2">
                 {classifications.map((c) => (
                   <li key={c.id} className="flex items-center justify-between rounded-lg border border-border p-2 text-sm">

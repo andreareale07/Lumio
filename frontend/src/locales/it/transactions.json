@@ -1,0 +1,60 @@
+{
+  "classification": {
+    "uncategorized": "Non categorizzato",
+    "rule": "Regola",
+    "manual": "Manuale",
+    "system": "Sistema",
+    "ai": "AI"
+  },
+  "detail": {
+    "fields": {
+      "type": "Tipo",
+      "originalDescription": "Descrizione originale",
+      "category": "Categoria"
+    },
+    "classificationLabel": "Classificazione",
+    "categoryUpdateError": "Non è stato possibile aggiornare la categoria.",
+    "suggestion": {
+      "text_one": "Hai classificato \"{{value}}\" come {{category}} {{count}} volta.",
+      "text_other": "Hai classificato \"{{value}}\" come {{category}} {{count}} volte.",
+      "prompt": "Vuoi applicare questa scelta anche ai prossimi movimenti?",
+      "createRule": "Crea regola"
+    },
+    "createRuleFromTransaction": "Crea regola da questa transazione",
+    "history": {
+      "title": "Storico classificazioni"
+    }
+  },
+  "page": {
+    "title": "Movimenti",
+    "filters": {
+      "account": "Conto",
+      "allAccounts": "Tutti i conti",
+      "category": "Categoria",
+      "allCategories": "Tutte le categorie",
+      "type": "Tipo",
+      "allTypes": "Tutti i tipi"
+    },
+    "needsReview_one": "{{count}} da verificare",
+    "needsReview_other": "{{count}} da verificare",
+    "loadError": "Non siamo riusciti a caricare i tuoi movimenti.",
+    "empty": {
+      "title": "Nessun movimento",
+      "description": "I movimenti importati o creati manualmente appariranno qui."
+    },
+    "table": {
+      "date": "Data",
+      "description": "Descrizione",
+      "account": "Conto",
+      "category": "Categoria",
+      "type": "Tipo",
+      "amount": "Importo",
+      "noAccount": "—",
+      "needsReviewBadge": "da verificare"
+    },
+    "pagination": {
+      "previous": "Precedenti",
+      "next": "Successivi"
+    }
+  }
+}

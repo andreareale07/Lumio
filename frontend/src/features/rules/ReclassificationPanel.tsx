@@ -10,7 +10,7 @@ import { Skeleton } from "../../components/ui/Skeleton";
 import { useEtaEstimate } from "../../lib/eta";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import { RECLASSIFICATION_SCOPES, type ReclassificationScope } from "../../types/api";
-import { categoryLabel } from "../categories/utils";
+import { useCategoryLabel } from "../categories/utils";
 import { useCategories } from "../categories/api";
 import {
   streamReclassificationEvents,
@@ -32,6 +32,7 @@ import {
  */
 export function ReclassificationPanel() {
   const { t } = useTranslation("settings");
+  const categoryLabel = useCategoryLabel();
   const { data: categories } = useCategories();
   const [scope, setScope] = useState<ReclassificationScope>("uncategorized");
   const [runAi, setRunAi] = useState(false);

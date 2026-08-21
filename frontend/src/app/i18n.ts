@@ -8,6 +8,7 @@ import enumsEn from "../locales/en/enums.json";
 import jobsEn from "../locales/en/jobs.json";
 import navigationEn from "../locales/en/navigation.json";
 import rulesEn from "../locales/en/rules.json";
+import transactionsEn from "../locales/en/transactions.json";
 import settingsEn from "../locales/en/settings.json";
 import categoriesIt from "../locales/it/categories.json";
 import commonIt from "../locales/it/common.json";
@@ -16,6 +17,7 @@ import enumsIt from "../locales/it/enums.json";
 import jobsIt from "../locales/it/jobs.json";
 import navigationIt from "../locales/it/navigation.json";
 import rulesIt from "../locales/it/rules.json";
+import transactionsIt from "../locales/it/transactions.json";
 import settingsIt from "../locales/it/settings.json";
 
 // Fondamenta i18n (SPEC_FE_REDESIGN §22-32, PHASE 3): SOLO l'infrastruttura
@@ -32,8 +34,8 @@ const STORAGE_KEY = "lumio-locale";
 // lazy-loading: "valutare lazy loading... se realmente necessario", non lo
 // e' oggi per un'app personale — SPEC_FE_REDESIGN §31).
 const resources = {
-  it: { categories: categoriesIt, common: commonIt, dashboard: dashboardIt, enums: enumsIt, jobs: jobsIt, navigation: navigationIt, rules: rulesIt, settings: settingsIt },
-  en: { categories: categoriesEn, common: commonEn, dashboard: dashboardEn, enums: enumsEn, jobs: jobsEn, navigation: navigationEn, rules: rulesEn, settings: settingsEn },
+  it: { categories: categoriesIt, common: commonIt, dashboard: dashboardIt, enums: enumsIt, jobs: jobsIt, navigation: navigationIt, rules: rulesIt, settings: settingsIt, transactions: transactionsIt },
+  en: { categories: categoriesEn, common: commonEn, dashboard: dashboardEn, enums: enumsEn, jobs: jobsEn, navigation: navigationEn, rules: rulesEn, settings: settingsEn, transactions: transactionsEn },
 };
 
 function readStoredLocale(): SupportedLocale | null {
@@ -66,7 +68,7 @@ void i18n.use(initReactI18next).init({
   // "categories": CategoryPicker/CreateCategoryDialog sono componenti
   // condivisi usati anche fuori da Impostazioni (correzione transazione,
   // creazione regola), non solo dalla pagina Settings > Categorie.
-  ns: ["categories", "common", "dashboard", "enums", "jobs", "navigation", "rules", "settings"],
+  ns: ["categories", "common", "dashboard", "enums", "jobs", "navigation", "rules", "settings", "transactions"],
   defaultNS: "common",
   interpolation: { escapeValue: false },
   // In sviluppo una translation key mancante deve essere facilmente
