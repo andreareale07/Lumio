@@ -13,7 +13,9 @@ import { useUpdateSystemSetting } from "./api";
  * arq una sola volta all'avvio del worker) — mostrati con un lucchetto e il
  * motivo, mai un campo che finge di essere modificabile. */
 export function JobParameterRow({ parameter }: { parameter: JobParameter }) {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation(["common", "jobs"]);
+  const label = t(`jobs:${parameter.label_key}`);
+  const unit = t(`jobs:${parameter.unit_key}`);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(parameter.value ?? ""));
   const updateSetting = useUpdateSystemSetting();
@@ -21,13 +23,13 @@ export function JobParameterRow({ parameter }: { parameter: JobParameter }) {
   if (!parameter.editable) {
     return (
       <div className="flex items-center justify-between gap-3 py-1 text-sm">
-        <span className="text-text-muted">{parameter.label}</span>
+        <span className="text-text-muted">{label}</span>
         <span
           className="flex items-center gap-1.5 text-text-muted"
-          title={parameter.readonly_reason ?? undefined}
+          title={parameter.readonly_reason_key ? t(`jobs:${parameter.readonly_reason_key}`) : undefined}
         >
           <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-          {String(parameter.value)} {parameter.unit}
+          {String(parameter.value)} {unit}
         </span>
       </div>
     );
@@ -42,7 +44,7 @@ export function JobParameterRow({ parameter }: { parameter: JobParameter }) {
 
   return (
     <div className="flex items-center justify-between gap-3 py-1 text-sm">
-      <span className="text-text-muted">{parameter.label}</span>
+      <span className="text-text-muted">{label}</span>
       {editing ? (
         <div className="flex items-center gap-1.5">
           <input
@@ -57,7 +59,7 @@ export function JobParameterRow({ parameter }: { parameter: JobParameter }) {
             }}
             className="h-8 w-24 rounded-md border border-border bg-surface px-2 text-sm text-text"
           />
-          <span className="text-text-muted">{parameter.unit}</span>
+          <span className="text-text-muted">{unit}</span>
           <Button
             variant="ghost"
             size="icon"
@@ -74,12 +76,12 @@ export function JobParameterRow({ parameter }: { parameter: JobParameter }) {
       ) : (
         <div className="flex items-center gap-1.5">
           <span className="text-text">
-            {String(parameter.value)} {parameter.unit}
+            {String(parameter.value)} {unit}
           </span>
           <Button
             variant="ghost"
             size="icon"
-            aria-label={t("actions.editNamed", { name: parameter.label })}
+            aria-label={t("actions.editNamed", { name: label })}
             onClick={() => {
               setDraft(String(parameter.value ?? ""));
               setEditing(true);

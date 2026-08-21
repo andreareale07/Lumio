@@ -16,9 +16,11 @@ import { JobParameterRow } from "./JobParameterRow";
  * AI attivo per workspace, GOOGLE_ENABLED di istanza) — vedi il testo
  * dell'info nella pagina. Riattivare non chiede conferma (nessuna perdita da
  * spiegare); disattivare sì, con un testo specifico per job
- * (`job.disable_warning`). */
+ * (`job.disable_warning_key`). */
 export function JobCard({ job }: { job: Job }) {
-  const { t } = useTranslation(["settings", "common"]);
+  // "jobs": name/description/scheduleDescription/disableWarning del job —
+  // il backend restituisce solo chiavi (DECISION REQUIRED "testo backend").
+  const { t } = useTranslation(["settings", "common", "jobs"]);
   const [confirmDisableOpen, setConfirmDisableOpen] = useState(false);
   const updateSetting = useUpdateSystemSetting();
 
@@ -39,15 +41,15 @@ export function JobCard({ job }: { job: Job }) {
     <Card>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium text-text">{job.name}</p>
-          <p className="text-sm text-text-muted">{job.description}</p>
-          {job.schedule_description && (
+          <p className="font-medium text-text">{t(`jobs:${job.name_key}`)}</p>
+          <p className="text-sm text-text-muted">{t(`jobs:${job.description_key}`)}</p>
+          {job.schedule_description_key && (
             <p
               className="mt-0.5 flex items-center gap-1 text-xs text-text-muted"
-              title={job.schedule_readonly_reason ?? undefined}
+              title={job.schedule_readonly_reason_key ? t(`jobs:${job.schedule_readonly_reason_key}`) : undefined}
             >
-              {job.schedule_readonly_reason && <Lock className="h-3 w-3" aria-hidden="true" />}
-              {t("items.jobs.page.card.schedule", { value: job.schedule_description })}
+              {job.schedule_readonly_reason_key && <Lock className="h-3 w-3" aria-hidden="true" />}
+              {t("items.jobs.page.card.schedule", { value: t(`jobs:${job.schedule_description_key}`) })}
             </p>
           )}
         </div>
@@ -71,7 +73,7 @@ export function JobCard({ job }: { job: Job }) {
       {job.parameters.length > 0 && (
         <div className="mt-3 flex flex-col divide-y divide-border border-t border-border pt-1">
           {job.parameters.map((parameter) => (
-            <JobParameterRow key={parameter.label} parameter={parameter} />
+            <JobParameterRow key={parameter.label_key} parameter={parameter} />
           ))}
         </div>
       )}
@@ -79,9 +81,9 @@ export function JobCard({ job }: { job: Job }) {
       <Dialog
         open={confirmDisableOpen}
         onClose={() => setConfirmDisableOpen(false)}
-        title={t("items.jobs.page.card.confirmDisableTitle", { name: job.name })}
+        title={t("items.jobs.page.card.confirmDisableTitle", { name: t(`jobs:${job.name_key}`) })}
       >
-        <p className="text-sm text-text-muted">{job.disable_warning}</p>
+        <p className="text-sm text-text-muted">{job.disable_warning_key && t(`jobs:${job.disable_warning_key}`)}</p>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setConfirmDisableOpen(false)}>
             {t("common:actions.cancel")}

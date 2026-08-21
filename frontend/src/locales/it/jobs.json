@@ -1,0 +1,55 @@
+{
+  "marketDataRefresh": {
+    "name": "Refresh prezzi di mercato",
+    "description": "Scarica una quotazione aggiornata per ogni asset con un provider di mercato attivo (per workspace).",
+    "scheduleDescription": "Ogni giorno alle 2:00",
+    "disableWarning": "I prezzi degli asset non verranno più aggiornati automaticamente ogni giorno. Il bottone \"Aggiorna ora\" nella pagina Market Data resta comunque disponibile."
+  },
+  "snapshotRebuild": {
+    "name": "Ricalcolo snapshot patrimonio",
+    "description": "Scrive lo snapshot giornaliero di patrimonio/portfolio per ogni workspace.",
+    "scheduleDescription": "Ogni giorno alle 3:00",
+    "disableWarning": "Lo storico patrimonio non verrà più aggiornato automaticamente ogni giorno (mancherà un punto dato per i giorni saltati). Il bottone \"Ricalcola ora\" nella pagina Portfolio resta comunque disponibile."
+  },
+  "staleJobReaper": {
+    "name": "Rilevatore job bloccati",
+    "description": "Rileva i job rimasti bloccati da un crash del worker (nessuno stato terminale mai raggiunto) e li marca falliti — questo stesso meccanismo.",
+    "scheduleDescription": "Ogni 2 minuti",
+    "disableWarning": "ATTENZIONE: un job bloccato da un crash del worker (import, classificazione AI, refresh prezzi, snapshot, export Google Sheets) non verrà più rilevato automaticamente e resterà bloccato finché non intervieni manualmente."
+  },
+  "import": {
+    "name": "Elaborazione import",
+    "description": "Parsing del file (CSV/PDF) e inserimento delle transazioni, innescato da un import confermato dall'utente."
+  },
+  "aiClassification": {
+    "name": "Classificazione AI",
+    "description": "Classifica le transazioni non riconosciute dalle regole, disaccoppiato dal job di import — parte solo se un profilo AI è attivo per il workspace."
+  },
+  "googleSheetsExport": {
+    "name": "Export Google Sheets",
+    "description": "Esporta i dati verso Google Sheets, innescato da una richiesta di export dell'utente — richiede l'integrazione Google attiva."
+  },
+  "reclassification": {
+    "name": "Riclassificazione",
+    "description": "Riapplica la pipeline di classificazione (regole, sistema, opzionalmente AI) alle transazioni già importate — innescato dall'utente dopo un aggiornamento della tassonomia. Non tocca mai le correzioni manuali."
+  },
+  "params": {
+    "staleThreshold": "Soglia di stallo",
+    "staleThresholdImport": "Soglia di stallo — Import",
+    "staleThresholdAiClassification": "Soglia di stallo — Classificazione AI",
+    "staleThresholdMarketDataRefresh": "Soglia di stallo — Refresh prezzi",
+    "staleThresholdSnapshotRebuild": "Soglia di stallo — Snapshot",
+    "staleThresholdGoogleSheetsExport": "Soglia di stallo — Export Google Sheets",
+    "maxExecutionTimeout": "Timeout massimo esecuzione",
+    "pdfOpenTimeout": "Timeout apertura PDF",
+    "pdfParseTimeout": "Timeout parsing PDF",
+    "aiCallTimeout": "Timeout per singola chiamata AI"
+  },
+  "readonlyReason": {
+    "timeout": "Richiede il riavvio del worker per avere effetto (letto una sola volta all'avvio).",
+    "schedule": "Fissa nel codice del worker: cambiarla richiede una modifica al codice, non solo un riavvio."
+  },
+  "units": {
+    "seconds": "secondi"
+  }
+}

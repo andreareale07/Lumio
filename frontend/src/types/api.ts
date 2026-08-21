@@ -878,13 +878,17 @@ export interface SystemSetting {
   updated_at: IsoDateTime;
 }
 
+// REWORK i18n (DECISION REQUIRED "testo backend"): il backend non
+// restituisce piu' testo in nessuna lingua per i job, solo chiavi i18next
+// stabili nel namespace "jobs" (vedi locales/{it,en}/jobs.json) — vedi
+// app/services/job_registry.py sul backend.
 export interface JobParameter {
-  label: string;
-  unit: string;
+  label_key: string;
+  unit_key: string;
   editable: boolean;
   setting_key: string | null;
   value: unknown;
-  readonly_reason: string | null;
+  readonly_reason_key: string | null;
 }
 
 export type JobCategory = "scheduled" | "triggered";
@@ -892,11 +896,11 @@ export type JobCategory = "scheduled" | "triggered";
 export interface Job {
   kind: string;
   category: JobCategory;
-  name: string;
-  description: string;
-  schedule_description: string | null;
-  schedule_readonly_reason: string | null;
-  disable_warning: string | null;
+  name_key: string;
+  description_key: string;
+  schedule_description_key: string | null;
+  schedule_readonly_reason_key: string | null;
+  disable_warning_key: string | null;
   enabled: boolean | null;
   enabled_setting_key: string | null;
   parameters: JobParameter[];

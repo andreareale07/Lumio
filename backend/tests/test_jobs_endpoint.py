@@ -55,12 +55,12 @@ async def test_list_jobs_returns_seven_jobs_in_two_categories(client):
         assert by_kind[kind]["enabled_setting_key"] == f"jobs.{kind}.enabled"
         # La cadenza stessa e' fissa nel codice del worker (arq registra i
         # cron una sola volta all'avvio) — mai presentata come modificabile.
-        assert by_kind[kind]["schedule_description"]
-        assert by_kind[kind]["schedule_readonly_reason"]
+        assert by_kind[kind]["schedule_description_key"]
+        assert by_kind[kind]["schedule_readonly_reason_key"]
     for kind in triggered:
         assert by_kind[kind]["enabled"] is None
         assert by_kind[kind]["enabled_setting_key"] is None
-        assert by_kind[kind]["schedule_description"] is None
+        assert by_kind[kind]["schedule_description_key"] is None
 
     # Ogni job ha almeno un parametro, e ogni parametro editabile porta la
     # chiave system_settings corretta per il PATCH.
@@ -70,7 +70,7 @@ async def test_list_jobs_returns_seven_jobs_in_two_categories(client):
             if param["editable"]:
                 assert param["setting_key"] is not None
             else:
-                assert param["readonly_reason"] is not None
+                assert param["readonly_reason_key"] is not None
 
 
 async def test_toggling_job_enabled_via_patch_is_reflected_in_jobs_list(client):

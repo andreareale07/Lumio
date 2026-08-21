@@ -1,0 +1,55 @@
+{
+  "marketDataRefresh": {
+    "name": "Market data refresh",
+    "description": "Downloads an updated quote for every asset with an active market data provider (per workspace).",
+    "scheduleDescription": "Every day at 2:00 AM",
+    "disableWarning": "Asset prices will no longer be refreshed automatically every day. The \"Refresh now\" button on the Market Data page stays available."
+  },
+  "snapshotRebuild": {
+    "name": "Net worth snapshot rebuild",
+    "description": "Writes the daily net worth/portfolio snapshot for every workspace.",
+    "scheduleDescription": "Every day at 3:00 AM",
+    "disableWarning": "The net worth history will no longer be updated automatically every day (a data point will be missing for skipped days). The \"Recalculate now\" button on the Portfolio page stays available."
+  },
+  "staleJobReaper": {
+    "name": "Stuck job detector",
+    "description": "Detects jobs left stuck by a worker crash (no terminal state ever reached) and marks them failed — this same mechanism.",
+    "scheduleDescription": "Every 2 minutes",
+    "disableWarning": "WARNING: a job stuck by a worker crash (import, AI classification, price refresh, snapshot, Google Sheets export) will no longer be detected automatically and will stay stuck until you intervene manually."
+  },
+  "import": {
+    "name": "Import processing",
+    "description": "Parses the file (CSV/PDF) and inserts the transactions, triggered by an import confirmed by the user."
+  },
+  "aiClassification": {
+    "name": "AI classification",
+    "description": "Classifies transactions not recognized by the rules, decoupled from the import job — only starts if an AI profile is active for the workspace."
+  },
+  "googleSheetsExport": {
+    "name": "Google Sheets export",
+    "description": "Exports data to Google Sheets, triggered by an export request from the user — requires the Google integration to be active."
+  },
+  "reclassification": {
+    "name": "Reclassification",
+    "description": "Re-runs the classification pipeline (rules, system, optionally AI) on already-imported transactions — triggered by the user after a taxonomy update. Never touches manual corrections."
+  },
+  "params": {
+    "staleThreshold": "Stale threshold",
+    "staleThresholdImport": "Stale threshold — Import",
+    "staleThresholdAiClassification": "Stale threshold — AI classification",
+    "staleThresholdMarketDataRefresh": "Stale threshold — Price refresh",
+    "staleThresholdSnapshotRebuild": "Stale threshold — Snapshot",
+    "staleThresholdGoogleSheetsExport": "Stale threshold — Google Sheets export",
+    "maxExecutionTimeout": "Maximum execution timeout",
+    "pdfOpenTimeout": "PDF open timeout",
+    "pdfParseTimeout": "PDF parse timeout",
+    "aiCallTimeout": "Single AI call timeout"
+  },
+  "readonlyReason": {
+    "timeout": "Requires a worker restart to take effect (read once at startup).",
+    "schedule": "Fixed in the worker's code: changing it requires a code change, not just a restart."
+  },
+  "units": {
+    "seconds": "seconds"
+  }
+}
