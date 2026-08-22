@@ -44,7 +44,7 @@ export const CategoryPicker = forwardRef<HTMLButtonElement, CategoryPickerProps>
 ) {
   const { t } = useTranslation("categories");
   const { data: categories, isLoading } = useCategories();
-  const options = buildCategoryComboboxOptions(categories);
+  const options = buildCategoryComboboxOptions(categories, t);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const emitChange = (nextValue: string) => {

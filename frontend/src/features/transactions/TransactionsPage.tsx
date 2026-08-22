@@ -42,7 +42,7 @@ export function TransactionsPage() {
 
   const { data: accounts } = useAccounts();
   const { data: categories } = useCategories();
-  const categoryOptions = buildCategoryOptions(categories);
+  const categoryOptions = buildCategoryOptions(categories, t);
   const accountsById = useMemo(() => new Map((accounts ?? []).map((a) => [a.id, a])), [accounts]);
 
   // "Da verificare"/un import specifico sono viste mirate: l'utente vuole

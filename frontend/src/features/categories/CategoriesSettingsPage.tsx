@@ -13,7 +13,7 @@ import { SkeletonRows } from "../../components/ui/Skeleton";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import type { Category, CategoryKind } from "../../types/api";
 import { useCategories, useDeleteCategory, useUpdateCategory } from "./api";
-import { categoryKindLabel } from "./utils";
+import { categoryDisplayName, categoryKindLabel } from "./utils";
 import { CategoryFormDialog } from "./CategoryFormDialog";
 
 const KIND_ORDER: CategoryKind[] = ["expense", "income", "transfer", "investment", "neutral"];
@@ -203,7 +203,7 @@ function CategoryRow({
   return (
     <Card className="flex flex-wrap items-center justify-between gap-2">
       <div>
-        <p className="font-medium text-text">{category.name}</p>
+        <p className="font-medium text-text">{categoryDisplayName(t, category)}</p>
         <p className="text-xs text-text-muted">{category.code}</p>
       </div>
       <div className="flex items-center gap-2">

@@ -7,9 +7,9 @@ import { CategoryPicker } from "../src/features/categories/CategoryPicker";
 import type { Category } from "../src/types/api";
 
 const CATEGORIES: Category[] = [
-  { id: "casa", workspace_id: null, parent_id: null, name: "Casa", code: "casa", kind: "expense", is_system: true, is_active: true, sort_order: 10 },
-  { id: "casa.bollette", workspace_id: null, parent_id: "casa", name: "Bollette", code: "casa.bollette", kind: "expense", is_system: true, is_active: true, sort_order: 12 },
-  { id: "alimentari", workspace_id: null, parent_id: null, name: "Alimentari", code: "alimentari", kind: "expense", is_system: true, is_active: true, sort_order: 20 },
+  { id: "casa", workspace_id: null, parent_id: null, name: "Casa", code: "casa", kind: "expense", is_system: false, is_active: true, sort_order: 10 },
+  { id: "casa.bollette", workspace_id: null, parent_id: "casa", name: "Bollette", code: "casa.bollette", kind: "expense", is_system: false, is_active: true, sort_order: 12 },
+  { id: "alimentari", workspace_id: null, parent_id: null, name: "Alimentari", code: "alimentari", kind: "expense", is_system: false, is_active: true, sort_order: 20 },
 ];
 
 function renderWithClient(ui: React.ReactElement) {

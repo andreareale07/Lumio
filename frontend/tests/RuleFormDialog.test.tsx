@@ -7,7 +7,7 @@ import { RuleFormDialog } from "../src/features/rules/RuleFormDialog";
 import type { Category } from "../src/types/api";
 
 const CATEGORIES: Category[] = [
-  { id: "streaming", workspace_id: null, parent_id: null, name: "Streaming", code: "streaming", kind: "expense", is_system: true, is_active: true, sort_order: 10 },
+  { id: "streaming", workspace_id: null, parent_id: null, name: "Streaming", code: "streaming", kind: "expense", is_system: false, is_active: true, sort_order: 10 },
 ];
 
 function renderDialog() {
