@@ -2,6 +2,7 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
 import accountsEn from "../locales/en/accounts.json";
+import analyticsEn from "../locales/en/analytics.json";
 import categoriesEn from "../locales/en/categories.json";
 import commonEn from "../locales/en/common.json";
 import dashboardEn from "../locales/en/dashboard.json";
@@ -14,6 +15,7 @@ import rulesEn from "../locales/en/rules.json";
 import transactionsEn from "../locales/en/transactions.json";
 import settingsEn from "../locales/en/settings.json";
 import accountsIt from "../locales/it/accounts.json";
+import analyticsIt from "../locales/it/analytics.json";
 import categoriesIt from "../locales/it/categories.json";
 import commonIt from "../locales/it/common.json";
 import dashboardIt from "../locales/it/dashboard.json";
@@ -40,8 +42,8 @@ const STORAGE_KEY = "lumio-locale";
 // lazy-loading: "valutare lazy loading... se realmente necessario", non lo
 // e' oggi per un'app personale — SPEC_FE_REDESIGN §31).
 const resources = {
-  it: { accounts: accountsIt, categories: categoriesIt, common: commonIt, dashboard: dashboardIt, enums: enumsIt, imports: importsIt, jobs: jobsIt, navigation: navigationIt, portfolio: portfolioIt, rules: rulesIt, settings: settingsIt, transactions: transactionsIt },
-  en: { accounts: accountsEn, categories: categoriesEn, common: commonEn, dashboard: dashboardEn, enums: enumsEn, imports: importsEn, jobs: jobsEn, navigation: navigationEn, portfolio: portfolioEn, rules: rulesEn, settings: settingsEn, transactions: transactionsEn },
+  it: { accounts: accountsIt, analytics: analyticsIt, categories: categoriesIt, common: commonIt, dashboard: dashboardIt, enums: enumsIt, imports: importsIt, jobs: jobsIt, navigation: navigationIt, portfolio: portfolioIt, rules: rulesIt, settings: settingsIt, transactions: transactionsIt },
+  en: { accounts: accountsEn, analytics: analyticsEn, categories: categoriesEn, common: commonEn, dashboard: dashboardEn, enums: enumsEn, imports: importsEn, jobs: jobsEn, navigation: navigationEn, portfolio: portfolioEn, rules: rulesEn, settings: settingsEn, transactions: transactionsEn },
 };
 
 function readStoredLocale(): SupportedLocale | null {
@@ -74,7 +76,7 @@ void i18n.use(initReactI18next).init({
   // "categories": CategoryPicker/CreateCategoryDialog sono componenti
   // condivisi usati anche fuori da Impostazioni (correzione transazione,
   // creazione regola), non solo dalla pagina Settings > Categorie.
-  ns: ["accounts", "categories", "common", "dashboard", "enums", "imports", "jobs", "navigation", "portfolio", "rules", "settings", "transactions"],
+  ns: ["accounts", "analytics", "categories", "common", "dashboard", "enums", "imports", "jobs", "navigation", "portfolio", "rules", "settings", "transactions"],
   defaultNS: "common",
   interpolation: { escapeValue: false },
   // In sviluppo una translation key mancante deve essere facilmente

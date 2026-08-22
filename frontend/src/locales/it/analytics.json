@@ -1,0 +1,54 @@
+{
+  "breakdown": {
+    "errorMessage": "Dati non disponibili.",
+    "trendChart": {
+      "title": "Andamento",
+      "emptyTitle": "Nessun dato",
+      "tableCaption": "Andamento mensile",
+      "tableHeaders": ["Periodo", "Totale"]
+    },
+    "categoryChart": {
+      "title": "Categorie",
+      "emptyTitle": "Nessuna categoria",
+      "tableCaption": "Per categoria",
+      "tableHeaders": ["Categoria", "Totale", "Quota"]
+    },
+    "merchants": {
+      "title": "Merchant",
+      "breakdownTitle": "Top merchant",
+      "noMerchant": "Senza merchant"
+    }
+  },
+  "netWorth": {
+    "title": "Patrimonio",
+    "subtitle": "Patrimonio totale: liquidità, debiti e investimenti.",
+    "errorMessage": "Dati non disponibili.",
+    "rebuildNow": "Ricalcola adesso",
+    "history": {
+      "title": "Patrimonio nel tempo",
+      "tableCaption": "Patrimonio nel tempo",
+      "tableHeaders": ["Data", "Patrimonio"],
+      "emptyTitle": "Nessuno storico ancora",
+      "emptyDescription": "Lo storico si costruisce giorno per giorno dallo snapshot automatico — usa 'Ricalcola adesso' per crearne subito uno."
+    },
+    "composition": {
+      "title": "Composizione",
+      "noInvestmentsDescription": "Azioni, ETF e obbligazioni appariranno qui non appena registrerai una posizione in Investimenti.",
+      "breakdownTitle": "Per conto",
+      "viewAllAccounts": "Vedi tutti i conti"
+    },
+    "periodChange": {
+      "title": "Variazione del periodo",
+      "total": "Totale",
+      "investmentNote": "I movimenti di investimento (acquisti, vendite, dividendi) sono esclusi da entrate e spese: li trovi in Investimenti."
+    }
+  },
+  "expenses": {
+    "title": "Spese",
+    "emptyDescription": "Le spese classificate in questo periodo appariranno qui."
+  },
+  "income": {
+    "title": "Entrate",
+    "emptyDescription": "Le entrate classificate in questo periodo appariranno qui."
+  }
+}

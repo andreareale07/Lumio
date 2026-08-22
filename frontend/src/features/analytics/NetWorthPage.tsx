@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Landmark, PiggyBank, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
@@ -37,6 +38,7 @@ const DEBT_ACCOUNT_TYPES = new Set(["credit_card"]);
  * versione (che avrebbe dovuto mischiare una serie ricalcolata con una da
  * snapshot), qui l'intera serie viene da UNA sola fonte, gli snapshot. */
 export function NetWorthPage() {
+  const { t } = useTranslation(["analytics", "dashboard"]);
   const { currentPeriod, trendWindow } = usePeriodNavigator({
     granularities: ["month", "quarter", "year"],
   });
@@ -80,22 +82,22 @@ export function NetWorthPage() {
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-text">Patrimonio</h1>
+          <h1 className="text-lg font-semibold text-text">{t("netWorth.title")}</h1>
           {summary.data && (
             <span className="font-numeric text-2xl font-semibold text-text">
               {formatMoney(summary.data.net_worth, currency)}
             </span>
           )}
-          <p className="text-sm text-text-muted">Patrimonio totale: liquidità, debiti e investimenti.</p>
+          <p className="text-sm text-text-muted">{t("netWorth.subtitle")}</p>
         </div>
         <PeriodNavigator granularities={["month", "quarter", "year"]} />
       </div>
 
-      {summary.isError && <ErrorState message="Dati non disponibili." onRetry={() => void summary.refetch()} />}
+      {summary.isError && <ErrorState message={t("netWorth.errorMessage")} onRetry={() => void summary.refetch()} />}
 
       <div className="flex items-center justify-end gap-2">
         <Button variant="secondary" size="sm" loading={rebuildSnapshot.isPending} onClick={() => void onRebuildNow()}>
-          <RefreshCw className="h-4 w-4" /> Ricalcola adesso
+          <RefreshCw className="h-4 w-4" /> {t("netWorth.rebuildNow")}
         </Button>
       </div>
       <JobRunStatus run={rebuildStatus.data} />
@@ -103,17 +105,17 @@ export function NetWorthPage() {
       {history.isLoading && <Skeleton className="h-72 w-full" />}
       {history.data && (
         <ChartCard
-          title="Patrimonio nel tempo"
+          title={t("netWorth.history.title")}
           empty={trendPoints.length === 0}
           emptyState={
             <EmptyState
               icon={Landmark}
-              title="Nessuno storico ancora"
-              description="Lo storico si costruisce giorno per giorno dallo snapshot automatico — usa 'Ricalcola adesso' per crearne subito uno."
+              title={t("netWorth.history.emptyTitle")}
+              description={t("netWorth.history.emptyDescription")}
             />
           }
-          tableCaption="Patrimonio nel tempo"
-          tableHeaders={["Data", "Patrimonio"]}
+          tableCaption={t("netWorth.history.tableCaption")}
+          tableHeaders={t("netWorth.history.tableHeaders", { returnObjects: true }) as string[]}
           tableRows={trendPoints.map((p) => [p.label, formatMoney(p.value, currency)])}
         >
           <AreaTrendChart data={trendPoints} currency={currency} />
@@ -122,7 +124,7 @@ export function NetWorthPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-text">Composizione</h3>
+          <h3 className="text-sm font-semibold text-text">{t("netWorth.composition.title")}</h3>
           {balances.isLoading && <Skeleton className="h-24 w-full" />}
           {balances.data && (
             <ul className="flex flex-col gap-2 text-sm">
@@ -132,7 +134,7 @@ export function NetWorthPage() {
                   onClick={() => setSelectedComposition("liquidity")}
                   className="flex w-full items-center justify-between rounded-md p-1 text-left hover:bg-surface-hover"
                 >
-                  <span className="text-text">Liquidità</span>
+                  <span className="text-text">{t("dashboard:kpi.liquidity")}</span>
                   <span className="font-numeric text-text">{formatMoney(balances.data.liquidity_total, currency)}</span>
                 </button>
               </li>
@@ -143,7 +145,7 @@ export function NetWorthPage() {
                     onClick={() => setSelectedComposition("debt")}
                     className="flex w-full items-center justify-between rounded-md p-1 text-left hover:bg-surface-hover"
                   >
-                    <span className="text-text">Debiti</span>
+                    <span className="text-text">{t("dashboard:kpi.debt")}</span>
                     <span className="font-numeric text-danger">{formatMoney(balances.data.debt_total, currency)}</span>
                   </button>
                 </li>
@@ -161,7 +163,7 @@ export function NetWorthPage() {
                     to="/investments"
                     className="flex items-center justify-between rounded-md p-1 hover:bg-surface-hover"
                   >
-                    <span className="text-text">Investimenti</span>
+                    <span className="text-text">{t("dashboard:kpi.investments")}</span>
                     <span className="font-numeric text-text">
                       {formatMoney(balances.data.investment_total, currency)}
                     </span>
@@ -170,7 +172,7 @@ export function NetWorthPage() {
               )}
               {balances.data.has_investments && (
                 <li className="flex items-center justify-between border-t border-border pt-2 font-semibold">
-                  <span className="text-text">Patrimonio totale</span>
+                  <span className="text-text">{t("dashboard:kpi.netWorth")}</span>
                   <span className="font-numeric text-text">
                     {formatMoney(
                       Number(balances.data.liquidity_total) +
@@ -186,27 +188,31 @@ export function NetWorthPage() {
           {balances.data && !balances.data.has_investments && (
             <EmptyState
               icon={PiggyBank}
-              title="Non hai ancora aggiunto investimenti"
-              description="Azioni, ETF e obbligazioni appariranno qui non appena registrerai una posizione in Investimenti."
-              action={<Link to="/investments" className="text-sm font-medium text-primary hover:underline">Vai a Investimenti</Link>}
+              title={t("dashboard:portfolioWidget.empty.title")}
+              description={t("netWorth.composition.noInvestmentsDescription")}
+              action={
+                <Link to="/investments" className="text-sm font-medium text-primary hover:underline">
+                  {t("dashboard:portfolioWidget.goToInvestments")}
+                </Link>
+              }
             />
           )}
         </Card>
 
         <Card className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-text">Variazione del periodo</h3>
+          <h3 className="text-sm font-semibold text-text">{t("netWorth.periodChange.title")}</h3>
           {summary.data && (
             <ul className="flex flex-col gap-2 text-sm">
               <li className="flex items-center justify-between">
-                <span className="text-text">Entrate</span>
+                <span className="text-text">{t("dashboard:kpi.income")}</span>
                 <span className="font-numeric text-success">+{formatMoney(summary.data.income, currency)}</span>
               </li>
               <li className="flex items-center justify-between">
-                <span className="text-text">Spese</span>
+                <span className="text-text">{t("dashboard:kpi.expenses")}</span>
                 <span className="font-numeric text-danger">-{formatMoney(summary.data.expenses, currency)}</span>
               </li>
               <li className="flex items-center justify-between border-t border-border pt-2 font-semibold">
-                <span className="text-text">Totale</span>
+                <span className="text-text">{t("netWorth.periodChange.total")}</span>
                 <span className="font-numeric text-text">
                   {Number(summary.data.net_cash_flow) >= 0 ? "+" : ""}
                   {formatMoney(summary.data.net_cash_flow, currency)}
@@ -214,34 +220,31 @@ export function NetWorthPage() {
               </li>
             </ul>
           )}
-          <p className="text-sm text-text-muted">
-            I movimenti di investimento (acquisti, vendite, dividendi) sono esclusi da entrate e spese: li trovi
-            in Investimenti.
-          </p>
+          <p className="text-sm text-text-muted">{t("netWorth.periodChange.investmentNote")}</p>
         </Card>
       </div>
 
       <DrillDownDrawer
         open={!!selectedComposition}
         onClose={() => setSelectedComposition(null)}
-        title={selectedComposition === "liquidity" ? "Liquidità" : "Debiti"}
+        title={selectedComposition === "liquidity" ? t("dashboard:kpi.liquidity") : t("dashboard:kpi.debt")}
         currency={currency}
         isLoading={balances.isLoading || compositionTransactions.isLoading}
-        breakdownTitle="Per conto"
+        breakdownTitle={t("netWorth.composition.breakdownTitle")}
         breakdown={compositionAccounts.map((a) => ({
           key: a.financial_account_id,
           label: a.name,
           value: Math.abs(Number(a.balance)),
         }))}
-        transactions={(compositionTransactions.data ?? []).map((t) => ({
-          id: t.id,
-          label: t.merchant ?? t.description_raw,
-          date: t.transaction_date,
-          amount: t.amount,
-          currency: t.currency,
+        transactions={(compositionTransactions.data ?? []).map((txn) => ({
+          id: txn.id,
+          label: txn.merchant ?? txn.description_raw,
+          date: txn.transaction_date,
+          amount: txn.amount,
+          currency: txn.currency,
         }))}
         viewAllHref="/accounts"
-        viewAllLabel="Vedi tutti i conti"
+        viewAllLabel={t("netWorth.composition.viewAllAccounts")}
       />
     </div>
   );

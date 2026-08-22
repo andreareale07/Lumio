@@ -1,0 +1,54 @@
+{
+  "breakdown": {
+    "errorMessage": "Data unavailable.",
+    "trendChart": {
+      "title": "Trend",
+      "emptyTitle": "No data",
+      "tableCaption": "Monthly trend",
+      "tableHeaders": ["Period", "Total"]
+    },
+    "categoryChart": {
+      "title": "Categories",
+      "emptyTitle": "No categories",
+      "tableCaption": "By category",
+      "tableHeaders": ["Category", "Total", "Share"]
+    },
+    "merchants": {
+      "title": "Merchants",
+      "breakdownTitle": "Top merchants",
+      "noMerchant": "No merchant"
+    }
+  },
+  "netWorth": {
+    "title": "Net worth",
+    "subtitle": "Total net worth: liquidity, debt and investments.",
+    "errorMessage": "Data unavailable.",
+    "rebuildNow": "Recalculate now",
+    "history": {
+      "title": "Net worth over time",
+      "tableCaption": "Net worth over time",
+      "tableHeaders": ["Date", "Net worth"],
+      "emptyTitle": "No history yet",
+      "emptyDescription": "History builds up day by day from the automatic snapshot — use 'Recalculate now' to create one right away."
+    },
+    "composition": {
+      "title": "Composition",
+      "noInvestmentsDescription": "Stocks, ETFs and bonds will appear here as soon as you record a position in Investments.",
+      "breakdownTitle": "By account",
+      "viewAllAccounts": "View all accounts"
+    },
+    "periodChange": {
+      "title": "Period change",
+      "total": "Total",
+      "investmentNote": "Investment transactions (buys, sells, dividends) are excluded from income and expenses: find them in Investments."
+    }
+  },
+  "expenses": {
+    "title": "Expenses",
+    "emptyDescription": "Classified expenses in this period will appear here."
+  },
+  "income": {
+    "title": "Income",
+    "emptyDescription": "Classified income in this period will appear here."
+  }
+}

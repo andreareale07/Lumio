@@ -1,14 +1,16 @@
 import { Banknote } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { BreakdownPage } from "./BreakdownPage";
 
 export function IncomePage() {
+  const { t } = useTranslation("analytics");
   return (
     <BreakdownPage
       direction="income"
-      title="Entrate"
+      title={t("income.title")}
       icon={Banknote}
-      emptyDescription="Le entrate classificate in questo periodo appariranno qui."
+      emptyDescription={t("income.emptyDescription")}
     />
   );
 }

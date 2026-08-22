@@ -1,14 +1,16 @@
 import { Receipt } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { BreakdownPage } from "./BreakdownPage";
 
 export function ExpensesPage() {
+  const { t } = useTranslation("analytics");
   return (
     <BreakdownPage
       direction="expense"
-      title="Spese"
+      title={t("expenses.title")}
       icon={Receipt}
-      emptyDescription="Le spese classificate in questo periodo appariranno qui."
+      emptyDescription={t("expenses.emptyDescription")}
     />
   );
 }

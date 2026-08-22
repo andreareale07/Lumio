@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ComponentType } from "react";
+import { useTranslation } from "react-i18next";
 
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
@@ -28,6 +29,7 @@ interface BreakdownPageProps {
  * struttura — totale + variazione, andamento, categorie con drill-down per
  * merchant, top merchant — cambia solo `direction` e le etichette. */
 export function BreakdownPage({ direction, title, icon, emptyDescription }: BreakdownPageProps) {
+  const { t } = useTranslation(["analytics", "dashboard"]);
   const { granularity: navGranularity, currentPeriod, trendWindow } = usePeriodNavigator({
     granularities: ["month", "quarter", "year"],
   });
@@ -104,7 +106,7 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
               </span>
               {change !== undefined && change !== 0 && (
                 <span className={`text-sm ${isGoodChange ? "text-success" : "text-danger"}`}>
-                  {formatPercent(change, { signed: true })} vs periodo precedente
+                  {formatPercent(change, { signed: true })} {t("dashboard:drillDown.comparisonSuffix")}
                 </span>
               )}
             </div>
@@ -113,17 +115,17 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
         <PeriodNavigator granularities={["month", "quarter", "year"]} />
       </div>
 
-      {summary.isError && <ErrorState message="Dati non disponibili." onRetry={() => void summary.refetch()} />}
+      {summary.isError && <ErrorState message={t("breakdown.errorMessage")} onRetry={() => void summary.refetch()} />}
 
       {cashFlow.isLoading && <Skeleton className="h-64 w-full" />}
       {cashFlow.data && (
         <ChartCard
-          title="Andamento"
+          title={t("breakdown.trendChart.title")}
           subtitle={formatPeriodLabel(cashFlow.data.period.date_from, cashFlow.data.period.date_to)}
           empty={trendPoints.every((p) => p.value === 0)}
-          emptyState={<EmptyState icon={icon} title="Nessun dato" description={emptyDescription} />}
-          tableCaption="Andamento mensile"
-          tableHeaders={["Periodo", "Totale"]}
+          emptyState={<EmptyState icon={icon} title={t("breakdown.trendChart.emptyTitle")} description={emptyDescription} />}
+          tableCaption={t("breakdown.trendChart.tableCaption")}
+          tableHeaders={t("breakdown.trendChart.tableHeaders", { returnObjects: true }) as string[]}
           tableRows={trendPoints.map((p) => [p.label, formatMoney(p.value, currency)])}
         >
           <AreaTrendChart data={trendPoints} currency={currency} />
@@ -133,11 +135,11 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
       {byCategory.isLoading && <Skeleton className="h-64 w-full" />}
       {byCategory.data && (
         <ChartCard
-          title="Categorie"
+          title={t("breakdown.categoryChart.title")}
           empty={byCategory.data.items.length === 0}
-          emptyState={<EmptyState icon={icon} title="Nessuna categoria" description={emptyDescription} />}
-          tableCaption="Per categoria"
-          tableHeaders={["Categoria", "Totale", "Quota"]}
+          emptyState={<EmptyState icon={icon} title={t("breakdown.categoryChart.emptyTitle")} description={emptyDescription} />}
+          tableCaption={t("breakdown.categoryChart.tableCaption")}
+          tableHeaders={t("breakdown.categoryChart.tableHeaders", { returnObjects: true }) as string[]}
           tableRows={byCategory.data.items.map((item) => [
             item.name,
             formatMoney(item.total, currency),
@@ -186,7 +188,7 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
       {byMerchant.isLoading && <Skeleton className="h-40 w-full" />}
       {byMerchant.data && byMerchant.data.items.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-text">Merchant</h3>
+          <h3 className="text-sm font-semibold text-text">{t("breakdown.merchants.title")}</h3>
           <ul className="flex flex-col gap-1">
             {byMerchant.data.items.slice(0, 10).map((item) => (
               <li key={item.merchant} className="flex items-center justify-between text-sm">
@@ -214,18 +216,18 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
             : undefined
         }
         trend={drawerTrendPoints}
-        breakdownTitle="Top merchant"
+        breakdownTitle={t("breakdown.merchants.breakdownTitle")}
         breakdown={(drawerMerchants.data?.items ?? []).map((m) => ({
           key: m.merchant ?? "senza-merchant",
-          label: m.merchant ?? "Senza merchant",
+          label: m.merchant ?? t("breakdown.merchants.noMerchant"),
           value: Number(m.total),
         }))}
-        transactions={(drawerTransactions.data ?? []).map((t) => ({
-          id: t.id,
-          label: t.merchant ?? t.description_raw,
-          date: t.transaction_date,
-          amount: t.amount,
-          currency: t.currency,
+        transactions={(drawerTransactions.data ?? []).map((txn) => ({
+          id: txn.id,
+          label: txn.merchant ?? txn.description_raw,
+          date: txn.transaction_date,
+          amount: txn.amount,
+          currency: txn.currency,
         }))}
         viewAllHref={selectedCategory ? `/transactions?category=${selectedCategory.id}` : undefined}
       />
