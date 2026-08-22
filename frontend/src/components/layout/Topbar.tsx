@@ -1,4 +1,4 @@
-import { Languages, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import { LogOut, Monitor, Moon, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../../app/providers/AuthProvider";
@@ -34,9 +34,9 @@ export function Topbar() {
           onClick={cycleLocale}
           aria-label={t("language.toggle")}
           title={t(`language.${i18n.language}`)}
-          className="rounded-md p-2 text-text-muted hover:bg-surface-hover hover:text-text"
+          className="rounded-md px-2 py-1.5 text-xs font-semibold text-text-muted hover:bg-surface-hover hover:text-text"
         >
-          <Languages className="h-4 w-4" />
+          {i18n.language.toUpperCase()}
         </button>
         <button
           type="button"
