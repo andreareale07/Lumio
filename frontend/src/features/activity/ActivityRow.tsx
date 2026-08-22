@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../components/ui/Badge";
 import { useEtaEstimate } from "../../lib/eta";
@@ -45,6 +46,8 @@ function formatTimestamp(value: string | null): string | null {
  * processed/total/detail in tempo reale, stesso pattern di
  * AiClassificationProgress.tsx ma generalizzato al kind dell'item. */
 export function ActivityRow({ item }: { item: ActivityItem }) {
+  const { t } = useTranslation("jobs");
+  const label = item.label_key ? t(item.label_key) : item.label;
   const [processed, setProcessed] = useState(item.processed);
   const [total, setTotal] = useState(item.total);
   const [detail, setDetail] = useState<string | null>(null);
@@ -91,7 +94,7 @@ export function ActivityRow({ item }: { item: ActivityItem }) {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Icon className={`h-4 w-4 ${iconColorClass} ${status === "running" ? "animate-spin" : ""}`} aria-hidden="true" />
-          <span className="text-sm font-medium text-text">{item.label}</span>
+          <span className="text-sm font-medium text-text">{label}</span>
         </div>
         <Badge tone={tone}>{STATUS_LABEL[status] ?? status}</Badge>
       </div>

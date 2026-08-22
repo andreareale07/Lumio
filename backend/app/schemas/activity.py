@@ -12,7 +12,14 @@ from pydantic import BaseModel
 
 class ActivityItemOut(BaseModel):
     kind: str
+    # Testo gia' pronto (import/AI classification: interpola il nome file,
+    # sempre italiano — nessuna DECISION REQUIRED riaperta qui). `label_key`
+    # ha precedenza quando presente: i job schedulati (market_data,
+    # snapshot, ecc.) restituiscono una chiave i18n stabile invece di testo
+    # italiano hardcoded (stessa scelta gia' fatta per `job_registry.py`,
+    # commit 3545f62 — il frontend risolve con `t(`jobs:${label_key}`)`).
     label: str
+    label_key: str | None = None
     status: str
     # Valorizzato solo per i job che emettono eventi SSE riga-per-riga
     # (import, ai_classification, reclassification, google_sheets_export):

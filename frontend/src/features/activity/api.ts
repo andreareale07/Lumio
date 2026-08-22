@@ -6,6 +6,7 @@ import { streamSse } from "../imports/api";
 export interface ActivityItem {
   kind: string;
   label: string;
+  label_key: string | null;
   status: string;
   events_url: string | null;
   started_at: string | null;

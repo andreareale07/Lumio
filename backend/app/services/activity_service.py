@@ -29,7 +29,7 @@ _ACTIVE_AI_CLASSIFICATION_STATUSES = ("pending", "running")
 # altrimenti la lista si riempirebbe di fallimenti vecchi mai puliti.
 _RECENT_FAILURE_WINDOW = timedelta(hours=6)
 
-_JOB_RUN_LABELS = {d.kind: d.name for d in JOB_DESCRIPTORS}
+_JOB_RUN_LABEL_KEYS = {d.kind: d.name_key for d in JOB_DESCRIPTORS}
 _JOB_RUN_EVENTS_URL = {
     "reclassification": "/classification/reclassify/events",
     "google_sheets_export": "/integrations/google/export-events",
@@ -102,7 +102,8 @@ async def _job_run_items(db: AsyncSession, workspace_id: uuid.UUID) -> list[Acti
         items.append(
             ActivityItemOut(
                 kind=job_kind,
-                label=_JOB_RUN_LABELS.get(job_kind, job_kind),
+                label=job_kind,
+                label_key=_JOB_RUN_LABEL_KEYS.get(job_kind),
                 status=run.status,
                 events_url=_JOB_RUN_EVENTS_URL.get(job_kind),
                 started_at=run.started_at,
