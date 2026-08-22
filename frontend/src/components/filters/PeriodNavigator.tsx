@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
-import { GRANULARITY_LABELS, GRANULARITY_ORDER, type Granularity } from "../../lib/period";
+import { GRANULARITY_ORDER, type Granularity } from "../../lib/period";
 import { usePeriodNavigator, type UsePeriodNavigatorOptions } from "../../lib/usePeriodNavigator";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
@@ -13,6 +14,7 @@ import { Select } from "../ui/Select";
  * monta resta sincronizzata automaticamente (stesso principio di
  * `PeriodFilter`, che sostituisce). */
 export function PeriodNavigator({ granularities, trendWindowSize, allowAll }: UsePeriodNavigatorOptions) {
+  const { t } = useTranslation("common");
   const {
     mode,
     granularity,
@@ -35,10 +37,10 @@ export function PeriodNavigator({ granularities, trendWindowSize, allowAll }: Us
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-text">{currentPeriod.label}</span>
         <Button variant="link" size="sm" onClick={() => setGranularity(granularity)}>
-          Filtra per periodo
+          {t("period.filterByPeriod")}
         </Button>
         <Button variant="link" size="sm" onClick={() => setMode("custom")}>
-          Intervallo personalizzato
+          {t("period.customRange")}
         </Button>
       </div>
     );
@@ -49,24 +51,24 @@ export function PeriodNavigator({ granularities, trendWindowSize, allowAll }: Us
       <div className="flex flex-wrap items-end gap-3">
         <Input
           type="date"
-          label="Dal"
+          label={t("period.from")}
           value={customFrom}
           onChange={(e) => setCustomRange(e.target.value, customTo)}
           className="w-auto"
         />
         <Input
           type="date"
-          label="Al"
+          label={t("period.to")}
           value={customTo}
           onChange={(e) => setCustomRange(customFrom, e.target.value)}
           className="w-auto"
         />
         <Button variant="link" size="sm" onClick={() => setMode("granular")}>
-          Torna alla navigazione per periodo
+          {t("period.backToGranular")}
         </Button>
         {allowAll && (
           <Button variant="link" size="sm" onClick={() => setMode("all")}>
-            Tutti i periodi
+            {t("period.allPeriods")}
           </Button>
         )}
       </div>
@@ -76,37 +78,37 @@ export function PeriodNavigator({ granularities, trendWindowSize, allowAll }: Us
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select
-        aria-label="Granularità"
+        aria-label={t("period.granularityAriaLabel")}
         value={granularity}
         onChange={(e) => setGranularity(e.target.value as Granularity)}
         className="w-auto"
       >
         {options.map((g) => (
           <option key={g} value={g}>
-            {GRANULARITY_LABELS[g]}
+            {t(`period.granularity.${g}`)}
           </option>
         ))}
       </Select>
       <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" onClick={goToPrevious} aria-label="Periodo precedente">
+        <Button variant="ghost" size="icon" onClick={goToPrevious} aria-label={t("period.previousAriaLabel")}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <span className="min-w-[8rem] text-center text-sm font-medium text-text">{currentPeriod.label}</span>
-        <Button variant="ghost" size="icon" onClick={goToNext} disabled={isAtToday} aria-label="Periodo successivo">
+        <Button variant="ghost" size="icon" onClick={goToNext} disabled={isAtToday} aria-label={t("period.nextAriaLabel")}>
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
       {!isAtToday && (
         <Button variant="link" size="sm" onClick={goToToday}>
-          Oggi
+          {t("period.today")}
         </Button>
       )}
       <Button variant="link" size="sm" onClick={() => setMode("custom")}>
-        Intervallo personalizzato
+        {t("period.customRange")}
       </Button>
       {allowAll && (
         <Button variant="link" size="sm" onClick={() => setMode("all")}>
-          Tutti i periodi
+          {t("period.allPeriods")}
         </Button>
       )}
     </div>

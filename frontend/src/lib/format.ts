@@ -8,7 +8,7 @@ import i18n from "../app/i18n";
 // il cambio riflesso a schermo deve rimontare (vedi `App.tsx`, key su
 // `i18n.language`), stesso principio gia' in uso per il tema.
 const INTL_LOCALE_BY_LANGUAGE: Record<string, string> = { it: "it-IT", en: "en-US" };
-function intlLocale(): string {
+export function intlLocale(): string {
   return INTL_LOCALE_BY_LANGUAGE[i18n.language] ?? "it-IT";
 }
 

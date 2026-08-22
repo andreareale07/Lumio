@@ -13,7 +13,7 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
 import { Skeleton, SkeletonRows } from "../../components/ui/Skeleton";
 import { Tabs } from "../../components/ui/Tabs";
-import { formatDate, formatMoney, formatPeriodLabel, formatSignedMoney } from "../../lib/format";
+import { formatDate, formatMoney, formatPeriodLabel, formatSignedMoney, intlLocale } from "../../lib/format";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import {
   useAnalyticsBalanceHistory,
@@ -211,17 +211,23 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
   const cashFlow = useAnalyticsCashFlow({ ...trendPeriod, granularity: navGranularity });
   const byCategory = useAnalyticsByCategory({ ...period, direction: "expense" });
 
+  const bucketLabelStrings = {
+    locale: intlLocale(),
+    quarterAbbrev: t("common:period.quarterAbbrev"),
+    semesterAbbrev: t("common:period.semesterAbbrev"),
+  };
+
   const historyGranularity = history.data?.granularity ?? "month";
   const trendPoints = (history.data?.points ?? []).map((p) => ({
     period: p.period,
-    label: formatBucketLabel(p.period, historyGranularity),
+    label: formatBucketLabel(p.period, historyGranularity, bucketLabelStrings),
     value: Number(p.balance),
   }));
 
   const cashFlowGranularity = cashFlow.data?.granularity ?? "month";
   const cashFlowBars = (cashFlow.data?.points ?? []).map((p) => ({
     period: p.period,
-    label: formatBucketLabel(p.period, cashFlowGranularity),
+    label: formatBucketLabel(p.period, cashFlowGranularity, bucketLabelStrings),
     income: Number(p.income),
     expenses: Number(p.expenses),
   }));
@@ -266,7 +272,7 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
           tableCaption={t("detail.analyticsTab.cashFlowChart.tableCaption")}
           tableHeaders={t("detail.analyticsTab.cashFlowChart.tableHeaders", { returnObjects: true }) as string[]}
           tableRows={cashFlow.data.points.map((p) => [
-            formatBucketLabel(p.period, cashFlowGranularity),
+            formatBucketLabel(p.period, cashFlowGranularity, bucketLabelStrings),
             formatMoney(p.income, currency),
             formatMoney(p.expenses, currency),
           ])}

@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
+import { intlLocale } from "./format";
 import {
   DEFAULT_GRANULARITY,
   GRANULARITY_ORDER,
@@ -70,6 +72,7 @@ const NEW_STATE_KEYS = ["mode", "granularity", "anchor", "from", "to"];
  * permettere alle pagine non ancora migrate di continuare a funzionare
  * durante il rollout incrementale. */
 export function usePeriodNavigator(options: UsePeriodNavigatorOptions = {}): PeriodNavigatorState {
+  const { t } = useTranslation("common");
   const allowedGranularities = options.granularities ?? GRANULARITY_ORDER;
   const trendWindowSize = options.trendWindowSize ?? 6;
   const fallbackGranularity = allowedGranularities.includes(DEFAULT_GRANULARITY)
@@ -132,10 +135,18 @@ export function usePeriodNavigator(options: UsePeriodNavigatorOptions = {}): Per
   const currentBucket = periodForAnchor(granularity, anchor);
   const currentPeriod: Period & { label: string } =
     mode === "all"
-      ? { date_from: "", date_to: "", label: "Tutti i periodi" }
+      ? { date_from: "", date_to: "", label: t("period.allPeriods") }
       : mode === "custom" && customFrom && customTo
-        ? { date_from: customFrom, date_to: customTo, label: "Intervallo personalizzato" }
-        : { ...currentBucket, label: periodLabel(granularity, anchor) };
+        ? { date_from: customFrom, date_to: customTo, label: t("period.customRange") }
+        : {
+            ...currentBucket,
+            label: periodLabel(granularity, anchor, {
+              locale: intlLocale(),
+              quarterAbbrev: t("period.quarterAbbrev"),
+              semesterAbbrev: t("period.semesterAbbrev"),
+              weekLabel: (date) => t("period.weekLabel", { date }),
+            }),
+          };
 
   const trendWindow: Period =
     mode === "all"

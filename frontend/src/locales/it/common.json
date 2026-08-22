@@ -40,5 +40,28 @@
   "fields": {
     "currency": "Valuta",
     "category": "Categoria"
+  },
+  "period": {
+    "granularity": {
+      "day": "Giorno",
+      "week": "Settimana",
+      "month": "Mese",
+      "quarter": "Trimestre",
+      "semester": "Semestre",
+      "year": "Anno"
+    },
+    "weekLabel": "Settimana dal {{date}}",
+    "quarterAbbrev": "T",
+    "semesterAbbrev": "S",
+    "granularityAriaLabel": "Granularità",
+    "previousAriaLabel": "Periodo precedente",
+    "nextAriaLabel": "Periodo successivo",
+    "today": "Oggi",
+    "customRange": "Intervallo personalizzato",
+    "backToGranular": "Torna alla navigazione per periodo",
+    "allPeriods": "Tutti i periodi",
+    "filterByPeriod": "Filtra per periodo",
+    "from": "Dal",
+    "to": "Al"
   }
 }

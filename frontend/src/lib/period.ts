@@ -56,15 +56,6 @@ export type Granularity = AnalyticsGranularity;
 
 export const GRANULARITY_ORDER: Granularity[] = ["day", "week", "month", "quarter", "semester", "year"];
 
-export const GRANULARITY_LABELS: Record<Granularity, string> = {
-  day: "Giorno",
-  week: "Settimana",
-  month: "Mese",
-  quarter: "Trimestre",
-  semester: "Semestre",
-  year: "Anno",
-};
-
 export const DEFAULT_GRANULARITY: Granularity = "month";
 
 function toIsoDate(d: Date): string {
@@ -186,9 +177,22 @@ export function slidingWindow(granularity: Granularity, anchor: Date, size: numb
   };
 }
 
-const MONTH_YEAR_FORMAT = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" });
-const DAY_MONTH_FORMAT = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short" });
-const DAY_MONTH_YEAR_FORMAT = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+/** Abbreviazioni di trimestre/semestre e locale Intl — parametri opzionali
+ * (mai una dipendenza diretta da i18next: questo modulo resta puro/
+ * unit-testabile, vedi intestazione del file). I default riproducono
+ * esattamente il comportamento italiano preesistente, cosi' i test correnti
+ * non necessitano di passare nulla; chi vuole un'altra lingua (i componenti
+ * React, che hanno accesso a `useTranslation`/`intlLocale()`) passa i propri
+ * valori — stesso principio gia' in uso in `chartData.ts::greetingBucketForHour`
+ * (i moduli non-React non traducono da soli). */
+export interface PeriodLabelStrings {
+  locale?: string;
+  quarterAbbrev?: string;
+  semesterAbbrev?: string;
+  /** Riceve la data gia' formattata (es. "12 ago") e restituisce l'intera
+   * etichetta della settimana — mai testo spezzato in due parti. */
+  weekLabel?: (formattedDate: string) => string;
+}
 
 /** "Tn AAAA"/"Sn AAAA" — l'unica parte di formattazione IDENTICA fra
  * `periodLabel` (etichetta piena del navigatore) e
@@ -196,26 +200,35 @@ const DAY_MONTH_YEAR_FORMAT = new Intl.DateTimeFormat("it-IT", { day: "2-digit",
  * grafici, SPEC_FE_REDESIGN §21): per giorno/settimana/mese le due restano
  * deliberatamente diverse (piena vs compatta), qui si condivide solo il
  * calcolo che sarebbe altrimenti copiato identico in due file. */
-export function quarterOrSemesterLabel(granularity: "quarter" | "semester", d: Date): string {
-  if (granularity === "quarter") return `T${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
-  return `S${d.getMonth() < 6 ? 1 : 2} ${d.getFullYear()}`;
+export function quarterOrSemesterLabel(
+  granularity: "quarter" | "semester",
+  d: Date,
+  strings: Pick<PeriodLabelStrings, "quarterAbbrev" | "semesterAbbrev"> = {},
+): string {
+  const quarterAbbrev = strings.quarterAbbrev ?? "T";
+  const semesterAbbrev = strings.semesterAbbrev ?? "S";
+  if (granularity === "quarter") return `${quarterAbbrev}${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
+  return `${semesterAbbrev}${d.getMonth() < 6 ? 1 : 2} ${d.getFullYear()}`;
 }
 
 /** Etichetta leggibile del bucket corrente, coerente con lo stile gia' in
  * uso per gli assi dei grafici (`chartData.ts::formatBucketLabel`, minuscolo
- * per i nomi di mese come da convenzione italiana). */
-export function periodLabel(granularity: Granularity, anchor: Date): string {
+ * per i nomi di mese come da convenzione italiana quando `locale` e' "it-IT"). */
+export function periodLabel(granularity: Granularity, anchor: Date, strings: PeriodLabelStrings = {}): string {
+  const locale = strings.locale ?? "it-IT";
   const start = bucketStart(granularity, anchor);
   switch (granularity) {
     case "day":
-      return DAY_MONTH_YEAR_FORMAT.format(start);
-    case "week":
-      return `Settimana dal ${DAY_MONTH_FORMAT.format(start)}`;
+      return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "short", year: "numeric" }).format(start);
+    case "week": {
+      const formattedDate = new Intl.DateTimeFormat(locale, { day: "2-digit", month: "short" }).format(start);
+      return (strings.weekLabel ?? ((d) => `Settimana dal ${d}`))(formattedDate);
+    }
     case "month":
-      return MONTH_YEAR_FORMAT.format(start);
+      return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(start);
     case "quarter":
     case "semester":
-      return quarterOrSemesterLabel(granularity, start);
+      return quarterOrSemesterLabel(granularity, start, strings);
     case "year":
       return String(start.getFullYear());
   }

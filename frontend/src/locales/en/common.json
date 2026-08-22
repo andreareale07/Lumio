@@ -40,5 +40,28 @@
   "fields": {
     "currency": "Currency",
     "category": "Category"
+  },
+  "period": {
+    "granularity": {
+      "day": "Day",
+      "week": "Week",
+      "month": "Month",
+      "quarter": "Quarter",
+      "semester": "Semester",
+      "year": "Year"
+    },
+    "weekLabel": "Week of {{date}}",
+    "quarterAbbrev": "Q",
+    "semesterAbbrev": "H",
+    "granularityAriaLabel": "Granularity",
+    "previousAriaLabel": "Previous period",
+    "nextAriaLabel": "Next period",
+    "today": "Today",
+    "customRange": "Custom range",
+    "backToGranular": "Back to period navigation",
+    "allPeriods": "All periods",
+    "filterByPeriod": "Filter by period",
+    "from": "From",
+    "to": "To"
   }
 }

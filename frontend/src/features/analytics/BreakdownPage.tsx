@@ -10,7 +10,7 @@ import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { Skeleton } from "../../components/ui/Skeleton";
-import { formatMoney, formatPercent, formatPeriodLabel } from "../../lib/format";
+import { formatMoney, formatPercent, formatPeriodLabel, intlLocale } from "../../lib/format";
 import { previousPeriod } from "../../lib/period";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useTransactions } from "../transactions/api";
@@ -61,6 +61,12 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
     { enabled: !!selectedCategory },
   );
 
+  const bucketLabelStrings = {
+    locale: intlLocale(),
+    quarterAbbrev: t("common:period.quarterAbbrev"),
+    semesterAbbrev: t("common:period.semesterAbbrev"),
+  };
+
   const currency = summary.data?.currency ?? "EUR";
   const totalValue = direction === "expense" ? summary.data?.expenses : summary.data?.income;
   const previousValue = direction === "expense" ? summary.data?.previous_expenses : summary.data?.previous_income;
@@ -74,7 +80,7 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
   const granularity = cashFlow.data?.granularity ?? "month";
   const trendPoints = (cashFlow.data?.points ?? []).map((p) => ({
     period: p.period,
-    label: formatBucketLabel(p.period, granularity),
+    label: formatBucketLabel(p.period, granularity, bucketLabelStrings),
     value: Number(direction === "expense" ? p.expenses : p.income),
   }));
 
@@ -84,7 +90,7 @@ export function BreakdownPage({ direction, title, icon, emptyDescription }: Brea
   const drawerGranularity = drawerCashFlow.data?.granularity ?? "month";
   const drawerTrendPoints = (drawerCashFlow.data?.points ?? []).map((p) => ({
     period: p.period,
-    label: formatBucketLabel(p.period, drawerGranularity),
+    label: formatBucketLabel(p.period, drawerGranularity, bucketLabelStrings),
     value: Number(direction === "expense" ? p.expenses : p.income),
   }));
   const currentCategoryTotal = byCategory.data?.items.find((i) => i.category_id === selectedCategory?.id)?.total;
