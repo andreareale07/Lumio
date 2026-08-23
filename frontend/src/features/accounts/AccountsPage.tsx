@@ -11,7 +11,6 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { formatMoney } from "../../lib/format";
 import { useAnalyticsBalances } from "../analytics/api";
-import type { FinancialAccount } from "../../types/api";
 import { AccountFormDialog } from "./AccountFormDialog";
 import { useAccounts, useSetAccountActive } from "./api";
 import { useAccountTypeLabel } from "./labels";
@@ -21,7 +20,7 @@ export function AccountsPage() {
   const accountTypeLabel = useAccountTypeLabel();
   const { data: accounts, isLoading, isError, refetch } = useAccounts();
   const setActive = useSetAccountActive();
-  const [formAccount, setFormAccount] = useState<FinancialAccount | null | undefined>(undefined);
+  const [createOpen, setCreateOpen] = useState(false);
   // Saldo derivato (SPEC §18: nessun campo `balance` sul modello) — vedi
   // `app/services/analytics.py::account_balances`.
   const balances = useAnalyticsBalances();
@@ -30,7 +29,7 @@ export function AccountsPage() {
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-text">{t("page.title")}</h1>
-        <Button size="sm" onClick={() => setFormAccount(null)}>
+        <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" /> {t("page.addAccount")}
         </Button>
       </div>
@@ -50,7 +49,7 @@ export function AccountsPage() {
           icon={Landmark}
           title={t("page.empty.title")}
           description={t("page.empty.description")}
-          action={<Button onClick={() => setFormAccount(null)}>{t("page.addAccount")}</Button>}
+          action={<Button onClick={() => setCreateOpen(true)}>{t("page.addAccount")}</Button>}
         />
       )}
 
@@ -79,13 +78,12 @@ export function AccountsPage() {
                     <Link to={`/accounts/${account.id}`} className="text-sm font-medium text-primary hover:underline">
                       {t("page.open")}
                     </Link>
-                    <button
-                      type="button"
-                      onClick={() => setFormAccount(account)}
+                    <Link
+                      to={`/accounts/${account.id}/edit`}
                       className="text-sm text-text-muted hover:text-text"
                     >
                       {t("page.edit")}
-                    </button>
+                    </Link>
                   </div>
                   <button
                     type="button"
@@ -101,11 +99,7 @@ export function AccountsPage() {
         </div>
       )}
 
-      <AccountFormDialog
-        open={formAccount !== undefined}
-        onClose={() => setFormAccount(undefined)}
-        account={formAccount}
-      />
+      <AccountFormDialog open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   );
 }

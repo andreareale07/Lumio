@@ -77,11 +77,16 @@ export function AccountDetailPage() {
             {accountTypeLabel(account.account_type)} · {account.currency}
           </p>
         </div>
-        {accountBalance && (
-          <span className="font-numeric text-2xl font-semibold text-text">
-            {formatMoney(accountBalance.balance, account.currency)}
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {accountBalance && (
+            <span className="font-numeric text-2xl font-semibold text-text">
+              {formatMoney(accountBalance.balance, account.currency)}
+            </span>
+          )}
+          <LinkButton to={`/accounts/${account.id}/edit`} variant="secondary" size="sm">
+            {t("page.edit")}
+          </LinkButton>
+        </div>
       </div>
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />

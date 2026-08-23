@@ -4,6 +4,7 @@ import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AppShell } from "../../components/layout/AppShell";
 import { SettingsLayout } from "../../components/layout/SettingsLayout";
 import { AccountDetailPage } from "../../features/accounts/AccountDetailPage";
+import { AccountEditPage } from "../../features/accounts/AccountEditPage";
 import { AccountsPage } from "../../features/accounts/AccountsPage";
 import { ActivityPage } from "../../features/activity/ActivityPage";
 import { ExpensesPage } from "../../features/analytics/ExpensesPage";
@@ -60,6 +61,7 @@ export function AppRouter() {
       <Route path="/investments/portfolios/:portfolioId" element={<Protected><PortfolioDetailPage /></Protected>} />
       <Route path="/investments/assets/:assetId" element={<Protected><AssetDetailPage /></Protected>} />
       <Route path="/accounts" element={<Protected><AccountsPage /></Protected>} />
+      <Route path="/accounts/:accountId/edit" element={<Protected><AccountEditPage /></Protected>} />
       <Route path="/accounts/:accountId" element={<Protected><AccountDetailPage /></Protected>} />
       <Route path="/transactions" element={<Protected><TransactionsPage /></Protected>} />
       <Route path="/imports" element={<Protected><ImportsPage /></Protected>} />
