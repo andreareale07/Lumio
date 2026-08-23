@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import { ErrorState } from "../../components/ui/ErrorState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { ActivityRow } from "./ActivityRow";
@@ -11,20 +13,21 @@ import { useActivity } from "./api";
  * dall'utente per rispondere a "cosa sta facendo il sistema ora?" senza
  * dover andare a cercare in pagine diverse. */
 export function ActivityPage() {
+  const { t } = useTranslation("activity");
   const { data: items, isLoading, isError, refetch } = useActivity();
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div>
-        <h1 className="text-lg font-semibold text-text">Attività</h1>
-        <p className="text-sm text-text-muted">Cosa sta elaborando il sistema in questo momento, e l'ultimo esito.</p>
+        <h1 className="text-lg font-semibold text-text">{t("page.title")}</h1>
+        <p className="text-sm text-text-muted">{t("page.description")}</p>
       </div>
 
       {isLoading && <SkeletonRows rows={4} />}
-      {isError && <ErrorState message="Non siamo riusciti a caricare le attività." onRetry={() => void refetch()} />}
+      {isError && <ErrorState message={t("page.loadError")} onRetry={() => void refetch()} />}
 
       {!isLoading && !isError && items && items.length === 0 && (
-        <p className="text-sm text-text-muted">Nessuna attività da mostrare.</p>
+        <p className="text-sm text-text-muted">{t("page.empty")}</p>
       )}
 
       {!isLoading && !isError && items && items.length > 0 && (

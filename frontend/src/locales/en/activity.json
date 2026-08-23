@@ -1,0 +1,19 @@
+{
+  "page": {
+    "title": "Activity",
+    "description": "What the system is processing right now, and the latest outcome.",
+    "loadError": "We couldn't load the activity.",
+    "empty": "No activity to show."
+  },
+  "row": {
+    "status": {
+      "running": "Running",
+      "pending": "Pending",
+      "success": "Completed",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "startedAt": "Started: {{value}}",
+    "finishedAt": "Finished: {{value}}"
+  }
+}

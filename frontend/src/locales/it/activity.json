@@ -1,0 +1,19 @@
+{
+  "page": {
+    "title": "Attività",
+    "description": "Cosa sta elaborando il sistema in questo momento, e l'ultimo esito.",
+    "loadError": "Non siamo riusciti a caricare le attività.",
+    "empty": "Nessuna attività da mostrare."
+  },
+  "row": {
+    "status": {
+      "running": "In corso",
+      "pending": "In attesa",
+      "success": "Completato",
+      "completed": "Completato",
+      "failed": "Fallito"
+    },
+    "startedAt": "Iniziato: {{value}}",
+    "finishedAt": "Terminato: {{value}}"
+  }
+}

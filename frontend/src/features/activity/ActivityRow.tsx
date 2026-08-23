@@ -3,6 +3,7 @@ import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../components/ui/Badge";
+import { intlLocale } from "../../lib/format";
 import { useEtaEstimate } from "../../lib/eta";
 import type { ActivityItem, ActivityProgressEvent } from "./api";
 import { streamActivityItemEvents } from "./api";
@@ -13,14 +14,6 @@ const STATUS_ICON: Record<string, typeof Loader2> = {
   success: CheckCircle2,
   completed: CheckCircle2,
   failed: XCircle,
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  running: "In corso",
-  pending: "In attesa",
-  success: "Completato",
-  completed: "Completato",
-  failed: "Fallito",
 };
 
 // Convenzione standard di stato (semaforo): blu/azzurro = in corso o in
@@ -37,7 +30,7 @@ const STATUS_TONE: Record<string, "primary" | "success" | "danger" | "neutral"> 
 
 function formatTimestamp(value: string | null): string | null {
   if (!value) return null;
-  return new Date(value).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "medium" });
+  return new Date(value).toLocaleString(intlLocale(), { dateStyle: "short", timeStyle: "medium" });
 }
 
 /** Una riga del cruscotto Attività: mostra lo stato persistito subito, poi
@@ -46,8 +39,8 @@ function formatTimestamp(value: string | null): string | null {
  * processed/total/detail in tempo reale, stesso pattern di
  * AiClassificationProgress.tsx ma generalizzato al kind dell'item. */
 export function ActivityRow({ item }: { item: ActivityItem }) {
-  const { t } = useTranslation("jobs");
-  const label = item.label_key ? t(item.label_key) : item.label;
+  const { t } = useTranslation(["activity", "jobs"]);
+  const label = item.label_key ? t(`jobs:${item.label_key}`) : item.label;
   const [processed, setProcessed] = useState(item.processed);
   const [total, setTotal] = useState(item.total);
   const [detail, setDetail] = useState<string | null>(null);
@@ -96,7 +89,7 @@ export function ActivityRow({ item }: { item: ActivityItem }) {
           <Icon className={`h-4 w-4 ${iconColorClass} ${status === "running" ? "animate-spin" : ""}`} aria-hidden="true" />
           <span className="text-sm font-medium text-text">{label}</span>
         </div>
-        <Badge tone={tone}>{STATUS_LABEL[status] ?? status}</Badge>
+        <Badge tone={tone}>{t(`row.status.${status}`, { defaultValue: status })}</Badge>
       </div>
 
       {total != null && total > 0 && (
@@ -110,8 +103,8 @@ export function ActivityRow({ item }: { item: ActivityItem }) {
       {!detail && item.message && <div className="text-sm text-text-muted">{item.message}</div>}
 
       <div className="text-xs text-text-muted">
-        {started && <span>Iniziato: {started}</span>}
-        {finished && <span> · Terminato: {finished}</span>}
+        {started && <span>{t("row.startedAt", { value: started })}</span>}
+        {finished && <span> · {t("row.finishedAt", { value: finished })}</span>}
       </div>
     </div>
   );
