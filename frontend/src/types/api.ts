@@ -62,6 +62,7 @@ export interface FinancialAccount {
   currency: string;
   account_identifier_masked: string | null;
   iban: string | null;
+  classification_language: "it" | "en" | null;
   is_active: boolean;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;

@@ -67,6 +67,7 @@ async def load_category_options(
     *,
     kinds: frozenset[str] | None = None,
     leaves_only: bool = True,
+    language: str | None = None,
 ) -> list[CategoryOption]:
     """`kinds=None` carica tutto (usato oggi solo dai chiamanti che non
     filtrano ancora, es. suggerimenti regole); il job AI passa sempre
@@ -74,6 +75,14 @@ async def load_category_options(
     hanno figli: farsi assegnare un padre invece di una foglia specifica non
     aiuta ne' l'utente ne' `by_category` (che riaccorpa comunque sul padre),
     e dimezza ulteriormente le opzioni offerte al modello.
+
+    `language` (fetta 2, PLAN_TAXONOMY_I18N.md): quando `"en"`, il testo
+    delle categorie DI SISTEMA (`is_system=True`) — nome, nome del padre,
+    hint — viene sostituito con la traduzione inglese in `TAXONOMY_BY_CODE`
+    (`name_en`/`hint_en`), se esiste. Le categorie utente (`is_system=False`)
+    non hanno mai una traduzione nota: restano sempre `Category.name`,
+    indipendentemente da `language`. `None`/`"it"` (o traduzione mancante)
+    lasciano invariato il comportamento originale (sempre `Category.name`).
     """
     result = await db.execute(
         select(Category).where(
@@ -84,6 +93,12 @@ async def load_category_options(
     categories = result.scalars().all()
     by_id = {c.id: c for c in categories}
     parent_ids_with_children = {c.parent_id for c in categories if c.parent_id is not None}
+    use_en = language == "en"
+
+    def display_name(category: Category, taxonomy_entry) -> str:
+        if use_en and category.is_system and taxonomy_entry is not None and taxonomy_entry.name_en:
+            return taxonomy_entry.name_en
+        return category.name
 
     options = []
     for c in categories:
@@ -93,22 +108,29 @@ async def load_category_options(
             continue
         parent = by_id.get(c.parent_id) if c.parent_id is not None else None
         taxonomy_entry = TAXONOMY_BY_CODE.get(c.code)
+        parent_taxonomy_entry = TAXONOMY_BY_CODE.get(parent.code) if parent is not None else None
+        hint = taxonomy_entry.hint if taxonomy_entry is not None else None
+        if use_en and c.is_system and taxonomy_entry is not None and taxonomy_entry.hint_en:
+            hint = taxonomy_entry.hint_en
         options.append(
             CategoryOption(
                 id=c.id,
                 code=c.code,
-                name=c.name,
+                name=display_name(c, taxonomy_entry),
                 parent_code=parent.code if parent is not None else None,
-                parent_name=parent.name if parent is not None else None,
+                parent_name=display_name(parent, parent_taxonomy_entry) if parent is not None else None,
                 kind=c.kind,
-                hint=taxonomy_entry.hint if taxonomy_entry is not None else None,
+                hint=hint,
             )
         )
     return options
 
 
 async def classify_transaction(
-    classifier: AIClassifier, categories: list[CategoryOption], transaction: ClassifiableTransaction
+    classifier: AIClassifier,
+    categories: list[CategoryOption],
+    transaction: ClassifiableTransaction,
+    language: str | None = None,
 ) -> ClassificationAttempt:
     """Non solleva mai: un provider irraggiungibile o una risposta non
     interpretabile equivalgono a "nessuna classificazione AI" per questa
@@ -116,11 +138,16 @@ async def classify_transaction(
     sempre opzionale) — ma il chiamante puo' distinguere le due cause
     tramite `ClassificationAttempt.provider_error` per decidere se
     interrompere il job (troppi fallimenti di provider consecutivi) invece
-    di continuare a "tentare" righe che falliranno comunque."""
+    di continuare a "tentare" righe che falliranno comunque.
+
+    `language` (fetta 2): lingua del prompt (istruzioni + etichette campo),
+    stessa `FinancialAccount.classification_language` gia' usata per
+    tradurre `categories` in `load_category_options` — coerenza fra le due,
+    mai un prompt che mischia istruzioni italiane e categorie inglesi."""
     if not categories:
         return ClassificationAttempt(result=None, provider_error=False)
     try:
-        result = await classifier.classify(transaction, categories)
+        result = await classifier.classify(transaction, categories, language or "it")
         return ClassificationAttempt(result=result, provider_error=False)
     except AIProviderError:
         logger.warning("classificazione AI fallita (provider=%s)", classifier.provider, exc_info=True)

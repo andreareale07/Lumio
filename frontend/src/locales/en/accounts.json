@@ -19,9 +19,12 @@
     "fields": {
       "name": "Name",
       "type": "Type",
-      "iban": "IBAN (optional)"
+      "iban": "IBAN (optional)",
+      "classificationLanguage": "AI classification language"
     },
     "ibanHint": "Used to match bank transfers",
+    "classificationLanguageHint": "Language of the categories shown to the AI for this account — useful for a foreign account with a statement in a different language.",
+    "classificationLanguageDefault": "Default (Italian)",
     "submitEdit": "Save",
     "submitCreate": "Create account",
     "validation": {

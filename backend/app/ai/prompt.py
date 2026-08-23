@@ -29,7 +29,7 @@ from app.ai.base import AIClassificationResult, AIProviderError, CategoryOption,
 
 _JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
 
-_SYSTEM_INSTRUCTIONS = (
+_SYSTEM_INSTRUCTIONS_IT = (
     "Sei un classificatore di transazioni finanziarie personali per un utente italiano.\n"
     "Ricevi una transazione bancaria e un elenco di categorie ammesse, raggruppate per gruppo.\n"
     "Scegli SEMPRE una categoria specifica (mai il nome di un gruppo) che descriva lo SCOPO "
@@ -50,6 +50,62 @@ _SYSTEM_INSTRUCTIONS = (
     '{"category_code": "<code oppure null>", "confidence": <numero 0.0-1.0>, '
     '"reason": "<spiegazione breve>"}'
 )
+
+# Fetta 2 (PLAN_TAXONOMY_I18N.md): versione inglese per i conti con
+# `classification_language="en"` (es. conto estero, estratto conto in
+# inglese) — stessi `category_code` degli esempi italiani (identificatore
+# language-agnostic, mai tradotto), cambia solo il testo descrittivo
+# dell'esempio, adattato a un plausibile estratto conto inglese.
+_SYSTEM_INSTRUCTIONS_EN = (
+    "You are a personal finance transaction classifier for an English-speaking user.\n"
+    "You receive a bank transaction and a list of allowed categories, grouped by parent.\n"
+    "Always choose a specific category (never the name of a group) that describes the PURPOSE "
+    "of the expense or income, not the payment instrument.\n"
+    "If no category is a reasonable match, respond with category_code null: "
+    "this is a legitimate answer, better to abstain than guess.\n\n"
+    "Examples:\n"
+    '- description: "SHELL SERVICE STATION LONDON", merchant: "Shell" -> trasporti.carburante\n'
+    '- description: "CARD PAYMENT TESCO STORES", merchant: "Tesco" -> alimentari.supermercato\n'
+    '- description: "CARD PAYMENT BOOTS PHARMACY", merchant: "Boots" -> salute.farmacia\n'
+    '- description: "NETFLIX.COM", merchant: "Netflix" -> abbonamenti.streaming\n'
+    '- description: "CARD PAYMENT RESTAURANT THE OAK", merchant: unknown '
+    "-> bar_ristoranti.ristorante\n"
+    '- description: "CARD PAYMENT GREGGS BAKERY", merchant: unknown '
+    "-> alimentari.panetteria_macelleria\n"
+    '- description: "DIRECT DEBIT MANDATE 000123456789", merchant: unknown -> none (null)\n\n'
+    "Respond ONLY with a JSON object, no additional text, in the format:\n"
+    '{"category_code": "<code or null>", "confidence": <number 0.0-1.0>, '
+    '"reason": "<brief explanation>"}'
+)
+
+_SYSTEM_INSTRUCTIONS_BY_LANGUAGE = {"it": _SYSTEM_INSTRUCTIONS_IT, "en": _SYSTEM_INSTRUCTIONS_EN}
+
+_FIELD_LABELS_BY_LANGUAGE = {
+    "it": {
+        "available_categories": "Categorie disponibili:",
+        "transaction_to_classify": "Transazione da classificare:",
+        "date": "data",
+        "description": "descrizione",
+        "merchant": "merchant",
+        "merchant_unknown": "sconosciuto",
+        "counterparty": "controparte",
+        "amount": "importo",
+        "direction": "direzione",
+        "transaction_type": "tipo movimento",
+    },
+    "en": {
+        "available_categories": "Available categories:",
+        "transaction_to_classify": "Transaction to classify:",
+        "date": "date",
+        "description": "description",
+        "merchant": "merchant",
+        "merchant_unknown": "unknown",
+        "counterparty": "counterparty",
+        "amount": "amount",
+        "direction": "direction",
+        "transaction_type": "transaction type",
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -81,33 +137,38 @@ def _render_categories(categories: list[CategoryOption]) -> str:
     return "\n".join(lines)
 
 
-def _render_transaction(transaction: ClassifiableTransaction) -> str:
-    lines = ["Transazione da classificare:"]
+def _render_transaction(transaction: ClassifiableTransaction, language: str = "it") -> str:
+    labels = _FIELD_LABELS_BY_LANGUAGE.get(language, _FIELD_LABELS_BY_LANGUAGE["it"])
+    lines = [labels["transaction_to_classify"]]
     if transaction.transaction_date:
-        lines.append(f"data: {transaction.transaction_date}")
-    lines.append(f"descrizione: {transaction.description_normalized or transaction.description_raw}")
-    lines.append(f"merchant: {transaction.merchant or 'sconosciuto'}")
+        lines.append(f"{labels['date']}: {transaction.transaction_date}")
+    lines.append(f"{labels['description']}: {transaction.description_normalized or transaction.description_raw}")
+    lines.append(f"{labels['merchant']}: {transaction.merchant or labels['merchant_unknown']}")
     if transaction.counterparty_name:
-        lines.append(f"controparte: {transaction.counterparty_name}")
-    lines.append(f"importo: {transaction.amount} {transaction.currency}")
-    lines.append(f"direzione: {transaction.direction}")
-    lines.append(f"tipo movimento: {transaction.transaction_type}")
+        lines.append(f"{labels['counterparty']}: {transaction.counterparty_name}")
+    lines.append(f"{labels['amount']}: {transaction.amount} {transaction.currency}")
+    lines.append(f"{labels['direction']}: {transaction.direction}")
+    lines.append(f"{labels['transaction_type']}: {transaction.transaction_type}")
     return "\n".join(lines)
 
 
-def build_messages(transaction: ClassifiableTransaction, categories: list[CategoryOption]) -> PromptBundle:
+def build_messages(
+    transaction: ClassifiableTransaction, categories: list[CategoryOption], language: str = "it"
+) -> PromptBundle:
+    labels = _FIELD_LABELS_BY_LANGUAGE.get(language, _FIELD_LABELS_BY_LANGUAGE["it"])
     user = (
-        f"Categorie disponibili:\n{_render_categories(categories)}\n\n"
-        f"{_render_transaction(transaction)}"
+        f"{labels['available_categories']}\n{_render_categories(categories)}\n\n"
+        f"{_render_transaction(transaction, language)}"
     )
-    return PromptBundle(system=_SYSTEM_INSTRUCTIONS, user=user)
+    system = _SYSTEM_INSTRUCTIONS_BY_LANGUAGE.get(language, _SYSTEM_INSTRUCTIONS_IT)
+    return PromptBundle(system=system, user=user)
 
 
-def build_prompt(transaction: ClassifiableTransaction, categories: list[CategoryOption]) -> str:
+def build_prompt(transaction: ClassifiableTransaction, categories: list[CategoryOption], language: str = "it") -> str:
     """Concatenazione system+user in un unico prompt di testo — per i
     provider senza un vero ruolo system separato (Ollama `/api/generate`,
     server custom minimali)."""
-    bundle = build_messages(transaction, categories)
+    bundle = build_messages(transaction, categories, language)
     return f"{bundle.system}\n\n{bundle.user}"
 
 

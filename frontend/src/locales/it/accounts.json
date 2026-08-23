@@ -19,9 +19,12 @@
     "fields": {
       "name": "Nome",
       "type": "Tipo",
-      "iban": "IBAN (opzionale)"
+      "iban": "IBAN (opzionale)",
+      "classificationLanguage": "Lingua di classificazione IA"
     },
     "ibanHint": "Serve per il match dei bonifici",
+    "classificationLanguageHint": "Lingua delle categorie mostrate all'IA per questo conto — utile per un conto estero con estratto conto in lingua diversa.",
+    "classificationLanguageDefault": "Predefinito (italiano)",
     "submitEdit": "Salva",
     "submitCreate": "Crea conto",
     "validation": {

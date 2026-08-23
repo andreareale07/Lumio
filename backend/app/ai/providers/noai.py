@@ -7,7 +7,7 @@ class NoAIClassifier:
     provider = "none"
 
     async def classify(
-        self, transaction: ClassifiableTransaction, categories: list[CategoryOption]
+        self, transaction: ClassifiableTransaction, categories: list[CategoryOption], language: str = "it"
     ) -> AIClassificationResult | None:
         return None
 

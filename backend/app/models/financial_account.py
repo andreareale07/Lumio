@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 ACCOUNT_TYPES = ("checking", "savings", "brokerage", "cash", "credit_card", "other")
+CLASSIFICATION_LANGUAGES = ("it", "en")
 
 
 class FinancialAccount(Base):
@@ -23,6 +24,10 @@ class FinancialAccount(Base):
         CheckConstraint(
             "account_type IN ('checking', 'savings', 'brokerage', 'cash', 'credit_card', 'other')",
             name="ck_financial_accounts_account_type",
+        ),
+        CheckConstraint(
+            "classification_language IN ('it', 'en') OR classification_language IS NULL",
+            name="ck_financial_accounts_classification_language",
         ),
         # Consente la FK composita da `transactions` (workspace_id, financial_account_id)
         # -> (workspace_id, id): garanzia DB reale contro relazioni cross-tenant
@@ -49,6 +54,13 @@ class FinancialAccount(Base):
     # A differenza di account_identifier_masked (pensato per la UI, gia'
     # mascherato), qui serve il valore completo per il confronto esatto.
     iban: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Fetta 2 (PLAN_TAXONOMY_I18N.md): lingua usata nel testo delle categorie
+    # di sistema offerte al modello AI durante la classificazione di questo
+    # conto — indipendente dalla lingua della UI. `NULL` = italiano (default,
+    # comportamento invariato per i conti esistenti). Mai influenza le
+    # categorie utente (testo libero, nessuna traduzione nota) ne'
+    # `description_raw` della transazione.
+    classification_language: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

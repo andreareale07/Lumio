@@ -34,6 +34,11 @@ function buildSchema(t: TFunction) {
       .transform((v) => v.toUpperCase().replace(/\s+/g, ""))
       .refine((v) => v === "" || IBAN_PATTERN.test(v), t("form.validation.invalidIban"))
       .optional(),
+    // Lingua usata nel testo delle categorie di sistema offerte all'IA
+    // durante la classificazione di questo conto (fetta 2,
+    // PLAN_TAXONOMY_I18N.md) — `null` = predefinito (italiano), invariato
+    // rispetto a prima di questa fetta.
+    classification_language: z.enum(["it", "en"]).nullable(),
   });
 }
 type FormValues = z.infer<ReturnType<typeof buildSchema>>;
@@ -52,9 +57,10 @@ function valuesFrom(account: FinancialAccount | null | undefined, defaultCurrenc
       account_type: account.account_type,
       currency: account.currency,
       iban: account.iban ?? "",
+      classification_language: account.classification_language,
     };
   }
-  return { name: "", account_type: "checking", currency: defaultCurrency, iban: "" };
+  return { name: "", account_type: "checking", currency: defaultCurrency, iban: "", classification_language: null };
 }
 
 /** Il tipo di conto (`account_type`) determina in quale bucket del
@@ -131,6 +137,20 @@ export function AccountFormDialog({ open, onClose, account }: AccountFormDialogP
           error={errors.iban?.message}
           {...register("iban")}
         />
+        <div className="flex flex-col gap-1.5">
+          <Select
+            label={t("form.fields.classificationLanguage")}
+            error={errors.classification_language?.message}
+            {...register("classification_language", { setValueAs: (v) => (v === "" ? null : v) })}
+          >
+            <option value="">{t("form.classificationLanguageDefault")}</option>
+            <option value="it">{t("common:language.it")}</option>
+            <option value="en">{t("common:language.en")}</option>
+          </Select>
+          {!errors.classification_language && (
+            <p className="text-sm text-text-muted">{t("form.classificationLanguageHint")}</p>
+          )}
+        </div>
         {formError && (
           <p role="alert" className="text-sm text-danger">
             {formError}

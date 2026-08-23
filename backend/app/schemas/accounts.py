@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.financial_account import ACCOUNT_TYPES
+from app.models.financial_account import ACCOUNT_TYPES, CLASSIFICATION_LANGUAGES
 
 # Nessun controllo di checksum IBAN (fuori scope, milestone 09.5b): solo una
 # sanity-check di lunghezza/charset, sufficiente a evitare un valore
@@ -32,6 +32,7 @@ class FinancialAccountCreate(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
     account_identifier_masked: str | None = None
     iban: str | None = None
+    classification_language: str | None = Field(default=None, pattern="^(" + "|".join(CLASSIFICATION_LANGUAGES) + ")$")
 
     @field_validator("iban")
     @classmethod
@@ -46,6 +47,7 @@ class FinancialAccountUpdate(BaseModel):
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     account_identifier_masked: str | None = None
     iban: str | None = None
+    classification_language: str | None = Field(default=None, pattern="^(" + "|".join(CLASSIFICATION_LANGUAGES) + ")$")
     is_active: bool | None = None
 
     @field_validator("iban")
@@ -63,6 +65,7 @@ class FinancialAccountOut(BaseModel):
     currency: str
     account_identifier_masked: str | None
     iban: str | None
+    classification_language: str | None
     is_active: bool
     created_at: datetime
     updated_at: datetime

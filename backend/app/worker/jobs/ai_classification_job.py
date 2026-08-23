@@ -34,6 +34,7 @@ from app.ai.registry import build_classifier
 from app.core.config import get_settings
 from app.db.rls import rls_session
 from app.models.classification import Classification
+from app.models.financial_account import FinancialAccount
 from app.models.import_ import Import
 from app.models.transaction import Transaction
 from app.services import job_events
@@ -110,6 +111,7 @@ async def classify_import_transactions_job(ctx, import_id: str, created_by_user_
             )
             return
         workspace_id = import_row.workspace_id
+        financial_account_id = import_row.financial_account_id
         total = import_row.ai_transactions_total
         import_row.ai_classification_status = "running"
         await db.commit()
@@ -117,7 +119,7 @@ async def classify_import_transactions_job(ctx, import_id: str, created_by_user_
     await job_events.emit(import_uuid, "job.started", namespace=NAMESPACE, processed=0, total=total)
 
     try:
-        await _classify_all(import_uuid, user_uuid, workspace_id, total)
+        await _classify_all(import_uuid, user_uuid, workspace_id, total, financial_account_id)
     except (Exception, asyncio.CancelledError) as exc:
         # Stesso pattern di import_job.py: asyncio.CancelledError eredita da
         # BaseException (Python 3.8+), un `except Exception:` la lascerebbe
@@ -153,7 +155,13 @@ async def classify_import_transactions_job(ctx, import_id: str, created_by_user_
     await job_events.emit(import_uuid, "job.completed", namespace=NAMESPACE, processed=total, total=total)
 
 
-async def _classify_all(import_uuid: uuid.UUID, user_uuid: uuid.UUID, workspace_id: uuid.UUID, total: int) -> None:
+async def _classify_all(
+    import_uuid: uuid.UUID,
+    user_uuid: uuid.UUID,
+    workspace_id: uuid.UUID,
+    total: int,
+    financial_account_id: uuid.UUID,
+) -> None:
     async with rls_session(user_uuid) as db:
         active_ai_profile = await get_active_profile(db, workspace_id)
         if active_ai_profile is None:
@@ -166,12 +174,19 @@ async def _classify_all(import_uuid: uuid.UUID, user_uuid: uuid.UUID, workspace_
                 await db.commit()
             return
         ai_classifier = build_classifier(active_ai_profile)
+        # Fetta 2 (PLAN_TAXONOMY_I18N.md): lingua di classificazione del
+        # conto a cui appartiene questo import — None (mai impostata) vale
+        # italiano, comportamento invariato per i conti esistenti.
+        financial_account = await db.get(FinancialAccount, financial_account_id)
+        classification_language = financial_account.classification_language if financial_account else None
         # Rework prompt AI: caricate UNA sola volta con kinds=None (tutte),
         # il filtro per kind/segno e' per-riga (righe diverse nello stesso
         # import possono avere direction/transaction_type diversi) — vedi
         # kinds_for_transaction() piu' sotto, applicato in Python prima di
         # ogni chiamata invece di interrogare il DB per ogni riga.
-        ai_categories = await load_category_options(db, workspace_id, kinds=None, leaves_only=True)
+        ai_categories = await load_category_options(
+            db, workspace_id, kinds=None, leaves_only=True, language=classification_language
+        )
         ai_provider = active_ai_profile.provider
         ai_model = active_ai_profile.model
         # Letta una volta per l'intero job, non per riga: system_settings
@@ -261,6 +276,7 @@ async def _classify_all(import_uuid: uuid.UUID, user_uuid: uuid.UUID, workspace_
                         transaction_date=row.transaction_date,
                         counterparty_name=row.counterparty_name,
                     ),
+                    classification_language,
                 )
                 for row in batch
             ]

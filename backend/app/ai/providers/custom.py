@@ -31,10 +31,10 @@ class CustomClassifier:
         return {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
 
     async def classify(
-        self, transaction: ClassifiableTransaction, categories: list[CategoryOption]
+        self, transaction: ClassifiableTransaction, categories: list[CategoryOption], language: str = "it"
     ) -> AIClassificationResult | None:
         settings = get_settings()
-        bundle = build_messages(transaction, categories)
+        bundle = build_messages(transaction, categories, language)
         messages = [
             {"role": "system", "content": bundle.system},
             {"role": "user", "content": bundle.user},

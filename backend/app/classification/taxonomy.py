@@ -50,6 +50,11 @@ class TaxonomyCategory:
     # categorie utente (`is_system=false`) non hanno equivalente: il loro
     # `name` e' testo libero, mai tradotto.
     name_en: str | None = None
+    # Traduzione inglese di `hint` (fetta 2, lingua di classificazione AI
+    # per conto): un prompt in inglese con un hint italiano confonderebbe
+    # il modello — valorizzato solo per le 7 categorie che hanno gia' un
+    # `hint`, mai un riempimento meccanico.
+    hint_en: str | None = None
 
 
 TAXONOMY: list[TaxonomyCategory] = [
@@ -70,19 +75,19 @@ TAXONOMY: list[TaxonomyCategory] = [
     TaxonomyCategory(id="83f9977e-9d67-4469-89d8-09545e9d6327", code="utenze.telefonia", name="Telefonia", name_en="Phone", kind="expense", parent_code="utenze", sort_order=206),
     TaxonomyCategory(id="aedab3da-b3cf-480e-b2df-d49aacee12ca", code="utenze.rifiuti", name="Rifiuti (TARI)", name_en="Waste collection tax", kind="expense", parent_code="utenze", sort_order=207),
     TaxonomyCategory(id="124e2b3d-02d0-4a8b-9c5e-8b6e83bb2550", code="alimentari", name="Alimentari", name_en="Groceries", kind="expense", parent_code=None, sort_order=300),
-    TaxonomyCategory(id="0b4f2db6-bcbb-4401-a707-c61dcec68c35", code="alimentari.supermercato", name="Supermercato", name_en="Supermarket", kind="expense", parent_code="alimentari", sort_order=301, hint="spesa, materie prime, non cibo gia' pronto/consumato fuori casa"),
+    TaxonomyCategory(id="0b4f2db6-bcbb-4401-a707-c61dcec68c35", code="alimentari.supermercato", name="Supermercato", name_en="Supermarket", kind="expense", parent_code="alimentari", sort_order=301, hint="spesa, materie prime, non cibo gia' pronto/consumato fuori casa", hint_en="groceries, raw ingredients, not ready-to-eat food or food consumed out"),
     TaxonomyCategory(id="9137698b-7626-40ee-ac62-7a20c5c009df", code="alimentari.mercato", name="Mercato", name_en="Market", kind="expense", parent_code="alimentari", sort_order=302),
     TaxonomyCategory(id="2aa5a75b-173b-407b-aab8-f730c0b53e96", code="alimentari.panetteria_macelleria", name="Panetteria e macelleria", name_en="Bakery and butcher", kind="expense", parent_code="alimentari", sort_order=303),
     TaxonomyCategory(id="88032f7f-3897-4c87-9696-d9213f5e5cf4", code="alimentari.bevande", name="Bevande ed enoteca", name_en="Beverages and wine shop", kind="expense", parent_code="alimentari", sort_order=304),
     TaxonomyCategory(id="d016787d-3ebd-43b4-9ce1-0504c6e68c51", code="alimentari.spesa_online", name="Spesa online", name_en="Online groceries", kind="expense", parent_code="alimentari", sort_order=305),
     TaxonomyCategory(id="e5108a5e-cdce-4a0c-bbf9-2e4c3b271ee8", code="bar_ristoranti", name="Bar e ristoranti", name_en="Bars and restaurants", kind="expense", parent_code=None, sort_order=400),
-    TaxonomyCategory(id="1e6352dc-878d-4feb-bae2-51cb21be2f4e", code="bar_ristoranti.ristorante", name="Ristorante", name_en="Restaurant", kind="expense", parent_code="bar_ristoranti", sort_order=401, hint="cibo consumato o ordinato pronto, non la spesa al supermercato"),
+    TaxonomyCategory(id="1e6352dc-878d-4feb-bae2-51cb21be2f4e", code="bar_ristoranti.ristorante", name="Ristorante", name_en="Restaurant", kind="expense", parent_code="bar_ristoranti", sort_order=401, hint="cibo consumato o ordinato pronto, non la spesa al supermercato", hint_en="food eaten out or ordered ready-to-eat, not grocery shopping"),
     TaxonomyCategory(id="c66abf04-f458-4eab-a84f-c1c2bd94ec0b", code="bar_ristoranti.bar_caffetteria", name="Bar e caffetteria", name_en="Bar and coffee shop", kind="expense", parent_code="bar_ristoranti", sort_order=402),
     TaxonomyCategory(id="d1b97945-f683-4548-8ba6-15450c2979ac", code="bar_ristoranti.fast_food", name="Fast food", name_en="Fast food", kind="expense", parent_code="bar_ristoranti", sort_order=403),
     TaxonomyCategory(id="243420bb-ca3e-4844-baa6-664e0c7e692a", code="bar_ristoranti.delivery", name="Delivery", name_en="Delivery", kind="expense", parent_code="bar_ristoranti", sort_order=404),
     TaxonomyCategory(id="86d0811d-585c-49d9-9919-e453211f2664", code="bar_ristoranti.mensa", name="Mensa aziendale", name_en="Company canteen", kind="expense", parent_code="bar_ristoranti", sort_order=405),
     TaxonomyCategory(id="cec3c5b0-22fb-45b8-a7e6-d7ad1d1a6b27", code="trasporti", name="Trasporti", name_en="Transport", kind="expense", parent_code=None, sort_order=500),
-    TaxonomyCategory(id="8bc9c730-a478-4377-a52a-3954e7c1c2cd", code="trasporti.carburante", name="Carburante", name_en="Fuel", kind="expense", parent_code="trasporti", sort_order=501, hint="benzina, diesel, GPL, colonnine di ricarica elettrica"),
+    TaxonomyCategory(id="8bc9c730-a478-4377-a52a-3954e7c1c2cd", code="trasporti.carburante", name="Carburante", name_en="Fuel", kind="expense", parent_code="trasporti", sort_order=501, hint="benzina, diesel, GPL, colonnine di ricarica elettrica", hint_en="petrol, diesel, LPG, electric charging stations"),
     TaxonomyCategory(id="fc20ab4a-976f-4955-a4f3-4dbdfa6e51d2", code="trasporti.ricarica_elettrica", name="Ricarica elettrica", name_en="Electric charging", kind="expense", parent_code="trasporti", sort_order=502),
     TaxonomyCategory(id="93c37b55-bd1b-456d-a70f-b305cb60c623", code="trasporti.pedaggi", name="Pedaggi", name_en="Tolls", kind="expense", parent_code="trasporti", sort_order=503),
     TaxonomyCategory(id="e055b9c1-c03f-4a04-93ce-39227018353d", code="trasporti.parcheggi", name="Parcheggi", name_en="Parking", kind="expense", parent_code="trasporti", sort_order=504),
@@ -95,7 +100,7 @@ TAXONOMY: list[TaxonomyCategory] = [
     TaxonomyCategory(id="ccf0fabc-2f38-48c8-a336-1b6ca90a6feb", code="trasporti.manutenzione_veicolo", name="Manutenzione veicolo", name_en="Vehicle maintenance", kind="expense", parent_code="trasporti", sort_order=511),
     TaxonomyCategory(id="71f8d997-ac08-419e-9fda-189633750ca0", code="trasporti.bollo_multe", name="Bollo e multe", name_en="Road tax and fines", kind="expense", parent_code="trasporti", sort_order=512),
     TaxonomyCategory(id="c9d50464-3ccb-4842-9c9e-cdb33f974128", code="salute", name="Salute e cura della persona", name_en="Health and personal care", kind="expense", parent_code=None, sort_order=600),
-    TaxonomyCategory(id="b885ca78-b503-493c-bbe6-e5b0c1638464", code="salute.farmacia", name="Farmacia", name_en="Pharmacy", kind="expense", parent_code="salute", sort_order=601, hint="farmaci, parafarmaco, prodotti da farmacia"),
+    TaxonomyCategory(id="b885ca78-b503-493c-bbe6-e5b0c1638464", code="salute.farmacia", name="Farmacia", name_en="Pharmacy", kind="expense", parent_code="salute", sort_order=601, hint="farmaci, parafarmaco, prodotti da farmacia", hint_en="medicines, over-the-counter health products, pharmacy items"),
     TaxonomyCategory(id="c615f6e8-6767-4f71-b65a-8f7656965ea6", code="salute.visite_mediche", name="Visite mediche", name_en="Medical visits", kind="expense", parent_code="salute", sort_order=602),
     TaxonomyCategory(id="207e77a6-4176-476c-bb9a-9feb249ab995", code="salute.dentista", name="Dentista", name_en="Dentist", kind="expense", parent_code="salute", sort_order=603),
     TaxonomyCategory(id="4e556332-3594-4bff-9cd3-60f7d41c53de", code="salute.analisi_esami", name="Analisi ed esami", name_en="Lab tests and exams", kind="expense", parent_code="salute", sort_order=604),
@@ -118,7 +123,7 @@ TAXONOMY: list[TaxonomyCategory] = [
     TaxonomyCategory(id="12e31f65-feed-4bf4-96a4-128d566ed3eb", code="tempo_libero.sport", name="Sport e attività", name_en="Sports and activities", kind="expense", parent_code="tempo_libero", sort_order=805),
     TaxonomyCategory(id="fe3c3b21-330d-4345-a74f-fbca3ffb638e", code="tempo_libero.hobby", name="Hobby", name_en="Hobbies", kind="expense", parent_code="tempo_libero", sort_order=806),
     TaxonomyCategory(id="9d1ce192-c4f4-48b2-9d38-9e7412014e56", code="abbonamenti", name="Abbonamenti", name_en="Subscriptions", kind="expense", parent_code=None, sort_order=900),
-    TaxonomyCategory(id="a8493dbc-1dc0-4875-bd1e-d7e36a220cbf", code="abbonamenti.streaming", name="Streaming", name_en="Streaming", kind="expense", parent_code="abbonamenti", sort_order=901, hint="abbonamento video ricorrente (Netflix, Disney+, Prime Video)"),
+    TaxonomyCategory(id="a8493dbc-1dc0-4875-bd1e-d7e36a220cbf", code="abbonamenti.streaming", name="Streaming", name_en="Streaming", kind="expense", parent_code="abbonamenti", sort_order=901, hint="abbonamento video ricorrente (Netflix, Disney+, Prime Video)", hint_en="recurring video subscription (Netflix, Disney+, Prime Video)"),
     TaxonomyCategory(id="b3eb4eb8-4fea-4960-9fab-f19c40285bf5", code="abbonamenti.streaming_musica", name="Streaming musica", name_en="Music streaming", kind="expense", parent_code="abbonamenti", sort_order=902),
     TaxonomyCategory(id="fc21248e-72b0-4e21-9733-e6b008b8b91e", code="abbonamenti.software", name="Software", name_en="Software", kind="expense", parent_code="abbonamenti", sort_order=903),
     TaxonomyCategory(id="846abf8b-e8a7-425e-95ca-c66221056f95", code="abbonamenti.cloud_storage", name="Cloud e storage", name_en="Cloud and storage", kind="expense", parent_code="abbonamenti", sort_order=904),
@@ -199,8 +204,8 @@ TAXONOMY: list[TaxonomyCategory] = [
     TaxonomyCategory(id="7c53f340-b39c-41ec-8430-dc965a5ea2ed", code="investimenti.prelievo_conto_titoli", name="Prelievo da conto titoli", name_en="Withdrawal from brokerage account", kind="investment", parent_code="investimenti", sort_order=2207),
     TaxonomyCategory(id="187f5a5c-5408-4e8b-9d7f-f07144431dc4", code="altro", name="Altro", name_en="Other", kind="neutral", parent_code=None, sort_order=2300),
     TaxonomyCategory(id="e100683d-8788-4a14-b59c-78c306d4fb81", code="altro.da_classificare", name="Da classificare", name_en="To be classified", kind="neutral", parent_code="altro", sort_order=2301),
-    TaxonomyCategory(id="a70a5b27-a56e-4010-af75-658f0e3d1c76", code="altro.bonifico_a_terzi", name="Bonifico a terzi (scopo non specificato)", name_en="Transfer to third party (unspecified purpose)", kind="neutral", parent_code="altro", sort_order=2302, hint="usa questa SOLO se nessun'altra categoria descrive lo scopo del bonifico"),
-    TaxonomyCategory(id="d41606f2-785d-4a3c-ae70-3c5a1b4c87fc", code="altro.bonifico_ricevuto", name="Bonifico ricevuto (origine non specificata)", name_en="Transfer received (unspecified origin)", kind="neutral", parent_code="altro", sort_order=2303, hint="usa questa SOLO se nessun'altra categoria descrive l'origine del bonifico"),
+    TaxonomyCategory(id="a70a5b27-a56e-4010-af75-658f0e3d1c76", code="altro.bonifico_a_terzi", name="Bonifico a terzi (scopo non specificato)", name_en="Transfer to third party (unspecified purpose)", kind="neutral", parent_code="altro", sort_order=2302, hint="usa questa SOLO se nessun'altra categoria descrive lo scopo del bonifico", hint_en="use this ONLY if no other category describes the purpose of the transfer"),
+    TaxonomyCategory(id="d41606f2-785d-4a3c-ae70-3c5a1b4c87fc", code="altro.bonifico_ricevuto", name="Bonifico ricevuto (origine non specificata)", name_en="Transfer received (unspecified origin)", kind="neutral", parent_code="altro", sort_order=2303, hint="usa questa SOLO se nessun'altra categoria descrive l'origine del bonifico", hint_en="use this ONLY if no other category describes the origin of the transfer"),
     TaxonomyCategory(id="3a6e4aba-c644-47f9-90a3-7b9d89a44837", code="altro.contanti", name="Contanti non tracciati", name_en="Untracked cash", kind="neutral", parent_code="altro", sort_order=2304),
 ]
 

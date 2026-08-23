@@ -24,10 +24,10 @@ class OllamaClassifier:
         self.model = model
 
     async def classify(
-        self, transaction: ClassifiableTransaction, categories: list[CategoryOption]
+        self, transaction: ClassifiableTransaction, categories: list[CategoryOption], language: str = "it"
     ) -> AIClassificationResult | None:
         settings = get_settings()
-        prompt = build_prompt(transaction, categories)
+        prompt = build_prompt(transaction, categories, language)
         try:
             async with httpx.AsyncClient(timeout=settings.ai_classify_timeout_seconds) as client:
                 response = await client.post(

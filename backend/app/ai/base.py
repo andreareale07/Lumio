@@ -74,13 +74,16 @@ class AIClassifier(Protocol):
     provider: str
 
     async def classify(
-        self, transaction: ClassifiableTransaction, categories: list[CategoryOption]
+        self, transaction: ClassifiableTransaction, categories: list[CategoryOption], language: str = "it"
     ) -> AIClassificationResult | None:
         """Ritorna la categoria scelta (con confidence dichiarata dal
         modello) o None se il modello non ha trovato un match sensato tra le
         `categories` offerte. Solleva `AIProviderError` per problemi di
         comunicazione — mai per "nessuna categoria adatta", che e' un
-        risultato legittimo (None), non un errore."""
+        risultato legittimo (None), non un errore.
+
+        `language` (fetta 2, PLAN_TAXONOMY_I18N.md): lingua del prompt
+        (istruzioni + etichette campo) — vedi `app/ai/prompt.py`."""
         ...
 
     async def test_connection(self) -> None:

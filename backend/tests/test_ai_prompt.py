@@ -5,7 +5,8 @@ import pytest
 
 from app.ai.base import AIProviderError, CategoryOption
 from app.ai.prompt import (
-    _SYSTEM_INSTRUCTIONS,
+    _SYSTEM_INSTRUCTIONS_EN,
+    _SYSTEM_INSTRUCTIONS_IT,
     build_messages,
     build_prompt,
     parse_response,
@@ -155,7 +156,7 @@ def test_response_schema_constrains_category_code_to_offered_codes_or_null():
 def test_every_few_shot_example_code_exists_in_taxonomy():
     # Un code inventato nei few-shot insegnerebbe al modello a inventarne
     # altri — ogni code citato deve esistere davvero nella tassonomia viva.
-    codes = re.findall(r"-> ([a-z_]+\.[a-z_]+)\b", _SYSTEM_INSTRUCTIONS)
+    codes = re.findall(r"-> ([a-z_]+\.[a-z_]+)\b", _SYSTEM_INSTRUCTIONS_IT)
     assert codes, "nessun code trovato nei few-shot: la regex e' rotta, non il test"
     for code in codes:
         assert code in TAXONOMY_BY_CODE, f"code {code!r} usato nei few-shot non esiste nella tassonomia"
@@ -164,4 +165,46 @@ def test_every_few_shot_example_code_exists_in_taxonomy():
 def test_system_instructions_include_a_null_example():
     # Il modello deve imparare che astenersi e' una risposta legittima, non
     # solo che deve sempre scegliere qualcosa.
-    assert "-> nessuna (null)" in _SYSTEM_INSTRUCTIONS
+    assert "-> nessuna (null)" in _SYSTEM_INSTRUCTIONS_IT
+
+
+def test_every_en_few_shot_example_code_exists_in_taxonomy():
+    # Stesso controllo di test_every_few_shot_example_code_exists_in_taxonomy
+    # ma per la versione inglese (fetta 2, lingua di classificazione per
+    # conto) — i code restano identici in entrambe le lingue, cambia solo
+    # il testo descrittivo dell'esempio.
+    codes = re.findall(r"-> ([a-z_]+\.[a-z_]+)\b", _SYSTEM_INSTRUCTIONS_EN)
+    assert codes, "nessun code trovato nei few-shot inglesi: la regex e' rotta, non il test"
+    for code in codes:
+        assert code in TAXONOMY_BY_CODE, f"code {code!r} usato nei few-shot inglesi non esiste nella tassonomia"
+
+
+def test_en_system_instructions_include_a_null_example():
+    assert "-> none (null)" in _SYSTEM_INSTRUCTIONS_EN
+
+
+def test_build_messages_uses_english_labels_when_language_is_en():
+    from app.ai.base import ClassifiableTransaction
+
+    transaction = ClassifiableTransaction(
+        description_raw="SHELL LONDON", description_normalized=None, merchant=None,
+        amount="-40.00", currency="EUR", direction="debit",
+    )
+    bundle = build_messages(transaction, _CATEGORIES, "en")
+    assert bundle.system == _SYSTEM_INSTRUCTIONS_EN
+    assert "Available categories:" in bundle.user
+    assert "Transaction to classify:" in bundle.user
+    assert "description: SHELL LONDON" in bundle.user
+
+
+def test_build_messages_defaults_to_italian_labels():
+    from app.ai.base import ClassifiableTransaction
+
+    transaction = ClassifiableTransaction(
+        description_raw="LIDL", description_normalized=None, merchant=None,
+        amount="-10.00", currency="EUR", direction="debit",
+    )
+    bundle = build_messages(transaction, _CATEGORIES)
+    assert bundle.system == _SYSTEM_INSTRUCTIONS_IT
+    assert "Categorie disponibili:" in bundle.user
+    assert "descrizione: LIDL" in bundle.user

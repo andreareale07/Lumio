@@ -36,10 +36,10 @@ class AnthropicClassifier:
         }
 
     async def classify(
-        self, transaction: ClassifiableTransaction, categories: list[CategoryOption]
+        self, transaction: ClassifiableTransaction, categories: list[CategoryOption], language: str = "it"
     ) -> AIClassificationResult | None:
         settings = get_settings()
-        bundle = build_messages(transaction, categories)
+        bundle = build_messages(transaction, categories, language)
         tool = {
             "name": _TOOL_NAME,
             "description": "Classifica la transazione in una delle categorie offerte.",
