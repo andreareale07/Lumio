@@ -852,6 +852,7 @@ export interface GoogleExportRequest {
   date_to: IsoDate;
   include_portfolio?: boolean | null;
   include_charts?: boolean;
+  language?: "it" | "en";
 }
 
 export interface GoogleExportTriggered {

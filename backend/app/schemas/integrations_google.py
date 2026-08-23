@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ConnectUrlOut(BaseModel):
@@ -48,6 +48,10 @@ class ExportRequest(BaseModel):
     date_to: date
     include_portfolio: bool | None = None  # None = automatico (has_holdings)
     include_charts: bool = True
+    # Fetta 3 (PLAN_TAXONOMY_I18N.md): lingua del CONTENUTO scritto nei
+    # fogli — segue la lingua UI del frontend al momento dell'export, non
+    # i titoli dei tab (fissi, vedi report_i18n.py).
+    language: str = Field(default="it", pattern="^(it|en)$")
 
 
 class ExportTriggered(BaseModel):

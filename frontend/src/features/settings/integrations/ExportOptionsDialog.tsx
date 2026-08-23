@@ -35,7 +35,7 @@ export function ExportOptionsDialog({
   onClose: () => void;
   integration: GoogleIntegration;
 }) {
-  const { t } = useTranslation(["settings", "common"]);
+  const { t, i18n } = useTranslation(["settings", "common"]);
   const triggerExport = useTriggerGoogleExport();
   const setFolder = useSetGoogleDriveFolder();
   const exportStatus = useGoogleExportStatus();
@@ -72,6 +72,9 @@ export function ExportOptionsDialog({
         date_to: dateTo,
         include_portfolio: portfolioChoice === "auto" ? null : portfolioChoice === "yes",
         include_charts: includeCharts,
+        // Fetta 3 (PLAN_TAXONOMY_I18N.md): il contenuto scritto nei fogli
+        // segue la lingua UI corrente — mai i titoli dei tab (fissi).
+        language: i18n.language === "en" ? "en" : "it",
       });
       setStep("progress");
     } catch (error) {

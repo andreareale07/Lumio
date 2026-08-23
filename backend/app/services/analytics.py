@@ -479,21 +479,28 @@ async def by_category(
 
 async def _label_category_rows(db: AsyncSession, rows) -> list[dict]:
     category_ids = [r.group_id for r in rows if r.group_id is not None]
-    names: dict[uuid.UUID, str] = {}
+    categories: dict[uuid.UUID, Category] = {}
     if category_ids:
-        cat_rows = (
-            await db.execute(select(Category.id, Category.name).where(Category.id.in_(category_ids)))
-        ).all()
-        names = {c.id: c.name for c in cat_rows}
+        cat_rows = (await db.execute(select(Category).where(Category.id.in_(category_ids)))).scalars().all()
+        categories = {c.id: c for c in cat_rows}
 
     total_all = sum((Decimal(r.total) for r in rows), Decimal("0")) or Decimal("1")
     result = []
     for r in rows:
         total = Decimal(r.total)
+        category = categories.get(r.group_id)
         result.append(
             {
                 "category_id": r.group_id,
-                "name": names.get(r.group_id, "Senza categoria"),
+                "name": category.name if category is not None else "Senza categoria",
+                # `code`/`is_system` (fetta 3, PLAN_TAXONOMY_I18N.md): non
+                # esposti da `CategoryBreakdownItemOut` (Pydantic ignora le
+                # chiavi extra non dichiarate, nessun cambio di contratto
+                # per l'endpoint `/analytics/by-category`) — servono solo al
+                # consumer Python diretto (`report_builder.py`) per
+                # scegliere `name`/`name_en` da `TAXONOMY_BY_CODE`.
+                "code": category.code if category is not None else None,
+                "is_system": category.is_system if category is not None else False,
                 "total": total.quantize(Decimal("0.01")),
                 "share": total / total_all,
                 "transactions_count": r.transactions_count,

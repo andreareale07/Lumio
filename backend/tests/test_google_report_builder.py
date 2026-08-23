@@ -106,6 +106,45 @@ async def test_build_report_can_force_portfolio_sheet_even_without_holdings(clie
     assert "Portfolio" in content.sheet_titles
 
 
+async def test_build_report_in_english_translates_headers_and_system_category_names(client):
+    # Fetta 3 (PLAN_TAXONOMY_I18N.md): il CONTENUTO segue `options.language`,
+    # mai i titoli dei tab (identita' stabile per l'indirizzamento, sempre
+    # italiani — vedi report_i18n.py).
+    token, user_id, workspace_id = await _register(client, "report-builder-en@example.com")
+    account_id = await _create_account(client, token)
+    await _create_transaction(
+        client, token, account_id,
+        amount="-50.00", direction="debit", transaction_type="expense",
+        description_raw="Supermercato", category_id=await _find_category_id(client, token, "alimentari.supermercato"),
+    )
+
+    options = ReportOptions(date_from=date(2026, 5, 1), date_to=date(2026, 5, 31), language="en")
+    async with rls_session(user_id) as db:
+        content = await build_report(db, workspace_id, options)
+
+    # I titoli dei tab restano SEMPRE italiani (identita' stabile).
+    assert content.sheet_titles == ["Riepilogo", "Transazioni", "Entrate per Categoria", "Uscite per Categoria"]
+
+    transazioni_range = next(r for r in content.value_ranges if r["range"].startswith("Transazioni"))
+    header = transazioni_range["values"][0]
+    assert header == ["Date", "Account", "Description", "Category", "Type", "Amount", "Currency"]
+    data_row = transazioni_range["values"][1]
+    assert data_row[3] == "Supermarket"  # categoria di sistema tradotta
+    assert data_row[4] == "Expense"  # transaction_type etichettato
+
+    uscite_range = next(r for r in content.value_ranges if r["range"].startswith("Uscite"))
+    assert uscite_range["values"][0] == ["Category", "Total", "Share", "Transaction count"]
+    # by_category raggruppa sotto la categoria PADRE (Alimentari/Groceries),
+    # non la foglia scelta per la transazione (Supermercato/Supermarket).
+    assert uscite_range["values"][1][0] == "Groceries"
+
+
+async def _find_category_id(client: AsyncClient, token: str, code: str) -> str:
+    response = await client.get("/api/v1/categories", headers=_auth_headers(token))
+    category = next(c for c in response.json() if c["code"] == code)
+    return category["id"]
+
+
 async def test_build_report_without_charts_produces_no_chart_requests(client):
     token, user_id, workspace_id = await _register(client, "report-builder-nocharts@example.com")
     account_id = await _create_account(client, token)

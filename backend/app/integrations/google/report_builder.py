@@ -21,6 +21,8 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.classification.taxonomy import TAXONOMY_BY_CODE
+from app.integrations.google.report_i18n import t, transaction_type_label
 from app.models.category import Category
 from app.models.financial_account import FinancialAccount
 from app.models.transaction import Transaction
@@ -33,6 +35,12 @@ class ReportOptions:
     date_to: date
     include_portfolio: bool | None = None  # None = automatico (has_holdings)
     include_charts: bool = True
+    # Fetta 3 (PLAN_TAXONOMY_I18N.md): lingua del CONTENUTO scritto nei
+    # fogli (header, KPI, note, nomi categoria, titoli grafici) — segue la
+    # lingua UI scelta dall'utente al momento dell'export. NON i titoli dei
+    # tab stessi (vedi report_i18n.py): quelli restano fissi, decisi una
+    # volta sola alla connessione Google.
+    language: str = "it"
 
 
 @dataclass
@@ -184,6 +192,19 @@ def _f(value) -> float:
     return float(value)
 
 
+def _category_display_name(name: str, code: str | None, is_system: bool, language: str) -> str:
+    """Stesso branch `is_system` di `ai_classification.py::load_category_options`
+    e `frontend/src/features/categories/utils.ts::categoryDisplayName`
+    (fetta 1/2): SOLO le categorie di sistema hanno una traduzione nota in
+    `TAXONOMY_BY_CODE` — quelle utente restano sempre il loro `name` libero,
+    indipendentemente dalla lingua dell'export."""
+    if language == "en" and is_system and code is not None:
+        entry = TAXONOMY_BY_CODE.get(code)
+        if entry is not None and entry.name_en:
+            return entry.name_en
+    return name
+
+
 # --- singoli fogli -----------------------------------------------------------
 
 
@@ -195,20 +216,28 @@ def _build_riepilogo(
     valuation,
     currency: str,
     include_charts: bool,
+    language: str,
 ) -> None:
-    sheet.add_row(f"Lumio — Riepilogo ({summary['period']['date_from']} → {summary['period']['date_to']})")
+    sheet.add_row(
+        t(
+            "riepilogo.title",
+            language,
+            date_from=summary["period"]["date_from"],
+            date_to=summary["period"]["date_to"],
+        )
+    )
     sheet.add_blank_row()
-    kpi_start = sheet.add_row("Indicatore", "Valore")
+    kpi_start = sheet.add_row(t("riepilogo.kpi_header_indicator", language), t("riepilogo.kpi_header_value", language))
     sheet.format_requests.append(_bold_header_request(sheet.sheet_id, kpi_start, 2))
     total_pl = _f(valuation.unrealized_pl + valuation.realized_pl)
     kpi_rows = [
-        ("Liquidità", _f(summary["liquidity"])),
-        ("Debiti", _f(summary["debt"])),
-        ("Investimenti (valore corrente)", _f(summary["investments"])),
-        ("Entrate periodo", _f(summary["income"])),
-        ("Uscite periodo", _f(summary["expenses"])),
-        ("Cash flow netto periodo", _f(summary["net_cash_flow"])),
-        ("P&L investimenti (realizzato + non realizzato)", total_pl),
+        (t("riepilogo.kpi.liquidity", language), _f(summary["liquidity"])),
+        (t("riepilogo.kpi.debt", language), _f(summary["debt"])),
+        (t("riepilogo.kpi.investments", language), _f(summary["investments"])),
+        (t("riepilogo.kpi.income", language), _f(summary["income"])),
+        (t("riepilogo.kpi.expenses", language), _f(summary["expenses"])),
+        (t("riepilogo.kpi.net_cash_flow", language), _f(summary["net_cash_flow"])),
+        (t("riepilogo.kpi.pl", language), total_pl),
     ]
     first_kpi_data_row = kpi_start + 1
     for label, value in kpi_rows:
@@ -222,7 +251,7 @@ def _build_riepilogo(
     # Trend mensile entrate/uscite (cash_flow granularity=month).
     if monthly:
         trend_header_row = sheet.add_table(
-            ["Mese", "Entrate", "Uscite"],
+            [t("riepilogo.trend_header_month", language), t("riepilogo.trend_header_income", language), t("riepilogo.trend_header_expenses", language)],
             [[_to_month_label(m["period"]), _f(m["income"]), _f(m["expenses"])] for m in monthly],
         )
         data_start = trend_header_row + 1
@@ -233,7 +262,7 @@ def _build_riepilogo(
             sheet.chart_requests.append(
                 _column_chart_request(
                     sheet.sheet_id,
-                    "Entrate/Uscite mensili",
+                    t("riepilogo.trend_chart_title", language),
                     _grid_range(sheet.sheet_id, data_start, data_end, 0, 1),
                     [
                         _grid_range(sheet.sheet_id, trend_header_row, data_end, 1, 2),
@@ -243,13 +272,13 @@ def _build_riepilogo(
                 )
             )
     else:
-        sheet.add_row("Nessun movimento nel periodo selezionato.")
+        sheet.add_row(t("riepilogo.no_transactions", language))
     sheet.add_blank_row()
 
     # Andamento patrimonio (net worth snapshot) — solo se ne esistono gia'.
     if net_worth_rows:
         nw_header_row = sheet.add_table(
-            ["Data", "Patrimonio netto"],
+            [t("riepilogo.net_worth_header_date", language), t("riepilogo.net_worth_header_value", language)],
             [[s.snapshot_date.isoformat(), _f(s.net_worth)] for s in net_worth_rows],
         )
         data_start = nw_header_row + 1
@@ -259,14 +288,14 @@ def _build_riepilogo(
             sheet.chart_requests.append(
                 _line_chart_request(
                     sheet.sheet_id,
-                    "Andamento patrimonio",
+                    t("riepilogo.net_worth_chart_title", language),
                     _grid_range(sheet.sheet_id, data_start, data_end, 0, 1),
                     _grid_range(sheet.sheet_id, nw_header_row, data_end, 1, 2),
                     nw_header_row,
                 )
             )
     else:
-        sheet.add_row("Nessuno snapshot di patrimonio ancora disponibile.")
+        sheet.add_row(t("riepilogo.no_net_worth", language))
 
 
 async def _build_transazioni(
@@ -279,6 +308,8 @@ async def _build_transazioni(
             Transaction.description_normalized,
             Transaction.description_raw,
             Category.name.label("category_name"),
+            Category.code.label("category_code"),
+            Category.is_system.label("category_is_system"),
             Transaction.transaction_type,
             Transaction.amount,
             Transaction.currency,
@@ -293,16 +324,27 @@ async def _build_transazioni(
         .order_by(Transaction.transaction_date.desc())
     )
     rows = (await db.execute(query)).all()
+    language = options.language
 
     header_row = sheet.add_table(
-        ["Data", "Conto", "Descrizione", "Categoria", "Tipo", "Importo", "Valuta"],
+        [
+            t("transazioni.header_date", language),
+            t("transazioni.header_account", language),
+            t("transazioni.header_description", language),
+            t("transazioni.header_category", language),
+            t("transazioni.header_type", language),
+            t("transazioni.header_amount", language),
+            t("transazioni.header_currency", language),
+        ],
         [
             [
                 r.transaction_date.isoformat(),
                 r.account_name,
                 r.description_normalized or r.description_raw,
-                r.category_name or "Senza categoria",
-                r.transaction_type,
+                _category_display_name(r.category_name, r.category_code, bool(r.category_is_system), language)
+                if r.category_name
+                else t("transazioni.no_category", language),
+                transaction_type_label(r.transaction_type, language),
                 _f(r.amount),
                 r.currency,
             ]
@@ -321,11 +363,24 @@ async def _build_transazioni(
 
 
 def _build_category_sheet(
-    sheet: _SheetBuilder, rows: list[dict], currency: str, include_charts: bool, chart_title: str
+    sheet: _SheetBuilder, rows: list[dict], currency: str, include_charts: bool, chart_title: str, language: str
 ) -> None:
     header_row = sheet.add_table(
-        ["Categoria", "Totale", "Quota", "N. transazioni"],
-        [[r["name"], _f(r["total"]), _f(r["share"]), r["transactions_count"]] for r in rows],
+        [
+            t("category_sheet.header_category", language),
+            t("category_sheet.header_total", language),
+            t("category_sheet.header_share", language),
+            t("category_sheet.header_count", language),
+        ],
+        [
+            [
+                _category_display_name(r["name"], r.get("code"), bool(r.get("is_system")), language),
+                _f(r["total"]),
+                _f(r["share"]),
+                r["transactions_count"],
+            ]
+            for r in rows
+        ],
     )
     if rows:
         data_start = header_row + 1
@@ -343,7 +398,7 @@ def _build_category_sheet(
                 )
             )
     else:
-        sheet.add_row("Nessun movimento nel periodo selezionato.")
+        sheet.add_row(t("category_sheet.no_transactions", language))
 
 
 async def _build_portfolio_sheet(
@@ -354,11 +409,19 @@ async def _build_portfolio_sheet(
     options: ReportOptions,
     valuation,
 ) -> None:
+    language = options.language
     positions = (
         await portfolio_analytics.list_position_valuations(db, workspace_id, None, options.date_to, currency)
     ).items
     header_row = sheet.add_table(
-        ["Asset", "Quantità", "Costo medio", "Valore corrente", "P&L non realizzato", "P&L realizzato"],
+        [
+            t("portfolio.header_asset", language),
+            t("portfolio.header_quantity", language),
+            t("portfolio.header_avg_cost", language),
+            t("portfolio.header_market_value", language),
+            t("portfolio.header_unrealized_pl", language),
+            t("portfolio.header_realized_pl", language),
+        ],
         [
             [p.asset_label, _f(p.quantity), _f(p.average_cost), _f(p.market_value), _f(p.unrealized_pl), _f(p.realized_pl)]
             for p in positions
@@ -370,13 +433,13 @@ async def _build_portfolio_sheet(
         for col in (3, 4, 5):
             sheet.format_requests.append(_currency_format_request(sheet.sheet_id, data_start, data_end, col, currency))
     if not valuation.has_market_data and positions:
-        sheet.add_row("Nota: prezzi di mercato non disponibili per tutte le posizioni — valorizzazione a costo storico.")
+        sheet.add_row(t("portfolio.no_market_data_note", language))
     sheet.add_blank_row()
 
     allocation = await portfolio_analytics.compute_allocation(db, workspace_id, None, options.date_to, currency)
     if allocation.by_asset_type:
         alloc_header_row = sheet.add_table(
-            ["Tipo asset", "Valore", "Quota"],
+            [t("portfolio.alloc_header_type", language), t("portfolio.alloc_header_value", language), t("portfolio.alloc_header_share", language)],
             [[i.label, _f(i.value), _f(i.share)] for i in allocation.by_asset_type],
         )
         data_start = alloc_header_row + 1
@@ -387,7 +450,7 @@ async def _build_portfolio_sheet(
             sheet.chart_requests.append(
                 _pie_chart_request(
                     sheet.sheet_id,
-                    "Allocazione per tipo di asset",
+                    t("portfolio.alloc_chart_title", language),
                     _grid_range(sheet.sheet_id, data_start, data_end, 0, 1),
                     _grid_range(sheet.sheet_id, data_start, data_end, 1, 2),
                     alloc_header_row,
@@ -400,7 +463,12 @@ async def _build_portfolio_sheet(
     )
     if performance:
         perf_header_row = sheet.add_table(
-            ["Data", "Valore di mercato", "P&L non realizzato", "P&L realizzato"],
+            [
+                t("portfolio.perf_header_date", language),
+                t("portfolio.perf_header_market_value", language),
+                t("portfolio.perf_header_unrealized_pl", language),
+                t("portfolio.perf_header_realized_pl", language),
+            ],
             [[s.snapshot_date.isoformat(), _f(s.market_value), _f(s.unrealized_pl), _f(s.realized_pl)] for s in performance],
         )
         data_start = perf_header_row + 1
@@ -411,14 +479,14 @@ async def _build_portfolio_sheet(
             sheet.chart_requests.append(
                 _line_chart_request(
                     sheet.sheet_id,
-                    "Performance portfolio nel tempo",
+                    t("portfolio.perf_chart_title", language),
                     _grid_range(sheet.sheet_id, data_start, data_end, 0, 1),
                     _grid_range(sheet.sheet_id, perf_header_row, data_end, 1, 2),
                     perf_header_row,
                 )
             )
     else:
-        sheet.add_row("Nessuno snapshot di portfolio ancora disponibile.")
+        sheet.add_row(t("portfolio.no_snapshot", language))
 
 
 # --- entrypoint ---------------------------------------------------------------
@@ -449,7 +517,7 @@ async def build_report(db: AsyncSession, workspace_id: uuid.UUID, options: Repor
 
     riepilogo = _SheetBuilder(sheet_id, "Riepilogo")
     sheet_id += 1
-    _build_riepilogo(riepilogo, summary, monthly, net_worth_rows, valuation, currency, options.include_charts)
+    _build_riepilogo(riepilogo, summary, monthly, net_worth_rows, valuation, currency, options.include_charts, options.language)
     sheets.append(riepilogo)
 
     transazioni = _SheetBuilder(sheet_id, "Transazioni")
@@ -459,12 +527,18 @@ async def build_report(db: AsyncSession, workspace_id: uuid.UUID, options: Repor
 
     entrate = _SheetBuilder(sheet_id, "Entrate per Categoria")
     sheet_id += 1
-    _build_category_sheet(entrate, income_by_category, currency, options.include_charts, "Entrate per categoria")
+    _build_category_sheet(
+        entrate, income_by_category, currency, options.include_charts,
+        t("category_sheet.income_chart_title", options.language), options.language,
+    )
     sheets.append(entrate)
 
     uscite = _SheetBuilder(sheet_id, "Uscite per Categoria")
     sheet_id += 1
-    _build_category_sheet(uscite, expense_by_category, currency, options.include_charts, "Uscite per categoria")
+    _build_category_sheet(
+        uscite, expense_by_category, currency, options.include_charts,
+        t("category_sheet.expense_chart_title", options.language), options.language,
+    )
     sheets.append(uscite)
 
     if include_portfolio:

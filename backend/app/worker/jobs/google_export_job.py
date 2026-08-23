@@ -17,6 +17,7 @@ from datetime import date
 from app.db.rls import rls_session
 from app.integrations.google.errors import GoogleAPIError, GoogleReauthRequiredError
 from app.integrations.google.report_builder import ReportOptions, build_report
+from app.integrations.google.report_i18n import t
 from app.integrations.google.sheets_client import batch_update, list_charts, write_values
 from app.services import job_events
 from app.services.google_integration_service import get_integration, get_valid_access_token, mark_exported
@@ -49,15 +50,19 @@ def _restore_chart_positions(requests: list[dict], positions_by_title: dict[str,
 async def google_sheets_export_job(ctx, workspace_id: str, user_id: str, options: dict) -> None:
     ws_id = uuid.UUID(workspace_id)
     uid = uuid.UUID(user_id)
+    language = options.get("language") or "it"
     report_options = ReportOptions(
         date_from=date.fromisoformat(options["date_from"]),
         date_to=date.fromisoformat(options["date_to"]),
         include_portfolio=options.get("include_portfolio"),
         include_charts=options.get("include_charts", True),
+        language=language,
     )
 
-    await job_events.emit(ws_id, "job.started", namespace=NAMESPACE, stage="preparazione", progress=10)
-    message = "Impossibile completare l'export su Google Sheets"
+    await job_events.emit(
+        ws_id, "job.started", namespace=NAMESPACE, stage=t("export.stage.preparing", language), progress=10
+    )
+    message = t("export.failed_message", language)
     try:
         async with tracked_job_run(ws_id, uid, JOB_KIND) as run:
             async with rls_session(uid) as db:
@@ -66,14 +71,14 @@ async def google_sheets_export_job(ctx, workspace_id: str, user_id: str, options
                     raise GoogleAPIError("Integrazione Google non trovata: connettiti di nuovo")
 
                 await job_events.emit(
-                    ws_id, "job.progress", namespace=NAMESPACE, stage="calcolo dei dati", progress=30
+                    ws_id, "job.progress", namespace=NAMESPACE, stage=t("export.stage.computing", language), progress=30
                 )
                 content = await build_report(db, ws_id, report_options)
 
                 access_token = await get_valid_access_token(db, integration)
 
                 await job_events.emit(
-                    ws_id, "job.progress", namespace=NAMESPACE, stage="scrittura su Google Sheets", progress=60
+                    ws_id, "job.progress", namespace=NAMESPACE, stage=t("export.stage.writing", language), progress=60
                 )
                 await write_values(access_token, integration.spreadsheet_id, content.value_ranges)
 
@@ -100,7 +105,7 @@ async def google_sheets_export_job(ctx, workspace_id: str, user_id: str, options
                 await batch_update(access_token, integration.spreadsheet_id, requests)
 
                 await mark_exported(db, integration)
-            run.message = f"Export completato: {len(content.sheet_titles)} fogli aggiornati"
+            run.message = t("export.completed_message", language, count=len(content.sheet_titles))
         await job_events.emit(ws_id, "job.completed", namespace=NAMESPACE, message=run.message)
     except GoogleReauthRequiredError:
         logger.warning("export Google Sheets fallito per workspace %s: riautenticazione necessaria", workspace_id)
@@ -108,7 +113,7 @@ async def google_sheets_export_job(ctx, workspace_id: str, user_id: str, options
             ws_id,
             "job.failed",
             namespace=NAMESPACE,
-            message="L'accesso a Google è stato revocato: è necessario riconnettersi",
+            message=t("export.reauth_required_message", language),
         )
     except Exception:
         logger.exception("export Google Sheets fallito per workspace %s", workspace_id)

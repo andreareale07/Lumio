@@ -73,6 +73,9 @@ describe("ExportOptionsDialog", () => {
     const body = JSON.parse(exportCall?.[1]?.body as string);
     expect(body.include_portfolio).toBeNull();
     expect(body.include_charts).toBe(true);
+    // Fetta 3 (PLAN_TAXONOMY_I18N.md): la lingua UI corrente viaggia nella
+    // richiesta di export — default italiano nei test (locale non forzato).
+    expect(body.language).toBe("it");
   });
 
   it("cambia la scelta del foglio Portfolio in 'Includi sempre'", async () => {

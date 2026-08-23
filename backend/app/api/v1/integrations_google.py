@@ -203,6 +203,7 @@ async def trigger_google_export(
         "date_to": payload.date_to.isoformat(),
         "include_portfolio": payload.include_portfolio,
         "include_charts": payload.include_charts,
+        "language": payload.language,
     }
     job_id = await enqueue_google_sheets_export(workspace_id, user.id, options)
     await log_event(
