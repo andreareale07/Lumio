@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../components/ui/Badge";
 import { intlLocale } from "../../lib/format";
-import { useEtaEstimate } from "../../lib/eta";
+import { useEtaEstimate, type EtaLabelStrings } from "../../lib/eta";
 import type { ActivityItem, ActivityProgressEvent } from "./api";
 import { streamActivityItemEvents } from "./api";
 
@@ -79,7 +79,13 @@ export function ActivityRow({ item }: { item: ActivityItem }) {
     tone === "primary" ? "text-primary" : tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "text-text-muted";
   const started = formatTimestamp(item.started_at);
   const finished = formatTimestamp(item.finished_at);
-  const liveEta = useEtaEstimate(processed, total, item.started_at);
+  const etaLabels: EtaLabelStrings = {
+    lessThanAMinute: () => t("common:eta.lessThanAMinute"),
+    minutes: (count) => t("common:eta.minutes", { count }),
+    hours: (hours, minutes) =>
+      minutes > 0 ? t("common:eta.hoursMinutes", { hours, minutes }) : t("common:eta.hours", { hours }),
+  };
+  const liveEta = useEtaEstimate(processed, total, item.started_at, etaLabels);
   const eta = status === "running" ? liveEta : null;
 
   return (

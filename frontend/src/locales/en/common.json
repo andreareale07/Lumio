@@ -41,6 +41,13 @@
     "currency": "Currency",
     "category": "Category"
   },
+  "eta": {
+    "lessThanAMinute": "less than a minute remaining",
+    "minutes_one": "~{{count}} minute remaining",
+    "minutes_other": "~{{count}} minutes remaining",
+    "hours": "~{{hours}}h remaining",
+    "hoursMinutes": "~{{hours}}h {{minutes}}m remaining"
+  },
   "period": {
     "granularity": {
       "day": "Day",

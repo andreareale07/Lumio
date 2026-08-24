@@ -41,6 +41,13 @@
     "currency": "Valuta",
     "category": "Categoria"
   },
+  "eta": {
+    "lessThanAMinute": "meno di un minuto rimanente",
+    "minutes_one": "~{{count}} minuto rimanente",
+    "minutes_other": "~{{count}} minuti rimanenti",
+    "hours": "~{{hours}}h rimanenti",
+    "hoursMinutes": "~{{hours}}h {{minutes}}m rimanenti"
+  },
   "period": {
     "granularity": {
       "day": "Giorno",

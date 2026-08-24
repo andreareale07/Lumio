@@ -66,4 +66,53 @@ describe("useEtaEstimate", () => {
 
     vi.restoreAllMocks();
   });
+
+  it("senza labelStrings usa il default italiano invariato (nessuna regressione per i chiamanti non aggiornati)", () => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const startedAt = new Date(now - 100_000).toISOString(); // 10s/item -> 90 rimanenti -> 900s -> ~15 minuti
+
+    const { result } = renderHook(() => useEtaEstimate(10, 100, startedAt));
+
+    expect(result.current!.label).toBe("~15 minuti rimanenti");
+
+    vi.restoreAllMocks();
+  });
+
+  it("con labelStrings costruisce l'etichetta tradotta invece del default italiano", () => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const startedAt = new Date(now - 100_000).toISOString(); // ~15 minuti
+
+    const { result } = renderHook(() =>
+      useEtaEstimate(10, 100, startedAt, {
+        lessThanAMinute: () => "less than a minute remaining",
+        minutes: (count) => `~${count} minutes remaining`,
+        hours: (hours, minutes) => `~${hours}h ${minutes}m remaining`,
+      }),
+    );
+
+    expect(result.current!.label).toBe("~15 minutes remaining");
+
+    vi.restoreAllMocks();
+  });
+
+  it("il ramo 'ore' usa hours() con i minuti residui, coerente col branch originale", () => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    // 100 processate in 1s/item finora -> 9900 rimanenti -> 9900s (~2h 45m)
+    const startedAt = new Date(now - 100_000).toISOString();
+
+    const { result } = renderHook(() =>
+      useEtaEstimate(100, 10_000, startedAt, {
+        lessThanAMinute: () => "less than a minute remaining",
+        minutes: (count) => `~${count} minutes remaining`,
+        hours: (hours, minutes) => (minutes > 0 ? `~${hours}h ${minutes}m remaining` : `~${hours}h remaining`),
+      }),
+    );
+
+    expect(result.current!.label).toMatch(/^~\d+h( \d+m)? remaining$/);
+
+    vi.restoreAllMocks();
+  });
 });

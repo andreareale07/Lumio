@@ -13,6 +13,19 @@ export interface EtaEstimate {
   label: string;
 }
 
+/** `eta.ts` resta un modulo puro (nessun accesso a `t()`, deve restare
+ * unit-testabile senza I/O — vedi `tests/eta.test.ts`) — stesso principio
+ * gia' applicato a `lib/period.ts::PeriodLabelStrings`: il chiamante (un
+ * componente React, che ha `useTranslation`) costruisce le stringhe gia'
+ * tradotte, mai questo modulo. Ogni campo e' opzionale con default
+ * italiano, cosi' i test esistenti (che non passano questo parametro)
+ * restano invariati. */
+export interface EtaLabelStrings {
+  lessThanAMinute?: () => string;
+  minutes?: (count: number) => string;
+  hours?: (hours: number, minutes: number) => string;
+}
+
 const _MIN_REALISTIC_GAP_MS = 1000;
 // Media mobile esponenziale: ogni nuovo campione pesa il 35% della stima,
 // abbastanza reattivo da adattarsi (es. la macchina rallenta) senza
@@ -44,6 +57,7 @@ export function useEtaEstimate(
   processed: number | null,
   total: number | null,
   startedAtIso?: string | null,
+  labelStrings?: EtaLabelStrings,
 ): EtaEstimate | null {
   const stateRef = useRef<EtaTrackerState>({ lastProcessed: null, lastTimestampMs: null, emaMsPerItem: null });
 
@@ -77,7 +91,7 @@ export function useEtaEstimate(
 
   if (state.emaMsPerItem != null) {
     const remainingSeconds = (remainingItems * state.emaMsPerItem) / 1000;
-    return { remainingSeconds, label: formatRemaining(remainingSeconds) };
+    return { remainingSeconds, label: formatRemaining(remainingSeconds, labelStrings) };
   }
 
   if (startedAtIso && processed > 0) {
@@ -85,18 +99,22 @@ export function useEtaEstimate(
     if (elapsedMs > 0) {
       const avgMsPerItem = elapsedMs / processed;
       const remainingSeconds = (remainingItems * avgMsPerItem) / 1000;
-      return { remainingSeconds, label: formatRemaining(remainingSeconds) };
+      return { remainingSeconds, label: formatRemaining(remainingSeconds, labelStrings) };
     }
   }
 
   return null;
 }
 
-function formatRemaining(seconds: number): string {
-  if (seconds < 45) return "meno di un minuto rimanente";
+function formatRemaining(seconds: number, strings: EtaLabelStrings = {}): string {
+  if (seconds < 45) return strings.lessThanAMinute?.() ?? "meno di un minuto rimanente";
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `~${minutes} minut${minutes === 1 ? "o" : "i"} rimanent${minutes === 1 ? "e" : "i"}`;
+  if (minutes < 60) {
+    return strings.minutes?.(minutes) ?? `~${minutes} minut${minutes === 1 ? "o" : "i"} rimanent${minutes === 1 ? "e" : "i"}`;
+  }
   const hours = Math.floor(minutes / 60);
   const remMinutes = minutes % 60;
-  return `~${hours}h${remMinutes > 0 ? ` ${remMinutes}m` : ""} rimanenti`;
+  return (
+    strings.hours?.(hours, remMinutes) ?? `~${hours}h${remMinutes > 0 ? ` ${remMinutes}m` : ""} rimanenti`
+  );
 }

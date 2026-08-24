@@ -7,7 +7,7 @@ import { Card } from "../../components/ui/Card";
 import { JobRunStatus } from "../../components/ui/JobRunStatus";
 import { Select } from "../../components/ui/Select";
 import { Skeleton } from "../../components/ui/Skeleton";
-import { useEtaEstimate } from "../../lib/eta";
+import { useEtaEstimate, type EtaLabelStrings } from "../../lib/eta";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import { RECLASSIFICATION_SCOPES, type ReclassificationScope } from "../../types/api";
 import { useCategoryLabel } from "../categories/utils";
@@ -45,7 +45,13 @@ export function ReclassificationPanel() {
   const status = useReclassificationStatus();
   const trigger = useTriggerReclassification();
 
-  const eta = useEtaEstimate(progress?.processed ?? null, progress?.total ?? null, startedAt);
+  const etaLabels: EtaLabelStrings = {
+    lessThanAMinute: () => t("common:eta.lessThanAMinute"),
+    minutes: (count) => t("common:eta.minutes", { count }),
+    hours: (hours, minutes) =>
+      minutes > 0 ? t("common:eta.hoursMinutes", { hours, minutes }) : t("common:eta.hours", { hours }),
+  };
+  const eta = useEtaEstimate(progress?.processed ?? null, progress?.total ?? null, startedAt, etaLabels);
 
   useEffect(() => {
     if (!running) return undefined;
