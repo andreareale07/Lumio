@@ -34,10 +34,12 @@ export function useTransactions(filters: TransactionFilters, options: { enabled?
  * restano coerenti tra loro. */
 export function useTransactionReviewSummary(
   filters: Pick<TransactionFilters, "financial_account_id" | "import_id"> = {},
+  options: { enabled?: boolean } = {},
 ) {
   return useQuery({
     queryKey: ["transactions", "review-summary", filters],
     queryFn: () => api.get<TransactionReviewSummary>(`/transactions/review-summary${buildQueryString(filters)}`),
+    enabled: options.enabled ?? true,
   });
 }
 

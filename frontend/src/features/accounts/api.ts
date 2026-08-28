@@ -28,6 +28,14 @@ export function useCreateAccount() {
   });
 }
 
+export function useDeleteAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/accounts/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: accountsKey }),
+  });
+}
+
 export function useSetAccountActive() {
   const queryClient = useQueryClient();
   return useMutation({

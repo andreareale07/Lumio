@@ -11,7 +11,8 @@
     "open": "Apri",
     "edit": "Modifica",
     "archive": "Archivia",
-    "unarchive": "Riattiva"
+    "unarchive": "Riattiva",
+    "delete": "Elimina"
   },
   "form": {
     "editTitle": "Modifica conto",
@@ -106,5 +107,16 @@
         "emptyDescription": "Nessuna spesa classificata in questo periodo."
       }
     }
+  },
+  "deleteDialog": {
+    "title": "Elimina conto",
+    "checkingCount": "Verifica dei movimenti collegati in corso…",
+    "countError": "Non è stato possibile verificare i movimenti collegati.",
+    "noTransactions": "Questo conto non ha movimenti collegati.",
+    "transactionsCount_one": "Questo conto ha {{count}} movimento collegato, che verrà eliminato insieme al conto.",
+    "transactionsCount_other": "Questo conto ha {{count}} movimenti collegati, che verranno eliminati insieme al conto.",
+    "irreversible": "L'operazione non è reversibile.",
+    "error": "Non è stato possibile eliminare il conto.",
+    "confirm": "Elimina definitivamente"
   }
 }

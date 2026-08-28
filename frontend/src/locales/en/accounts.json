@@ -11,7 +11,8 @@
     "open": "Open",
     "edit": "Edit",
     "archive": "Archive",
-    "unarchive": "Unarchive"
+    "unarchive": "Unarchive",
+    "delete": "Delete"
   },
   "form": {
     "editTitle": "Edit account",
@@ -106,5 +107,16 @@
         "emptyDescription": "No classified expenses in this period."
       }
     }
+  },
+  "deleteDialog": {
+    "title": "Delete account",
+    "checkingCount": "Checking linked transactions…",
+    "countError": "We couldn't check linked transactions.",
+    "noTransactions": "This account has no linked transactions.",
+    "transactionsCount_one": "This account has {{count}} linked transaction, which will be deleted along with the account.",
+    "transactionsCount_other": "This account has {{count}} linked transactions, which will be deleted along with the account.",
+    "irreversible": "This action cannot be undone.",
+    "error": "We couldn't delete the account.",
+    "confirm": "Delete permanently"
   }
 }
