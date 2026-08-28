@@ -51,6 +51,11 @@ export interface PeriodNavigatorState {
   /** true quando il bucket corrente e' oggi (o successivo, per eccesso di
    * navigazione) — usato per disabilitare la freccia "avanti". */
   isAtToday: boolean;
+  /** Data di ancoraggio del bucket corrente (redesign Spese/Entrate, FETTA
+   * 1) — esposta cosi' una pagina puo' calcolare una finestra trend diversa
+   * da `trendWindow` (es. una finestra dimensionata ad hoc per il confronto
+   * anno-su-anno) senza duplicare la logica di parsing di `anchor` dall'URL. */
+  anchor: Date;
   customFrom: string;
   customTo: string;
   setGranularity: (granularity: Granularity) => void;
@@ -178,6 +183,7 @@ export function usePeriodNavigator(options: UsePeriodNavigatorOptions = {}): Per
     currentPeriod,
     trendWindow,
     isAtToday,
+    anchor,
     customFrom,
     customTo,
     setGranularity(next) {

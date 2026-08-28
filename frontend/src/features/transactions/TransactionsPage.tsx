@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
+import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -90,11 +91,17 @@ export function TransactionsPage() {
     setSearchParams(next);
   };
 
+  const periodNav = (
+    <PeriodNavigator granularities={["day", "week", "month", "quarter", "semester", "year"]} allowAll />
+  );
+  const toolbarPortal = usePageToolbar(periodNav);
+
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
+      {toolbarPortal}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-lg font-semibold text-text">{t("page.title")}</h1>
-        <PeriodNavigator granularities={["day", "week", "month", "quarter", "semester", "year"]} allowAll />
+        <div className="md:hidden">{periodNav}</div>
       </div>
 
       <div className="flex flex-wrap gap-3">

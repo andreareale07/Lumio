@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { FolderTree, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -81,17 +82,23 @@ export function CategoriesSettingsPage() {
 
   const totalCount = categories?.length ?? 0;
 
+  const newCategoryButton = (
+    <Button size="sm" onClick={() => setFormCategory("new")}>
+      <Plus className="h-4 w-4" aria-hidden="true" />
+      {t("items.categories.page.newCategory")}
+    </Button>
+  );
+  const toolbarPortal = usePageToolbar(newCategoryButton);
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      {toolbarPortal}
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-lg font-semibold text-text">{t("items.categories.label")}</h1>
           <p className="text-sm text-text-muted">{t("items.categories.pageDescription")}</p>
         </div>
-        <Button size="sm" onClick={() => setFormCategory("new")}>
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {t("items.categories.page.newCategory")}
-        </Button>
+        <div className="md:hidden">{newCategoryButton}</div>
       </div>
 
       {totalCount > 0 && (

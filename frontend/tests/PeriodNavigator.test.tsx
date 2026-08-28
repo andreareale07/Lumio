@@ -42,11 +42,12 @@ describe("PeriodNavigator", () => {
     expect(screen.getByTestId("location").textContent).toContain("anchor=2026-04-01");
   });
 
-  it("cambiare granularità ricalcola l'ancora sul bucket corrispondente", async () => {
+  it("cambiare granularità dal menu ricalcola l'ancora sul bucket corrispondente", async () => {
     const user = userEvent.setup();
     renderNavigator("/test?mode=granular&granularity=month&anchor=2026-02-01");
 
-    await user.selectOptions(screen.getByLabelText("Granularità"), "quarter");
+    await user.click(screen.getByRole("button", { name: "febbraio 2026" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Trimestre" }));
 
     const search = screen.getByTestId("location").textContent;
     expect(search).toContain("anchor=2026-01-01");
@@ -76,58 +77,67 @@ describe("PeriodNavigator", () => {
     expect(await screen.findByText((text) => text.includes("mode=custom"))).toBeInTheDocument();
   });
 
-  it("passa a intervallo personalizzato e torna alla navigazione per periodo", async () => {
+  it("apre il pannello dell'intervallo personalizzato e lo applica", async () => {
     const user = userEvent.setup();
     renderNavigator("/test?mode=granular&granularity=month&anchor=2026-03-01");
 
     await user.click(screen.getByRole("button", { name: "Intervallo personalizzato" }));
     expect(screen.getByLabelText("Dal")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Torna alla navigazione per periodo" }));
-    expect(screen.getByLabelText("Granularità")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Dal"), "2026-01-01");
+    await user.type(screen.getByLabelText("Al"), "2026-01-31");
+    await user.click(screen.getByRole("button", { name: "Applica" }));
+
+    const search = screen.getByTestId("location").textContent;
+    expect(search).toContain("mode=custom");
+    expect(search).toContain("from=2026-01-01");
+    expect(search).toContain("to=2026-01-31");
   });
 
-  it("limita le opzioni di granularità a quelle passate dalla pagina", () => {
+  it("limita le opzioni di granularità a quelle passate dalla pagina", async () => {
+    const user = userEvent.setup();
     renderNavigator("/test?mode=granular&granularity=month&anchor=2026-03-01", ["month", "quarter", "year"]);
 
-    const select = screen.getByLabelText("Granularità") as HTMLSelectElement;
-    const values = Array.from(select.options).map((o) => o.value);
-    expect(values).toEqual(["month", "quarter", "year"]);
+    await user.click(screen.getByRole("button", { name: "marzo 2026" }));
+
+    const options = screen.getAllByRole("menuitemradio").map((o) => o.textContent);
+    expect(options).toEqual(["Mese", "Trimestre", "Anno"]);
   });
 
-  describe("modalità 'Tutti i periodi' (allowAll)", () => {
+  describe("modalità 'Max' (allowAll)", () => {
     it("è il default quando allowAll è attivo e l'URL non ha ancora nessuno stato", () => {
       renderNavigator("/test", undefined, true);
 
-      expect(screen.getByText("Tutti i periodi")).toBeInTheDocument();
+      expect(screen.getByText("Max")).toBeInTheDocument();
       expect(screen.getByTestId("location").textContent).toBe("");
     });
 
-    it("senza allowAll il default resta granulare (mese corrente), non 'tutti i periodi'", () => {
+    it("senza allowAll il default resta granulare (mese corrente), non 'Max'", () => {
       renderNavigator("/test");
 
-      expect(screen.queryByText("Tutti i periodi")).not.toBeInTheDocument();
-      expect(screen.getByLabelText("Granularità")).toBeInTheDocument();
+      expect(screen.queryByText("Max")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Periodo successivo" })).toBeInTheDocument();
     });
 
-    it("'Filtra per periodo' passa alla navigazione granulare", async () => {
+    it("selezionare una granularità dal menu in modalità 'Max' passa alla navigazione granulare", async () => {
       const user = userEvent.setup();
       renderNavigator("/test", undefined, true);
 
-      await user.click(screen.getByRole("button", { name: "Filtra per periodo" }));
+      await user.click(screen.getByRole("button", { name: "Max" }));
+      await user.click(screen.getByRole("menuitemradio", { name: "Mese" }));
 
       expect(screen.getByTestId("location").textContent).toContain("mode=granular");
-      expect(screen.getByLabelText("Granularità")).toBeInTheDocument();
     });
 
-    it("'Tutti i periodi' dalla vista granulare torna alla modalità senza filtro", async () => {
+    it("'Max' dal menu in vista granulare torna alla modalità senza filtro", async () => {
       const user = userEvent.setup();
       renderNavigator("/test?mode=granular&granularity=month&anchor=2026-03-01", undefined, true);
 
-      await user.click(screen.getByRole("button", { name: "Tutti i periodi" }));
+      await user.click(screen.getByRole("button", { name: "marzo 2026" }));
+      await user.click(screen.getByRole("menuitemradio", { name: "Max" }));
 
       expect(screen.getByTestId("location").textContent).toContain("mode=all");
-      expect(screen.getByText("Tutti i periodi")).toBeInTheDocument();
+      expect(screen.getByText("Max")).toBeInTheDocument();
     });
   });
 });

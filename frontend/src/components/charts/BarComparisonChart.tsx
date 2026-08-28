@@ -12,15 +12,26 @@ export interface CashFlowBarPoint {
 
 /** Entrate vs uscite per periodo (SPEC §45, SPEC_FE §15). `onBarClick`
  * opzionale (rework dashboard interattivo, SPEC_FE §68): drill-down sul
- * singolo bucket temporale cliccato. */
+ * singolo bucket temporale cliccato.
+ *
+ * `incomeLabel`/`expensesLabel` opzionali (fix i18n reale, PHASE 5): senza
+ * questi due, il `name` passato a `<Bar>` finiva hardcoded in italiano
+ * ("Entrate"/"Uscite") nella legenda di Recharts — bypassa `t()` perche'
+ * Recharts la renderizza direttamente, quindi restava in italiano anche con
+ * lingua "en" (SPEC_FE_REDESIGN §26). Default = valori italiani attuali,
+ * nessuna regressione per chi non li passa ancora. */
 export function BarComparisonChart({
   data,
   currency,
   onBarClick,
+  incomeLabel = "Entrate",
+  expensesLabel = "Uscite",
 }: {
   data: CashFlowBarPoint[];
   currency: string;
   onBarClick?: (point: CashFlowBarPoint) => void;
+  incomeLabel?: string;
+  expensesLabel?: string;
 }) {
   const theme = useChartTheme();
 
@@ -50,7 +61,7 @@ export function BarComparisonChart({
         <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: 12, color: theme.textMuted }} />
         <Bar
           dataKey="income"
-          name="Entrate"
+          name={incomeLabel}
           fill={theme.success}
           radius={[4, 4, 0, 0]}
           onClick={onBarClick ? (point) => onBarClick(point as unknown as CashFlowBarPoint) : undefined}
@@ -58,7 +69,7 @@ export function BarComparisonChart({
         />
         <Bar
           dataKey="expenses"
-          name="Uscite"
+          name={expensesLabel}
           fill={theme.danger}
           radius={[4, 4, 0, 0]}
           onClick={onBarClick ? (point) => onBarClick(point as unknown as CashFlowBarPoint) : undefined}

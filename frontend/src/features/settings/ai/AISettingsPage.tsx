@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Bot, Plus, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { usePageToolbar } from "../../../components/layout/PageToolbarContext";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
@@ -40,13 +41,19 @@ export function AISettingsPage() {
 
   const activeProfile = profiles?.find((p) => p.is_active) ?? null;
 
+  const newProfileButton = (
+    <Button size="sm" onClick={openCreate}>
+      <Plus className="h-4 w-4" /> {t("items.ai.page.newProfile")}
+    </Button>
+  );
+  const toolbarPortal = usePageToolbar(newProfileButton);
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      {toolbarPortal}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-text">{t("items.ai.label")}</h1>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> {t("items.ai.page.newProfile")}
-        </Button>
+        <div className="md:hidden">{newProfileButton}</div>
       </div>
 
       <p className="text-sm text-text-muted">{t("items.ai.pageDescription")}</p>

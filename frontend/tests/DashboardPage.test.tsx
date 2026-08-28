@@ -11,8 +11,10 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 /** Le query della dashboard partono in parallelo: l'ordine delle chiamate
  * `fetch` non e' garantito, quindi si risponde in base all'URL invece che
- * con `mockResolvedValueOnce` in sequenza (diverso dal pattern usato in
- * `AISettingsPage.test.tsx`, dove le richieste sono seriali). */
+ * con `mockResolvedValueOnce` in sequenza. L'ordine delle regole conta:
+ * pattern piu' specifici PRIMA di quelli generici che li conterrebbero
+ * come sottostringa (es. `/transactions/review-summary` prima di
+ * `/transactions`). */
 function mockFetchByUrl(rules: { test: RegExp; response: () => Response }[]) {
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
     const url = typeof input === "string" ? input : input.toString();
@@ -32,6 +34,16 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+const NET_WORTH_HISTORY = {
+  currency: "EUR",
+  points: [
+    { snapshot_date: "2026-07-16", liquidity: "900.00", debt: "0", investments: "0", net_worth: "900.00" },
+    { snapshot_date: "2026-08-15", liquidity: "1000.00", debt: "0", investments: "0", net_worth: "1000.00" },
+  ],
+};
+
+const REVIEW_SUMMARY_CLEAN = { total: 10, classified: 10, needs_review: 0 };
 
 const SUMMARY = {
   currency: "EUR",
@@ -96,105 +108,130 @@ const ALLOCATION_EMPTY = {
   by_account: [],
 };
 
-const RECENT_TRANSACTION = {
-  id: "t1",
-  workspace_id: "w1",
-  financial_account_id: "a1",
-  import_id: null,
-  category_id: null,
-  transaction_date: "2026-08-10",
-  value_date: null,
-  description_raw: "SUPERMERCATO LIDL",
-  description_normalized: null,
-  merchant: "LIDL",
-  reference: null,
-  amount: "-42.50",
-  currency: "EUR",
-  direction: "debit",
-  transaction_type: "expense",
-  balance_after: null,
-  status: "confirmed",
-  created_at: "2026-08-10T00:00:00Z",
-  updated_at: "2026-08-10T00:00:00Z",
-};
+/** Regole "pulite" condivise da ogni test: coprono gli endpoint del blocco
+ * Patrimonio + il contatore "da rivedere" in testata, sempre chiamati
+ * indipendentemente dallo scenario testato (PHASE 5) — di default nessun
+ * segnale, cosi' l'icona non compare a meno che un test lo sovrascriva
+ * esplicitamente. Redesign FETTA 1: la Dashboard non chiama piu'
+ * `/analytics/by-category` ne' `/transactions` (blocchi "Spese per
+ * categoria"/"Ultimi movimenti" rimossi, ora su Spese/Entrate), quindi
+ * questi mock non compaiono piu' in nessun test qui sotto. */
+function baseRules() {
+  return [
+    { test: /\/analytics\/net-worth-history/, response: () => jsonResponse(NET_WORTH_HISTORY) },
+    { test: /\/transactions\/review-summary/, response: () => jsonResponse(REVIEW_SUMMARY_CLEAN) },
+  ];
+}
 
 describe("DashboardPage", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("mostra i KPI e le sezioni con dati reali", async () => {
-    const byCategory = {
-      currency: "EUR",
-      direction: "expense",
-      period: { date_from: "2026-08-01", date_to: "2026-08-15" },
-      items: [{ category_id: "c1", name: "Alimentari", total: "150.00", share: "1", transactions_count: 2 }],
-    };
+  it("mostra i blocchi Patrimonio e Flusso con dati reali, senza i blocchi di dettaglio rimossi dal redesign", async () => {
     mockFetchByUrl([
+      ...baseRules(),
       { test: /\/analytics\/summary/, response: () => jsonResponse(SUMMARY) },
       { test: /\/analytics\/cash-flow/, response: () => jsonResponse(CASH_FLOW) },
-      { test: /\/analytics\/by-category/, response: () => jsonResponse(byCategory) },
-      { test: /\/transactions/, response: () => jsonResponse([RECENT_TRANSACTION]) },
       { test: /\/portfolios\/analytics\/valuation/, response: () => jsonResponse(VALUATION_WITH_HOLDINGS) },
       { test: /\/portfolios\/analytics\/allocation/, response: () => jsonResponse(ALLOCATION_WITH_ITEMS) },
     ]);
 
     renderPage();
 
+    // Patrimonio: sempre visibile, indipendente dal periodo selezionato.
+    // `findBy*` (non `getBy*`): il titolo statico "Patrimonio" compare gia'
+    // al primo render, prima che i dati async delle KPI siano arrivati —
+    // un `getByText` sincrono subito dopo correrebbe contro quel caricamento.
+    expect(await screen.findByText("Patrimonio")).toBeInTheDocument();
+    expect(await screen.findByText("Patrimonio totale")).toBeInTheDocument();
     expect(await screen.findByText("Liquidità")).toBeInTheDocument();
-    // "Alimentari" compare sia nella tabella accessibile del ChartCard
-    // (sr-only) sia nella lista visibile sotto — entrambe legittime.
-    expect((await screen.findAllByText("Alimentari")).length).toBeGreaterThan(0);
-    expect(await screen.findByText("LIDL")).toBeInTheDocument();
+
+    // Icona "da rivedere" in testata: nessun segnale in questo scenario,
+    // non compare (sostituisce il vecchio blocco "Da fare" a sezione intera).
+    expect(screen.queryByText(/da rivedere/)).not.toBeInTheDocument();
+
+    // Flusso: la tabella accessibile del grafico Entrate/Uscite e' presente.
+    expect(await screen.findByRole("table", { name: "Entrate e uscite per mese" })).toBeInTheDocument();
+
     // Widget Portfolio (M09b): valore reale invece del vecchio placeholder.
     expect(await screen.findByText("etf")).toBeInTheDocument();
     expect(screen.getByText("Vai a Investimenti")).toBeInTheDocument();
+
+    // Guardia di regressione (redesign FETTA 1): i blocchi "Spese per
+    // categoria" e "Ultimi movimenti" sono stati rimossi dalla Dashboard —
+    // ora vivono su Spese/Entrate, mai piu' qui.
+    expect(screen.queryByText("Spese per categoria")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ultimi movimenti")).not.toBeInTheDocument();
   });
 
-  it("mostra l'empty state per le spese quando il periodo non ne ha", async () => {
-    const emptyCategory = {
-      currency: "EUR",
-      direction: "expense",
-      period: { date_from: "2026-08-01", date_to: "2026-08-15" },
-      items: [],
-    };
+  it("mostra un'azione 'Ricalcola adesso' quando non esiste ancora nessuno snapshot di patrimonio", async () => {
+    // Bug reale trovato verificando su Docker: un workspace appena creato
+    // non ha ancora `net_worth_snapshots` (scritti dal cron giornaliero) —
+    // il blocco Patrimonio deve mostrare un empty state con azione, mai
+    // restare silenziosamente vuoto.
     mockFetchByUrl([
+      { test: /\/analytics\/net-worth-history/, response: () => jsonResponse({ currency: "EUR", points: [] }) },
+      { test: /\/transactions\/review-summary/, response: () => jsonResponse(REVIEW_SUMMARY_CLEAN) },
       { test: /\/analytics\/summary/, response: () => jsonResponse(SUMMARY) },
       { test: /\/analytics\/cash-flow/, response: () => jsonResponse(CASH_FLOW) },
-      { test: /\/analytics\/by-category/, response: () => jsonResponse(emptyCategory) },
-      { test: /\/transactions/, response: () => jsonResponse([]) },
       { test: /\/portfolios\/analytics\/valuation/, response: () => jsonResponse(VALUATION_EMPTY) },
       { test: /\/portfolios\/analytics\/allocation/, response: () => jsonResponse(ALLOCATION_EMPTY) },
     ]);
 
     renderPage();
 
-    expect(await screen.findByText("Nessuna spesa in questo periodo")).toBeInTheDocument();
-    expect(await screen.findByText("Nessun movimento")).toBeInTheDocument();
+    expect(await screen.findByText("Nessun dato ancora")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ricalcola adesso" })).toBeInTheDocument();
+    // Nessuna KPI di Patrimonio renderizzata quando non c'e' nessun punto.
+    expect(screen.queryByText("Patrimonio totale")).not.toBeInTheDocument();
+  });
+
+  it("mostra un'icona con contatore in testata quando ci sono transazioni da rivedere", async () => {
+    const reviewSummary = { total: 10, classified: 7, needs_review: 3 };
+    mockFetchByUrl([
+      { test: /\/analytics\/net-worth-history/, response: () => jsonResponse(NET_WORTH_HISTORY) },
+      { test: /\/transactions\/review-summary/, response: () => jsonResponse(reviewSummary) },
+      { test: /\/analytics\/summary/, response: () => jsonResponse(SUMMARY) },
+      { test: /\/analytics\/cash-flow/, response: () => jsonResponse(CASH_FLOW) },
+      { test: /\/portfolios\/analytics\/valuation/, response: () => jsonResponse(VALUATION_EMPTY) },
+      { test: /\/portfolios\/analytics\/allocation/, response: () => jsonResponse(ALLOCATION_EMPTY) },
+    ]);
+
+    renderPage();
+
+    const link = await screen.findByRole("link", { name: "3 transazioni da rivedere" });
+    expect(link).toHaveAttribute("href", "/transactions?review=1");
+  });
+
+  it("mostra l'empty state degli investimenti quando il workspace non ne ha ancora", async () => {
+    mockFetchByUrl([
+      ...baseRules(),
+      { test: /\/analytics\/summary/, response: () => jsonResponse(SUMMARY) },
+      { test: /\/analytics\/cash-flow/, response: () => jsonResponse(CASH_FLOW) },
+      { test: /\/portfolios\/analytics\/valuation/, response: () => jsonResponse(VALUATION_EMPTY) },
+      { test: /\/portfolios\/analytics\/allocation/, response: () => jsonResponse(ALLOCATION_EMPTY) },
+    ]);
+
+    renderPage();
+
     expect(await screen.findByText("Non hai ancora aggiunto investimenti")).toBeInTheDocument();
   });
 
-  it("mostra un errore con azione di recupero se la panoramica non carica", async () => {
+  it("mostra un errore con azione di recupero se il flusso del periodo non carica", async () => {
     mockFetchByUrl([
+      ...baseRules(),
       { test: /\/analytics\/summary/, response: () => jsonResponse({ detail: "boom" }, 500) },
       { test: /\/analytics\/cash-flow/, response: () => jsonResponse(CASH_FLOW) },
-      {
-        test: /\/analytics\/by-category/,
-        response: () =>
-          jsonResponse({
-            currency: "EUR",
-            direction: "expense",
-            period: { date_from: "2026-08-01", date_to: "2026-08-15" },
-            items: [],
-          }),
-      },
-      { test: /\/transactions/, response: () => jsonResponse([]) },
       { test: /\/portfolios\/analytics\/valuation/, response: () => jsonResponse(VALUATION_EMPTY) },
       { test: /\/portfolios\/analytics\/allocation/, response: () => jsonResponse(ALLOCATION_EMPTY) },
     ]);
 
     renderPage();
 
+    // Il blocco Patrimonio carica correttamente (net-worth-history separata
+    // da /analytics/summary): un solo ErrorState, quello del Flusso.
+    expect(await screen.findByText("Patrimonio totale")).toBeInTheDocument();
     expect(await screen.findByText("Non siamo riusciti a caricare la panoramica.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Riprova" })).toBeInTheDocument();
   });

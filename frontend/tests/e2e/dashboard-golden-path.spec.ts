@@ -55,10 +55,19 @@ test("import reale e KPI dashboard coerenti su piu' pagine", async ({ page }) =>
   // "Intervallo personalizzato" con date esplicite (non un preset relativo
   // a "oggi") per restare deterministico rispetto alle date fisse del CSV
   // importato, indipendentemente da quando questo test viene eseguito.
+  //
+  // PHASE 5b: il navigatore periodo vive ora nel Topbar (viewport desktop
+  // di default di Playwright, ≥768px) — la pagina mantiene comunque una
+  // seconda copia identica ma nascosta (`md:hidden`) per il fallback
+  // mobile, quindi `getByLabel`/`getByRole` senza scope trovano DUE
+  // elementi con lo stesso accessible name e Playwright fallisce in strict
+  // mode. Si scopa esplicitamente a `header` (il Topbar), che e' anche la
+  // copia realmente visibile in questo viewport.
+  const topbar = page.locator("header");
   await page.goto("/");
-  await page.getByRole("button", { name: "Intervallo personalizzato" }).click();
-  await page.getByLabel("Dal", { exact: true }).fill("2026-07-01");
-  await page.getByLabel("Al", { exact: true }).fill("2026-09-30");
+  await topbar.getByRole("button", { name: "Intervallo personalizzato" }).click();
+  await topbar.getByLabel("Dal", { exact: true }).fill("2026-07-01");
+  await topbar.getByLabel("Al", { exact: true }).fill("2026-09-30");
   await expect(page).toHaveURL(/mode=custom/);
 
   // Tabella accessibile del grafico Entrate/Uscite (SPEC_FE §59): fonte
@@ -74,7 +83,7 @@ test("import reale e KPI dashboard coerenti su piu' pagine", async ({ page }) =>
   // settembre 2026 (via URL, per non dipendere dalla data reale di
   // esecuzione del test) e si torna indietro di un mese fino ad agosto.
   await page.goto("/?mode=granular&granularity=month&anchor=2026-09-01");
-  await page.getByRole("button", { name: "Periodo precedente" }).click();
+  await topbar.getByRole("button", { name: "Periodo precedente" }).click();
   await expect(page).toHaveURL(/anchor=2026-08-01/);
   await expect(cashFlowTable).toContainText(/2\.?500,00\s*€/);
 
@@ -90,9 +99,9 @@ test("import reale e KPI dashboard coerenti su piu' pagine", async ({ page }) =>
 
   // --- Spese: stesso numero, pagina diversa, stesso intervallo personalizzato ---
   await page.goto("/expenses");
-  await page.getByRole("button", { name: "Intervallo personalizzato" }).click();
-  await page.getByLabel("Dal", { exact: true }).fill("2026-07-01");
-  await page.getByLabel("Al", { exact: true }).fill("2026-09-30");
+  await topbar.getByRole("button", { name: "Intervallo personalizzato" }).click();
+  await topbar.getByLabel("Dal", { exact: true }).fill("2026-07-01");
+  await topbar.getByLabel("Al", { exact: true }).fill("2026-09-30");
   await expect(page.getByRole("heading", { name: "Spese" })).toBeVisible();
   await expect(page.getByText(/45,30\s*€/).first()).toBeVisible();
 });

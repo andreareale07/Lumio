@@ -41,6 +41,10 @@
     "currency": "Valuta",
     "category": "Categoria"
   },
+  "cashFlow": {
+    "income": "Entrate",
+    "expenses": "Uscite"
+  },
   "eta": {
     "lessThanAMinute": "meno di un minuto rimanente",
     "minutes_one": "~{{count}} minuto rimanente",
@@ -66,9 +70,10 @@
     "today": "Oggi",
     "customRange": "Intervallo personalizzato",
     "backToGranular": "Torna alla navigazione per periodo",
-    "allPeriods": "Tutti i periodi",
+    "allPeriods": "Max",
     "filterByPeriod": "Filtra per periodo",
     "from": "Dal",
-    "to": "Al"
+    "to": "Al",
+    "apply": "Applica"
   }
 }

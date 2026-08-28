@@ -11,10 +11,41 @@
     "liquidity": "Liquidità",
     "investments": "Investimenti",
     "debt": "Debiti",
+    "debtNote": "Solo carte di credito",
     "income": "Entrate",
     "expenses": "Spese",
     "cashFlow": "Cash Flow",
     "comparisonLabel": "vs {{period}}"
+  },
+  "stock": {
+    "sectionTitle": "Patrimonio",
+    "asOfToday": "aggiornato a oggi",
+    "netWorthDelta": "{{amount}} (30gg)",
+    "empty": {
+      "title": "Nessun dato ancora",
+      "description": "Il patrimonio si calcola dal primo snapshot giornaliero — richiedine subito uno."
+    },
+    "runway": {
+      "months_one": "{{count}} mese di autonomia",
+      "months_other": "{{count}} mesi di autonomia",
+      "accumulating": "in accumulo",
+      "notAvailable": "n/d"
+    }
+  },
+  "attention": {
+    "needsReview_one": "{{count}} transazione da rivedere",
+    "needsReview_other": "{{count}} transazioni da rivedere"
+  },
+  "flow": {
+    "sectionTitle": "Flusso del periodo",
+    "partialMonth": "{{elapsed}} di {{total}} giorni",
+    "savingsRate": {
+      "title": "Tasso di risparmio",
+      "notAvailable": "n/d"
+    },
+    "vsTypicalMonth": "vs mese tipico",
+    "tooEarlyForComparison": "Troppo presto per un confronto",
+    "inLineWithTypical": "In linea con il tuo mese tipico"
   },
   "cashFlowChart": {
     "title": "Entrate vs Uscite",
@@ -30,37 +61,6 @@
       "Entrate",
       "Uscite"
     ]
-  },
-  "byCategoryChart": {
-    "title": "Spese per categoria",
-    "chartError": "Grafico non disponibile.",
-    "empty": {
-      "title": "Nessuna spesa in questo periodo",
-      "description": "Le spese classificate appariranno qui, raggruppate per categoria."
-    },
-    "tableCaption": "Spese per categoria",
-    "tableHeaders": [
-      "Categoria",
-      "Totale",
-      "Quota"
-    ]
-  },
-  "recentTransactions": {
-    "title": "Ultimi movimenti",
-    "loadError": "Movimenti non disponibili.",
-    "empty": {
-      "title": "Nessun movimento",
-      "description": "I movimenti importati o creati manualmente appariranno qui."
-    }
-  },
-  "actions": {
-    "importStatement": "Importa estratto conto",
-    "addAccount": "Aggiungi conto",
-    "viewTransactions": "Visualizza movimenti"
-  },
-  "categoryDrawer": {
-    "breakdownTitle": "Top merchant",
-    "noMerchant": "Senza merchant"
   },
   "bucketDrawer": {
     "breakdownTitle": "Entrate vs Uscite",

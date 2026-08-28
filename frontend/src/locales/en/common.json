@@ -41,6 +41,10 @@
     "currency": "Currency",
     "category": "Category"
   },
+  "cashFlow": {
+    "income": "Income",
+    "expenses": "Expenses"
+  },
   "eta": {
     "lessThanAMinute": "less than a minute remaining",
     "minutes_one": "~{{count}} minute remaining",
@@ -66,9 +70,10 @@
     "today": "Today",
     "customRange": "Custom range",
     "backToGranular": "Back to period navigation",
-    "allPeriods": "All periods",
+    "allPeriods": "Max",
     "filterByPeriod": "Filter by period",
     "from": "From",
-    "to": "To"
+    "to": "To",
+    "apply": "Apply"
   }
 }

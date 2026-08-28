@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Landmark, Wallet } from "lucide-react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
@@ -8,6 +8,7 @@ import { BarComparisonChart } from "../../components/charts/BarComparisonChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { DonutChart } from "../../components/charts/DonutChart";
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
+import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
@@ -23,12 +24,15 @@ import {
 } from "../analytics/api";
 import { formatBucketLabel } from "../analytics/chartData";
 import { useTransactions } from "../transactions/api";
+import { AccountDeleteDialog } from "./AccountDeleteDialog";
 import { useAccounts } from "./api";
 import { useAccountTypeLabel } from "./labels";
 
 export function AccountDetailPage() {
   const { t } = useTranslation("accounts");
   const accountTypeLabel = useAccountTypeLabel();
+  const navigate = useNavigate();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const TABS = [
     { key: "overview", label: t("detail.tabs.overview") },
     { key: "transactions", label: t("detail.tabs.transactions") },
@@ -86,6 +90,13 @@ export function AccountDetailPage() {
           <LinkButton to={`/accounts/${account.id}/edit`} variant="secondary" size="sm">
             {t("page.edit")}
           </LinkButton>
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="text-sm text-danger hover:underline"
+          >
+            {t("page.delete")}
+          </button>
         </div>
       </div>
 
@@ -94,6 +105,14 @@ export function AccountDetailPage() {
       {tab === "overview" && <AccountOverviewTab accountId={accountId} onSeeAll={() => setTab("transactions")} />}
       {tab === "transactions" && <AccountTransactionsTab accountId={accountId} />}
       {tab === "analytics" && <AccountAnalyticsTab accountId={accountId} currency={account.currency} />}
+
+      <AccountDeleteDialog
+        account={deleteOpen ? account : null}
+        onClose={(deleted?: boolean) => {
+          setDeleteOpen(false);
+          if (deleted) navigate("/accounts");
+        }}
+      />
     </div>
   );
 }
@@ -237,9 +256,13 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
     expenses: Number(p.expenses),
   }));
 
+  const periodNav = <PeriodNavigator granularities={["month", "quarter", "year"]} />;
+  const toolbarPortal = usePageToolbar(periodNav);
+
   return (
     <div className="flex flex-col gap-4">
-      <PeriodNavigator granularities={["month", "quarter", "year"]} />
+      {toolbarPortal}
+      <div className="md:hidden">{periodNav}</div>
 
       {history.isLoading && <Skeleton className="h-64 w-full" />}
       {history.data && (
@@ -282,7 +305,12 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
             formatMoney(p.expenses, currency),
           ])}
         >
-          <BarComparisonChart data={cashFlowBars} currency={currency} />
+          <BarComparisonChart
+            data={cashFlowBars}
+            currency={currency}
+            incomeLabel={t("common:cashFlow.income")}
+            expensesLabel={t("common:cashFlow.expenses")}
+          />
         </ChartCard>
       )}
 

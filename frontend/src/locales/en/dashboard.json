@@ -11,10 +11,41 @@
     "liquidity": "Liquidity",
     "investments": "Investments",
     "debt": "Debt",
+    "debtNote": "Credit cards only",
     "income": "Income",
     "expenses": "Expenses",
     "cashFlow": "Cash Flow",
     "comparisonLabel": "vs {{period}}"
+  },
+  "stock": {
+    "sectionTitle": "Net worth",
+    "asOfToday": "as of today",
+    "netWorthDelta": "{{amount}} (30d)",
+    "empty": {
+      "title": "No data yet",
+      "description": "Net worth is calculated from the first daily snapshot — request one now."
+    },
+    "runway": {
+      "months_one": "{{count}} month of runway",
+      "months_other": "{{count}} months of runway",
+      "accumulating": "building up",
+      "notAvailable": "n/a"
+    }
+  },
+  "attention": {
+    "needsReview_one": "{{count}} transaction to review",
+    "needsReview_other": "{{count}} transactions to review"
+  },
+  "flow": {
+    "sectionTitle": "This period's flow",
+    "partialMonth": "{{elapsed}} of {{total}} days",
+    "savingsRate": {
+      "title": "Savings rate",
+      "notAvailable": "n/a"
+    },
+    "vsTypicalMonth": "vs typical month",
+    "tooEarlyForComparison": "Too early for a comparison",
+    "inLineWithTypical": "In line with your typical month"
   },
   "cashFlowChart": {
     "title": "Income vs Expenses",
@@ -30,37 +61,6 @@
       "Income",
       "Expenses"
     ]
-  },
-  "byCategoryChart": {
-    "title": "Expenses by category",
-    "chartError": "Chart unavailable.",
-    "empty": {
-      "title": "No expenses in this period",
-      "description": "Classified expenses will appear here, grouped by category."
-    },
-    "tableCaption": "Expenses by category",
-    "tableHeaders": [
-      "Category",
-      "Total",
-      "Share"
-    ]
-  },
-  "recentTransactions": {
-    "title": "Recent transactions",
-    "loadError": "Transactions unavailable.",
-    "empty": {
-      "title": "No transactions",
-      "description": "Imported or manually created transactions will appear here."
-    }
-  },
-  "actions": {
-    "importStatement": "Import bank statement",
-    "addAccount": "Add account",
-    "viewTransactions": "View transactions"
-  },
-  "categoryDrawer": {
-    "breakdownTitle": "Top merchant",
-    "noMerchant": "No merchant"
   },
   "bucketDrawer": {
     "breakdownTitle": "Income vs Expenses",

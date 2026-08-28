@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plus, Wand2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -43,13 +44,19 @@ export function RulesPage() {
     setFormOpen(true);
   };
 
+  const newRuleButton = (
+    <Button size="sm" onClick={openCreate}>
+      <Plus className="h-4 w-4" /> {t("items.rules.page.newRule")}
+    </Button>
+  );
+  const toolbarPortal = usePageToolbar(newRuleButton);
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      {toolbarPortal}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-text">{t("items.rules.label")}</h1>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> {t("items.rules.page.newRule")}
-        </Button>
+        <div className="md:hidden">{newRuleButton}</div>
       </div>
 
       {suggestions && suggestions.length > 0 && (

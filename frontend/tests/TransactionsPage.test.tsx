@@ -72,7 +72,7 @@ describe("TransactionsPage — filtro periodo", () => {
     const txUrl = requestedUrls.find((u) => u.includes("/transactions"));
     expect(txUrl).not.toContain("date_from");
     expect(txUrl).not.toContain("date_to");
-    expect(screen.getByText("Tutti i periodi")).toBeInTheDocument();
+    expect(screen.getByText("Max")).toBeInTheDocument();
   });
 
   it("passa date_from/date_to quando l'utente attiva un filtro periodo", async () => {

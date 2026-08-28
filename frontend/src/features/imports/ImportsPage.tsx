@@ -4,6 +4,7 @@ import { FileText, Plus, Trash2, UploadCloud } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -72,13 +73,19 @@ export function ImportsPage() {
   const [reviewingImport, setReviewingImport] = useState<ImportRecord | null>(null);
   const accountsById = new Map((accounts ?? []).map((a) => [a.id, a]));
 
+  const importDocumentButton = (
+    <Button size="sm" onClick={() => setWizardOpen(true)}>
+      <Plus className="h-4 w-4" /> {t("page.importDocument")}
+    </Button>
+  );
+  const toolbarPortal = usePageToolbar(importDocumentButton);
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      {toolbarPortal}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-text">{t("page.title")}</h1>
-        <Button size="sm" onClick={() => setWizardOpen(true)}>
-          <Plus className="h-4 w-4" /> {t("page.importDocument")}
-        </Button>
+        <div className="md:hidden">{importDocumentButton}</div>
       </div>
 
       {isLoading && <SkeletonRows rows={4} />}
