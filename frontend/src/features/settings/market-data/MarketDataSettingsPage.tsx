@@ -3,6 +3,7 @@ import { LineChart, Plus, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { usePageToolbar } from "../../../components/layout/PageToolbarContext";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
@@ -65,13 +66,19 @@ export function MarketDataSettingsPage() {
     }, 1500);
   };
 
+  const newProfileButton = (
+    <Button size="sm" onClick={openCreate}>
+      <Plus className="h-4 w-4" /> {t("items.marketData.page.newProfile")}
+    </Button>
+  );
+  const toolbarPortal = usePageToolbar(newProfileButton);
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      {toolbarPortal}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-text">{t("items.marketData.label")}</h1>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> {t("items.marketData.page.newProfile")}
-        </Button>
+        <div className="md:hidden">{newProfileButton}</div>
       </div>
 
       <p className="text-sm text-text-muted">{t("items.marketData.page.intro")}</p>

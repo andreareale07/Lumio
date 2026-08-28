@@ -2,6 +2,8 @@
 configurato, l'applicazione deve continuare a funzionare"). Sempre
 disponibile, nessuna configurazione richiesta — stesso ruolo di
 `NoAIClassifier` in M07."""
+from datetime import date
+
 from app.marketdata.base import AssetProfile, AssetRef, FxQuote, PricePoint, Quote
 
 
@@ -25,5 +27,15 @@ class NoMarketDataProvider:
 
     async def fetch_fx_history(
         self, from_currency: str, to_currency: str, preset: str
+    ) -> list[PricePoint] | None:
+        return None
+
+    async def fetch_history_range(
+        self, asset: AssetRef, date_from: date, date_to: date
+    ) -> list[PricePoint] | None:
+        return None
+
+    async def fetch_fx_history_range(
+        self, from_currency: str, to_currency: str, date_from: date, date_to: date
     ) -> list[PricePoint] | None:
         return None

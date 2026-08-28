@@ -467,6 +467,22 @@ export interface MerchantBreakdownItem {
   transactions_count: number;
 }
 
+export interface CategoryTrendSeries {
+  category_id: Uuid | null;
+  name: string;
+  total: string;
+  values: string[];
+}
+
+export interface AnalyticsCategoryTrend {
+  currency: string;
+  direction: AnalyticsDirection;
+  granularity: AnalyticsGranularity;
+  period: AnalyticsPeriod;
+  buckets: IsoDate[];
+  series: CategoryTrendSeries[];
+}
+
 export interface AnalyticsMerchantBreakdown {
   currency: string;
   direction: AnalyticsDirection;
@@ -563,6 +579,12 @@ export interface MarketDataProfile {
   price_field: string | null;
   currency_field: string | null;
   is_active: boolean;
+  // docs/SPEC_STOCK_PRICE.md: intervallo MINIMO tra due chiamate reali al
+  // provider (non un TTL esatto) — il primo per il refresh bulk delle
+  // posizioni aperte (in background), il secondo per la live-quote del
+  // dettaglio di un singolo asset (cache Redis).
+  portfolio_refresh_interval_seconds: number;
+  detail_refresh_interval_seconds: number;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
@@ -574,6 +596,8 @@ export interface MarketDataProfileCreate {
   api_key?: string;
   price_field?: string | null;
   currency_field?: string | null;
+  portfolio_refresh_interval_seconds?: number;
+  detail_refresh_interval_seconds?: number;
 }
 
 export interface MarketDataProfileUpdate {
@@ -582,6 +606,8 @@ export interface MarketDataProfileUpdate {
   api_key?: string;
   price_field?: string | null;
   currency_field?: string | null;
+  portfolio_refresh_interval_seconds?: number;
+  detail_refresh_interval_seconds?: number;
 }
 
 export interface MarketDataConnectionCheckRequest {
@@ -614,11 +640,15 @@ export interface AssetPrice {
 export const HISTORY_PRESETS = ["1G", "1S", "1M", "3M", "6M", "1A", "5A", "Max"] as const;
 export type HistoryPreset = (typeof HISTORY_PRESETS)[number];
 
-/** Sottoinsieme di `HISTORY_PRESETS` per l'andamento di un intero ambito
- * investimenti (`PortfolioSummaryBlock`) — mai "1G"/"1S": non esistono
- * quotazioni intraday per un aggregato multi-asset, solo prezzi giornalieri
- * ricostruiti dal libro movimenti (`compute_historical_series`). */
-export const PORTFOLIO_HISTORY_PRESETS = ["1M", "3M", "6M", "1A", "5A", "Max"] as const;
+/** Stesso set completo di `HISTORY_PRESETS` per l'andamento di un intero
+ * ambito investimenti (`PortfolioSummaryBlock`) — "1G"/"1S" qui non sono
+ * intraday come per un singolo asset (nessuna quotazione infragiornaliera
+ * per un aggregato multi-asset), ma checkpoint giornalieri ricostruiti dal
+ * libro movimenti (`compute_historical_series`, che sceglie gia' la
+ * granularita' giornaliera per finestre cosi' corte) — un punto al giorno
+ * su una settimana resta un grafico leggibile, richiesta esplicita
+ * dell'utente dopo aver visto la pagina dal vivo. */
+export const PORTFOLIO_HISTORY_PRESETS = ["1G", "1S", "1M", "3M", "6M", "1A", "5A", "Max"] as const;
 export type PortfolioHistoryPreset = (typeof PORTFOLIO_HISTORY_PRESETS)[number];
 
 export interface PricePoint {
@@ -681,6 +711,13 @@ export interface AssetValuation {
   price: string | null;
   price_native: string | null;
   price_native_currency: string | null;
+  // docs/SPEC_STOCK_PRICE.md: presenti SOLO quando price/price_native
+  // vengono da una live-quote (cache Redis, dettaglio asset), non dal
+  // prezzo daily canonico — is_stale=true quando il provider non ha
+  // risposto in tempo e si mostra l'ultimo valore noto.
+  price_quoted_at: IsoDateTime | null;
+  price_is_live: boolean;
+  price_is_stale: boolean;
 }
 
 export interface AllocationItem {
@@ -778,9 +815,23 @@ export interface NetWorthSnapshotPoint {
 export interface NetWorthHistory {
   currency: string;
   points: NetWorthSnapshotPoint[];
+  // Storico patrimonio ricostruito (FETTA 3): true se almeno uno snapshot
+  // nell'intervallo richiesto e' stato scartato perche' la sua valuta non
+  // coincide con quella risolta (es. dopo un cambio di valuta base) — la UI
+  // puo' proporre "Ricostruisci storico" invece di mostrare un grafico
+  // vuoto senza spiegazione.
+  has_mixed_currency?: boolean;
 }
 
 export interface SnapshotRebuildTriggered {
+  job_id: string;
+}
+
+/** Storico patrimonio ricostruito (FETTA 3): risposta del trigger
+ * (automatico a fine import o manuale, `POST /portfolios/snapshots/
+ * backfill`) — a differenza di `SnapshotRebuildTriggered` (solo lo
+ * snapshot di oggi, secondi), questo job puo' impiegare minuti/ore. */
+export interface SnapshotBackfillTriggered {
   job_id: string;
 }
 
@@ -906,4 +957,103 @@ export interface Job {
   enabled: boolean | null;
   enabled_setting_key: string | null;
   parameters: JobParameter[];
+}
+
+// Ricorrenze e anomalie (piano synchronous-chasing-pike.md, FETTA 2) — due
+// algoritmi puri e deterministici calcolati on-the-fly, mai AI-dipendenti
+// (CLAUDE.md: l'app deve funzionare al 100% con AI_PROVIDER=none). Importi
+// sempre stringa (Decimal serializzato da Pydantic), stesso motivo di
+// `AnalyticsSummary` sopra.
+
+export const RECURRING_CADENCES = ["monthly", "four_weekly", "quarterly", "annual"] as const;
+export type RecurringCadence = (typeof RECURRING_CADENCES)[number];
+
+export const RECURRING_STATUSES = ["active", "ended"] as const;
+export type RecurringStatus = (typeof RECURRING_STATUSES)[number];
+
+export const ANOMALY_TYPES = ["category_outlier", "series_deviation"] as const;
+export type AnomalyType = (typeof ANOMALY_TYPES)[number];
+
+export interface RecurringOccurrence {
+  transaction_id: Uuid;
+  transaction_date: IsoDate;
+  amount: string | null;
+}
+
+export interface RecurringPriceChange {
+  changed_at: IsoDate;
+  old_amount: string;
+  new_amount: string;
+}
+
+export interface RecurringSeries {
+  series_key: string;
+  label: string;
+  cadence: RecurringCadence;
+  status: RecurringStatus;
+  confidence: string;
+  occurrences_count: number;
+  first_seen: IsoDate;
+  last_seen: IsoDate;
+  expected_next_date: IsoDate;
+  expected_next_amount: string | null;
+  typical_amount: string | null;
+  monthly_equivalent: string | null;
+  amount_is_variable: boolean;
+  price_change: RecurringPriceChange | null;
+  category_id: Uuid | null;
+  category_name: string | null;
+  multi_currency: boolean;
+  has_unconverted_rows: boolean;
+  occurrences: RecurringOccurrence[];
+}
+
+export interface RecurringSeriesList {
+  currency: string;
+  direction: AnalyticsDirection;
+  as_of: IsoDate;
+  analysis_window: AnalyticsPeriod;
+  monthly_total: string;
+  items: RecurringSeries[];
+  insufficient_data: boolean;
+  has_unconverted_rows: boolean;
+}
+
+export interface Anomaly {
+  transaction_id: Uuid;
+  transaction_date: IsoDate;
+  label: string;
+  amount: string;
+  currency: string;
+  anomaly_type: AnomalyType;
+  category_id: Uuid | null;
+  category_name: string | null;
+  baseline_amount: string;
+  deviation_amount: string;
+  deviation_pct: string | null;
+  robust_score: string | null;
+  sample_size: number;
+  series_key: string | null;
+}
+
+export interface AnomalyList {
+  currency: string;
+  direction: AnalyticsDirection;
+  period: AnalyticsPeriod;
+  baseline: AnalyticsPeriod;
+  items: Anomaly[];
+  insufficient_data: boolean;
+  has_unconverted_rows: boolean;
+}
+
+export type DetectionOverrideType = "recurring_series" | "anomaly";
+
+export interface DetectionOverride {
+  id: Uuid;
+  workspace_id: Uuid;
+  override_type: DetectionOverrideType;
+  series_key: string | null;
+  transaction_id: Uuid | null;
+  decision: string;
+  created_at: IsoDateTime;
 }

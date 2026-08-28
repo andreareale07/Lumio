@@ -5,7 +5,7 @@ Richiede uno User-Agent da browser: senza, Yahoo risponde 429/999 anche
 senza aver superato alcun limite dichiarato.
 """
 import re
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 import httpx
@@ -295,6 +295,68 @@ class YahooProvider:
             at = datetime.fromtimestamp(timestamp, tz=timezone.utc)
             points.append(PricePoint(at=at, price=rate))
         return points
+
+    async def _fetch_chart_range(self, symbol: str, date_from: date, date_to: date) -> list[PricePoint]:
+        """Stesso endpoint 'chart' di fetch_history/fetch_fx_history, ma con
+        `period1`/`period2` (timestamp unix) espliciti invece dei preset
+        fissi di `_RANGE_INTERVAL` — serve al backfill storico (FETTA 3),
+        dove il preset piu' lungo ('Max') e' MENSILE su Yahoo, inutilizzabile
+        per popolare `asset_prices`/`fx_rates` su anni di storico giornaliero
+        (vedi docstring del Protocol in `marketdata/base.py`). `period2` e'
+        estremo ESCLUSIVO lato Yahoo: si aggiunge un giorno a `date_to` per
+        includerlo davvero."""
+        period1 = int(datetime.combine(date_from, time.min, tzinfo=timezone.utc).timestamp())
+        period2 = int(
+            (datetime.combine(date_to, time.min, tzinfo=timezone.utc) + timedelta(days=1)).timestamp()
+        )
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT, headers=_HEADERS) as client:
+                response = await client.get(
+                    _CHART_ENDPOINT.format(symbol=symbol),
+                    params={"period1": period1, "period2": period2, "interval": "1d"},
+                )
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise MarketDataProviderError(f"Yahoo Finance non raggiungibile: {exc}") from exc
+
+        try:
+            body = response.json()
+        except ValueError:
+            return []
+
+        results = ((body.get("chart") or {}).get("result")) or []
+        if not results:
+            return []
+        result = results[0]
+        timestamps = result.get("timestamp") or []
+        quotes = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+        closes = quotes.get("close") or []
+
+        points: list[PricePoint] = []
+        for timestamp, close in zip(timestamps, closes):
+            if close is None:
+                continue
+            try:
+                price = Decimal(str(close))
+            except InvalidOperation:
+                continue
+            at = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            points.append(PricePoint(at=at, price=price))
+        return points
+
+    async def fetch_history_range(
+        self, asset: AssetRef, date_from: date, date_to: date
+    ) -> list[PricePoint] | None:
+        symbol = await self._resolve_symbol(asset)
+        if symbol is None:
+            return None
+        return await self._fetch_chart_range(symbol, date_from, date_to)
+
+    async def fetch_fx_history_range(
+        self, from_currency: str, to_currency: str, date_from: date, date_to: date
+    ) -> list[PricePoint] | None:
+        symbol = f"{from_currency}{to_currency}=X"
+        return await self._fetch_chart_range(symbol, date_from, date_to)
 
     async def _resolve_symbol_from_isin(self, isin: str) -> str | None:
         try:

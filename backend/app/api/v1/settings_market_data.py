@@ -43,6 +43,8 @@ def _to_out(profile: MarketDataProfile) -> MarketDataProfileOut:
         price_field=profile.price_field,
         currency_field=profile.currency_field,
         is_active=profile.is_active,
+        portfolio_refresh_interval_seconds=profile.portfolio_refresh_interval_seconds,
+        detail_refresh_interval_seconds=profile.detail_refresh_interval_seconds,
         created_at=profile.created_at,
         updated_at=profile.updated_at,
     )

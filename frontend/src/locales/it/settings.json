@@ -233,7 +233,9 @@
             "endpoint": "Endpoint",
             "apiKey": "API key (opzionale)",
             "priceField": "Percorso del prezzo nella risposta",
-            "currencyField": "Percorso della valuta (opzionale)"
+            "currencyField": "Percorso della valuta (opzionale)",
+            "portfolioRefreshInterval": "Intervallo di refresh (portafoglio, secondi)",
+            "detailRefreshInterval": "Intervallo di refresh (dettaglio titolo, secondi)"
           },
           "endpointPlaceholder": "https://api.esempio.com/quote?symbol={symbol}",
           "endpointHint": "Usa {symbol} come segnaposto per il simbolo dell'asset.",
@@ -243,13 +245,17 @@
           "priceFieldHint": "Percorso puntato nel JSON di risposta, es. \"quote.price\".",
           "currencyFieldPlaceholder": "currency",
           "currencyFieldHint": "Se vuoto, si usa la valuta dell'asset.",
+          "portfolioRefreshIntervalHint": "Intervallo minimo tra due aggiornamenti automatici dei prezzi mentre navighi le schermate investimenti (min. 300s = 5 min).",
+          "detailRefreshIntervalHint": "Intervallo minimo tra due chiamate al provider per il prezzo live nel dettaglio di un singolo titolo (min. 5s).",
           "testConnection": "Verifica connessione",
           "submitEdit": "Salva",
           "submitCreate": "Crea profilo",
           "validation": {
             "name": "Inserisci un nome",
             "endpoint": "Inserisci l'endpoint",
-            "priceField": "Inserisci il percorso del prezzo nella risposta"
+            "priceField": "Inserisci il percorso del prezzo nella risposta",
+            "portfolioRefreshInterval": "Deve essere tra 300 e 86400 secondi",
+            "detailRefreshInterval": "Deve essere tra 5 e 3600 secondi"
           },
           "errors": {
             "save": "Non è stato possibile salvare il profilo.",

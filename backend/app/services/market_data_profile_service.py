@@ -60,6 +60,8 @@ def build_new_profile(workspace_id: uuid.UUID, payload: MarketDataProfileCreate)
         api_key_encrypted=encrypt_secret(payload.api_key) if payload.api_key else None,
         price_field=payload.price_field,
         currency_field=payload.currency_field,
+        portfolio_refresh_interval_seconds=payload.portfolio_refresh_interval_seconds,
+        detail_refresh_interval_seconds=payload.detail_refresh_interval_seconds,
         is_active=False,
     )
 

@@ -257,6 +257,27 @@ JOB_DESCRIPTORS: list[JobDescriptor] = [
             ),
         ],
     ),
+    JobDescriptor(
+        kind="snapshot_backfill",
+        category="triggered",
+        name_key="snapshotBackfill.name",
+        description_key="snapshotBackfill.description",
+        parameters=[
+            JobParameterSpec(
+                label_key=_STALE_THRESHOLD_KEY,
+                unit_key=_SECONDS_UNIT_KEY,
+                editable=True,
+                setting_key="job_health.snapshot_backfill.stale_after_seconds",
+            ),
+            JobParameterSpec(
+                label_key=_MAX_EXECUTION_TIMEOUT_KEY,
+                unit_key=_SECONDS_UNIT_KEY,
+                editable=False,
+                settings_attr="snapshot_backfill_job_timeout_seconds",
+                readonly_reason_key=_READONLY_TIMEOUT_REASON_KEY,
+            ),
+        ],
+    ),
 ]
 
 

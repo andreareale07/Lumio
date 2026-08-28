@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, String, func, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,6 +27,16 @@ class MarketDataProfile(Base):
     `price_field`/`currency_field` sono percorsi puntati nella risposta JSON
     (es. "quote.price") usati SOLO da `provider='custom'` — ignorati dagli
     altri provider, che sanno gia' come interpretare la propria risposta.
+
+    `portfolio_refresh_interval_seconds`/`detail_refresh_interval_seconds`
+    (docs/SPEC_STOCK_PRICE.md): intervallo MINIMO tra due chiamate reali al
+    provider, non un TTL esatto del valore mostrato. Il primo governa la
+    cadenza con cui il job bulk (posizioni aperte) puo' essere ri-triggerato
+    in background mentre l'utente naviga le viste portfolio-wide
+    (`app/worker/jobs/market_data.py`); il secondo la cadenza minima di
+    fetch per la live-quote di un singolo asset (`app/services/
+    live_quote_service.py`), il cui TTL Redis e' leggermente maggiore
+    (+5s) per evitare la race alla scadenza esatta.
     """
 
     __tablename__ = "market_data_profiles"
@@ -35,6 +45,14 @@ class MarketDataProfile(Base):
         CheckConstraint(
             "provider IN ('manual', 'stooq', 'yahoo', 'custom')",
             name="ck_market_data_profiles_provider",
+        ),
+        CheckConstraint(
+            "portfolio_refresh_interval_seconds BETWEEN 300 AND 86400",
+            name="ck_market_data_profiles_portfolio_refresh_interval",
+        ),
+        CheckConstraint(
+            "detail_refresh_interval_seconds BETWEEN 5 AND 3600",
+            name="ck_market_data_profiles_detail_refresh_interval",
         ),
     )
 
@@ -51,6 +69,12 @@ class MarketDataProfile(Base):
     price_field: Mapped[str | None] = mapped_column(String, nullable=True)
     currency_field: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    portfolio_refresh_interval_seconds: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("900")
+    )
+    detail_refresh_interval_seconds: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("15")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

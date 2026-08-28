@@ -33,6 +33,10 @@
     "name": "Riclassificazione",
     "description": "Riapplica la pipeline di classificazione (regole, sistema, opzionalmente AI) alle transazioni già importate — innescato dall'utente dopo un aggiornamento della tassonomia. Non tocca mai le correzioni manuali."
   },
+  "snapshotBackfill": {
+    "name": "Storico patrimonio ricostruito",
+    "description": "Ricostruisce lo storico giornaliero di patrimonio/portfolio per l'intervallo richiesto (prezzi storici + cambio inclusi) — innescato automaticamente a fine import o manualmente dalla pagina Patrimonio."
+  },
   "params": {
     "staleThreshold": "Soglia di stallo",
     "staleThresholdImport": "Soglia di stallo — Import",

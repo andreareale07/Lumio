@@ -233,7 +233,9 @@
             "endpoint": "Endpoint",
             "apiKey": "API key (optional)",
             "priceField": "Price path in the response",
-            "currencyField": "Currency path (optional)"
+            "currencyField": "Currency path (optional)",
+            "portfolioRefreshInterval": "Refresh interval (portfolio, seconds)",
+            "detailRefreshInterval": "Refresh interval (asset detail, seconds)"
           },
           "endpointPlaceholder": "https://api.example.com/quote?symbol={symbol}",
           "endpointHint": "Use {symbol} as a placeholder for the asset's symbol.",
@@ -243,13 +245,17 @@
           "priceFieldHint": "Dotted path in the JSON response, e.g. \"quote.price\".",
           "currencyFieldPlaceholder": "currency",
           "currencyFieldHint": "If empty, the asset's own currency is used.",
+          "portfolioRefreshIntervalHint": "Minimum interval between automatic price refreshes while browsing the investments screens (min. 300s = 5 min).",
+          "detailRefreshIntervalHint": "Minimum interval between provider calls for the live price on a single asset's detail page (min. 5s).",
           "testConnection": "Test connection",
           "submitEdit": "Save",
           "submitCreate": "Create profile",
           "validation": {
             "name": "Enter a name",
             "endpoint": "Enter the endpoint",
-            "priceField": "Enter the price path in the response"
+            "priceField": "Enter the price path in the response",
+            "portfolioRefreshInterval": "Must be between 300 and 86400 seconds",
+            "detailRefreshInterval": "Must be between 5 and 3600 seconds"
           },
           "errors": {
             "save": "We couldn't save the profile.",

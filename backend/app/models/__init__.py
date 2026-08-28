@@ -1,6 +1,7 @@
 from app.models.ai_profile import AIProfile
 from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
+from app.models.asset_price_quote import AssetPriceQuote
 from app.models.asset_profile import AssetProfile
 from app.models.audit_log import AuditLog
 from app.models.bank import Bank
@@ -8,6 +9,7 @@ from app.models.bank_parser import BankParser
 from app.models.category import Category
 from app.models.classification import Classification
 from app.models.currency import Currency
+from app.models.detection_override import DetectionOverride
 from app.models.financial_account import FinancialAccount
 from app.models.financial_account_iban_history import FinancialAccountIbanHistory
 from app.models.fx_rate import FxRate
@@ -35,6 +37,7 @@ __all__ = [
     "AIProfile",
     "Asset",
     "AssetPrice",
+    "AssetPriceQuote",
     "AssetProfile",
     "AuditLog",
     "Bank",
@@ -42,6 +45,7 @@ __all__ = [
     "Category",
     "Classification",
     "Currency",
+    "DetectionOverride",
     "FinancialAccount",
     "FinancialAccountIbanHistory",
     "FxRate",

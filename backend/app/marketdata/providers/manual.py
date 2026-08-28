@@ -6,6 +6,8 @@ lasciare il market data disattivato — l'inserimento vero avviene tramite
 profilo attivo), non da questa classe. `fetch_quote` ritorna sempre `None`:
 non c'e' nulla da scaricare, il job di refresh automatico salta semplicemente
 gli asset quando questo e' il profilo attivo."""
+from datetime import date
+
 from app.marketdata.base import AssetProfile, AssetRef, FxQuote, PricePoint, Quote
 
 
@@ -29,5 +31,15 @@ class ManualMarketDataProvider:
 
     async def fetch_fx_history(
         self, from_currency: str, to_currency: str, preset: str
+    ) -> list[PricePoint] | None:
+        return None
+
+    async def fetch_history_range(
+        self, asset: AssetRef, date_from: date, date_to: date
+    ) -> list[PricePoint] | None:
+        return None
+
+    async def fetch_fx_history_range(
+        self, from_currency: str, to_currency: str, date_from: date, date_to: date
     ) -> list[PricePoint] | None:
         return None

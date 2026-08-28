@@ -73,6 +73,7 @@ async def _clean_tables():
                 "market_data_profiles, asset_prices, portfolio_snapshots, net_worth_snapshots, "
                 "job_runs, transaction_type_mappings, financial_account_iban_history, "
                 "transaction_dedup_decisions, transaction_review_items, "
+                "detection_overrides, "
                 "google_integrations, audit_log CASCADE"
             )
         )
@@ -150,6 +151,11 @@ async def _reset_connection_pools():
     # reale e romperebbero test che non hanno nulla a che fare col rate
     # limiting stesso.
     async for key in redis_client.scan_iter(match="LIMITS:*"):
+        await redis_client.delete(key)
+    # Live-quote (docs/SPEC_STOCK_PRICE.md, app/services/live_quote_service.py):
+    # stesso motivo dei prefissi sopra, altrimenti una quote/lock scritta da
+    # un test resterebbe visibile (entro il suo TTL) al test successivo.
+    async for key in redis_client.scan_iter(match="market:quote:*"):
         await redis_client.delete(key)
     await redis_client.aclose()
     await engine.dispose()

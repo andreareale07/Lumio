@@ -3,9 +3,18 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 MarketDataProviderName = Literal["manual", "stooq", "yahoo", "custom"]
+
+# docs/SPEC_STOCK_PRICE.md: intervallo MINIMO tra due chiamate reali al
+# provider, non un TTL esatto — vedi il docstring di MarketDataProfile.
+_PORTFOLIO_REFRESH_MIN = 300
+_PORTFOLIO_REFRESH_MAX = 86400
+_PORTFOLIO_REFRESH_DEFAULT = 900
+_DETAIL_REFRESH_MIN = 5
+_DETAIL_REFRESH_MAX = 3600
+_DETAIL_REFRESH_DEFAULT = 15
 
 
 class MarketDataProfileCreate(BaseModel):
@@ -15,6 +24,12 @@ class MarketDataProfileCreate(BaseModel):
     api_key: str | None = None
     price_field: str | None = None
     currency_field: str | None = None
+    portfolio_refresh_interval_seconds: int = Field(
+        default=_PORTFOLIO_REFRESH_DEFAULT, ge=_PORTFOLIO_REFRESH_MIN, le=_PORTFOLIO_REFRESH_MAX
+    )
+    detail_refresh_interval_seconds: int = Field(
+        default=_DETAIL_REFRESH_DEFAULT, ge=_DETAIL_REFRESH_MIN, le=_DETAIL_REFRESH_MAX
+    )
 
 
 class MarketDataProfileUpdate(BaseModel):
@@ -28,6 +43,12 @@ class MarketDataProfileUpdate(BaseModel):
     api_key: str | None = None
     price_field: str | None = None
     currency_field: str | None = None
+    portfolio_refresh_interval_seconds: int | None = Field(
+        default=None, ge=_PORTFOLIO_REFRESH_MIN, le=_PORTFOLIO_REFRESH_MAX
+    )
+    detail_refresh_interval_seconds: int | None = Field(
+        default=None, ge=_DETAIL_REFRESH_MIN, le=_DETAIL_REFRESH_MAX
+    )
 
 
 class MarketDataProfileOut(BaseModel):
@@ -39,6 +60,8 @@ class MarketDataProfileOut(BaseModel):
     price_field: str | None
     currency_field: str | None
     is_active: bool
+    portfolio_refresh_interval_seconds: int
+    detail_refresh_interval_seconds: int
     created_at: datetime
     updated_at: datetime
 

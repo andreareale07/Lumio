@@ -40,6 +40,16 @@ export function formatDateTime(isoDateTime: string): string {
   }).format(new Date(isoDateTime));
 }
 
+/** Solo ora (no data): per il grafico prezzo del preset "1G" (dettaglio
+ * asset) la data e' sempre "oggi", ripeterla su ogni etichetta dell'asse X
+ * e' rumore puro — a differenza di "1S" (5 giorni), che resta su
+ * `formatDateTime` perche' i punti attraversano piu' giorni distinti. */
+export function formatTime(isoDateTime: string): string {
+  return new Intl.DateTimeFormat(intlLocale(), { hour: "2-digit", minute: "2-digit" }).format(
+    new Date(isoDateTime),
+  );
+}
+
 export function formatPeriodLabel(dateFrom: string, dateTo: string): string {
   return `${formatDate(dateFrom)} – ${formatDate(dateTo)}`;
 }

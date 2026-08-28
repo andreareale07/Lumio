@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Landmark, PiggyBank, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { History, Landmark, PiggyBank, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +8,8 @@ import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { DrillDownDrawer } from "../../components/charts/DrillDownDrawer";
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
+import { usePageToolbar } from "../../components/layout/PageToolbarContext";
+import { BackLink } from "../../components/ui/BackLink";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -14,9 +17,15 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { JobRunStatus } from "../../components/ui/JobRunStatus";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { formatDate, formatMoney } from "../../lib/format";
+import { GRANULARITY_ORDER } from "../../lib/period";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useTransactions } from "../transactions/api";
-import { useSnapshotRebuildStatus, useTriggerSnapshotRebuild } from "../portfolio/api";
+import {
+  useSnapshotBackfillStatus,
+  useSnapshotRebuildStatus,
+  useTriggerSnapshotBackfill,
+  useTriggerSnapshotRebuild,
+} from "../portfolio/api";
 import { useAnalyticsBalances, useAnalyticsNetWorthHistory, useAnalyticsSummary } from "./api";
 
 const LIQUIDITY_ACCOUNT_TYPES = new Set(["checking", "savings", "brokerage", "cash", "other"]);
@@ -40,7 +49,7 @@ const DEBT_ACCOUNT_TYPES = new Set(["credit_card"]);
 export function NetWorthPage() {
   const { t } = useTranslation(["analytics", "dashboard"]);
   const { currentPeriod, trendWindow } = usePeriodNavigator({
-    granularities: ["month", "quarter", "year"],
+    granularities: GRANULARITY_ORDER,
   });
 
   const summary = useAnalyticsSummary({ date_from: currentPeriod.date_from, date_to: currentPeriod.date_to });
@@ -48,6 +57,9 @@ export function NetWorthPage() {
   const history = useAnalyticsNetWorthHistory({ date_from: trendWindow.date_from, date_to: trendWindow.date_to });
   const rebuildSnapshot = useTriggerSnapshotRebuild();
   const rebuildStatus = useSnapshotRebuildStatus();
+  const backfillSnapshot = useTriggerSnapshotBackfill();
+  const backfillStatus = useSnapshotBackfillStatus();
+  const queryClient = useQueryClient();
 
   const [selectedComposition, setSelectedComposition] = useState<"liquidity" | "debt" | null>(null);
   const compositionTransactions = useTransactions({ limit: 5 }, { enabled: !!selectedComposition });
@@ -78,8 +90,58 @@ export function NetWorthPage() {
     }, 1500);
   };
 
+  // Storico patrimonio ricostruito (FETTA 3): a differenza di "Ricalcola
+  // adesso" (secondi, setTimeout va bene), questo job puo' impiegare
+  // minuti/ore — un timeout fisso non ha senso. Si invalida la query dello
+  // storico solo quando lo stato persistente passa OSSERVABILMENTE da
+  // 'running' a 'success' (polling gia' attivo via useSnapshotBackfillStatus),
+  // non ad ogni render/poll.
+  const previousBackfillStatusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const previousStatus = previousBackfillStatusRef.current;
+    const currentStatus = backfillStatus.data?.status;
+    if (previousStatus === "running" && currentStatus === "success") {
+      void queryClient.invalidateQueries({ queryKey: ["analytics", "net-worth-history"] });
+    }
+    previousBackfillStatusRef.current = currentStatus;
+  }, [backfillStatus.data?.status, queryClient]);
+
+  const onBackfillHistory = async () => {
+    await backfillSnapshot.mutateAsync();
+    void backfillStatus.refetch();
+  };
+
+  const periodNav = <PeriodNavigator granularities={GRANULARITY_ORDER} />;
+  const backfillButton = (
+    <Button
+      variant="secondary"
+      size="sm"
+      loading={backfillSnapshot.isPending}
+      onClick={() => void onBackfillHistory()}
+    >
+      <History className="h-4 w-4" /> {t("netWorth.backfillHistory")}
+    </Button>
+  );
+  const rebuildButton = (
+    <Button variant="secondary" size="sm" loading={rebuildSnapshot.isPending} onClick={() => void onRebuildNow()}>
+      <RefreshCw className="h-4 w-4" /> {t("netWorth.rebuildNow")}
+    </Button>
+  );
+  // Navigatore periodo + le due azioni di ricalcolo vivono nel Topbar
+  // (desktop) e in righe `md:hidden` qui sotto per mobile — stesso
+  // portal/duplicazione-per-breakpoint gia' in uso altrove.
+  const toolbarPortal = usePageToolbar(
+    <>
+      {periodNav}
+      {backfillButton}
+      {rebuildButton}
+    </>,
+  );
+
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
+      {toolbarPortal}
+      <BackLink to="/" label={t("navigation:items.dashboard")} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-text">{t("netWorth.title")}</h1>
@@ -90,16 +152,16 @@ export function NetWorthPage() {
           )}
           <p className="text-sm text-text-muted">{t("netWorth.subtitle")}</p>
         </div>
-        <PeriodNavigator granularities={["month", "quarter", "year"]} />
+        <div className="md:hidden">{periodNav}</div>
       </div>
 
       {summary.isError && <ErrorState message={t("netWorth.errorMessage")} onRetry={() => void summary.refetch()} />}
 
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="secondary" size="sm" loading={rebuildSnapshot.isPending} onClick={() => void onRebuildNow()}>
-          <RefreshCw className="h-4 w-4" /> {t("netWorth.rebuildNow")}
-        </Button>
+      <div className="flex flex-wrap items-center justify-end gap-2 md:hidden">
+        {backfillButton}
+        {rebuildButton}
       </div>
+      <JobRunStatus run={backfillStatus.data} />
       <JobRunStatus run={rebuildStatus.data} />
 
       {history.isLoading && <Skeleton className="h-72 w-full" />}
@@ -112,6 +174,11 @@ export function NetWorthPage() {
               icon={Landmark}
               title={t("netWorth.history.emptyTitle")}
               description={t("netWorth.history.emptyDescription")}
+              action={
+                <Button size="sm" loading={backfillSnapshot.isPending} onClick={() => void onBackfillHistory()}>
+                  <History className="h-4 w-4" /> {t("netWorth.backfillHistory")}
+                </Button>
+              }
             />
           }
           tableCaption={t("netWorth.history.tableCaption")}

@@ -33,6 +33,10 @@ _JOB_RUN_LABEL_KEYS = {d.kind: d.name_key for d in JOB_DESCRIPTORS}
 _JOB_RUN_EVENTS_URL = {
     "reclassification": "/classification/reclassify/events",
     "google_sheets_export": "/integrations/google/export-events",
+    # FETTA 3 (storico patrimonio ricostruito): stessa ragione di
+    # "reclassification" — un job triggerabile che puo' durare minuti/ore,
+    # progresso live nel cruscotto Attivita' senza codice frontend nuovo.
+    "snapshot_backfill": "/portfolios/snapshots/backfill/events",
 }
 
 

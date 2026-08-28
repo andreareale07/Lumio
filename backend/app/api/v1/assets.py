@@ -12,6 +12,7 @@ from app.marketdata.base import AssetRef, MarketDataProviderError
 from app.marketdata.registry import build_provider
 from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
+from app.models.asset_price_quote import AssetPriceQuote
 from app.models.asset_profile import AssetProfile
 from app.schemas.assets import AssetCreate, AssetOut, AssetUpdate
 from app.schemas.market_data import (
@@ -23,7 +24,7 @@ from app.schemas.market_data import (
 )
 from app.schemas.portfolio_analytics import AssetValuationOut
 from app.services import analytics as analytics_service
-from app.services import portfolio_analytics
+from app.services import live_quote_service, portfolio_analytics
 from app.services.asset_profile_service import get_or_refresh_profile
 from app.services.currency_service import currency_exists
 from app.services.market_data_profile_service import get_active_profile
@@ -69,6 +70,72 @@ _RANGE_COVERAGE_TOLERANCE_DAYS = 4
 # casi la richiesta successiva entro 15 minuti non deve mai ricontattare
 # Yahoo.
 _CACHE_TTL_MINUTES = 15
+
+# docs/SPEC_STOCK_PRICE.md: i preset intraday (1G/1S, esclusi da
+# HISTORY_PRESETS/_PRESET_LOOKBACK_DAYS sopra perche' non vanno MAI in
+# asset_prices) hanno ora una cache propria, basata sull'osservazione
+# accumulata in asset_price_quotes mentre l'utente guarda il dettaglio asset
+# (vedi live_quote_service.py) — copertura attesa in giorni, non lo stesso
+# significato di _PRESET_LOOKBACK_DAYS (li' e' un range di grafico, qui e'
+# "quanto indietro guardare per giudicare se abbiamo gia' punti nostri").
+_INTRADAY_LOOKBACK_DAYS: dict[str, int] = {"1G": 1, "1S": 5}
+# Se l'osservazione piu' recente in asset_price_quotes e' piu' vecchia di
+# questa soglia, si considera la nostra cache "fredda" (nessuno ha guardato
+# l'asset di recente) e si ricade sul fetch live esistente, che poi semina
+# di nuovo la cache per le richieste successive.
+_INTRADAY_FRESHNESS_MINUTES = 5
+# Un fetch live a Yahoo per "1G"/"1S" restituisce l'intera sessione (decine
+# di punti, es. ~78 a 5 minuti per una seduta di 6.5h) — le sole
+# osservazioni raccolte dal polling della live-quote (un punto ogni
+# detail_refresh_interval_seconds, tipicamente 5-15s, SOLO mentre la pagina
+# resta aperta) accumulano molto piu' lentamente. Senza questa soglia,
+# bastava che la cache fosse "fresca" (un solo punto recente) per farla
+# passare al posto dell'intera giornata scaricata da Yahoo — un grafico con
+# 2-3 punti invece della sessione intera (bug reale osservato in QA).
+# Sotto questa soglia si considera la copertura insufficiente e si ricade
+# sul fetch live, che poi ri-semina la cache con la sessione completa.
+_INTRADAY_MIN_POINTS = 20
+# Il solo conteggio non basta (bug reale osservato in QA: 48 osservazioni
+# raccolte in soli 9 minuti di polling ravvicinato superavano la soglia
+# sopra pur non rappresentando affatto "la giornata" — un grafico ancora
+# stretto su una manciata di minuti, solo con piu' punti dentro). Si
+# richiede quindi anche che l'intervallo COPERTO dalle osservazioni (dalla
+# piu' vecchia alla piu' recente entro la finestra) sia gia' ampio,
+# altrimenti si ricade sempre sul fetch live completo.
+_INTRADAY_MIN_SPAN_HOURS: dict[str, float] = {"1G": 3.0, "1S": 24.0}
+
+
+async def _cached_intraday_quotes(
+    db: AsyncSession, workspace_id: uuid.UUID, asset_id: uuid.UUID, preset: str
+) -> list[AssetPriceQuote] | None:
+    """Punti gia' osservati in `asset_price_quotes` per il preset intraday
+    richiesto, o `None` se insufficienti/troppo vecchi/troppo pochi/troppo
+    concentrati in una finestra stretta — MAI una cache parziale silenziosa,
+    stesso principio di `_cached_price_history`."""
+    lookback_days = _INTRADAY_LOOKBACK_DAYS.get(preset)
+    if lookback_days is None:
+        return None
+    since = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+    rows = (
+        await db.execute(
+            select(AssetPriceQuote)
+            .where(
+                AssetPriceQuote.workspace_id == workspace_id,
+                AssetPriceQuote.asset_id == asset_id,
+                AssetPriceQuote.quoted_at >= since,
+            )
+            .order_by(AssetPriceQuote.quoted_at)
+        )
+    ).scalars().all()
+    if len(rows) < _INTRADAY_MIN_POINTS:
+        return None
+    covers_enough_span = (rows[-1].quoted_at - rows[0].quoted_at) >= timedelta(
+        hours=_INTRADAY_MIN_SPAN_HOURS[preset]
+    )
+    if not covers_enough_span:
+        return None
+    is_fresh = datetime.now(timezone.utc) - rows[-1].quoted_at <= timedelta(minutes=_INTRADAY_FRESHNESS_MINUTES)
+    return list(rows) if is_fresh else None
 
 
 async def _cached_price_history(
@@ -327,6 +394,16 @@ async def get_asset_price_history(
             ],
         )
 
+    if preset in _INTRADAY_LOOKBACK_DAYS:
+        intraday_rows = await _cached_intraday_quotes(db, workspace_id, asset_id, preset)
+        if intraday_rows is not None:
+            return PriceHistoryOut(
+                preset=preset,
+                supports_history=True,
+                currency=intraday_rows[-1].currency,
+                points=[PricePointOut(at=r.quoted_at, price=r.price) for r in intraday_rows],
+            )
+
     profile = await get_active_profile(db, workspace_id)
     provider = build_provider(profile)
     asset_ref = AssetRef(
@@ -375,6 +452,14 @@ async def get_asset_price_history(
             price_row.currency = price_currency
             price_row.source = provider.provider
         await db.commit()
+    elif preset in _INTRADAY_LOOKBACK_DAYS:
+        # docs/SPEC_STOCK_PRICE.md: semina asset_price_quotes con i punti
+        # appena scaricati dal vivo — le richieste successive nello stesso
+        # giorno per lo stesso preset (1G/1S) troveranno una cache "calda" in
+        # _cached_intraday_quotes sopra, senza ricontattare il provider.
+        await live_quote_service.persist_intraday_points(
+            db, workspace_id, asset_id, [(p.at, p.price) for p in points], price_currency, provider.provider
+        )
 
     return PriceHistoryOut(
         preset=preset,
@@ -398,11 +483,18 @@ async def get_asset_valuation(
     in JPY/USD ma comprato in EUR): la card "Rendimento" del dettaglio
     asset non deve piu' sparire in quel caso, e' un dato che l'utente
     considera troppo importante per restare "—"."""
-    await _get_asset_or_404(db, workspace_id, asset_id)
+    asset = await _get_asset_or_404(db, workspace_id, asset_id)
     resolved_currency = await analytics_service.resolve_currency(db, workspace_id, currency)
+    profile = await get_active_profile(db, workspace_id)
+    live_quote = await live_quote_service.get_or_refresh_latest_quote(db, workspace_id, asset, profile)
     valuation = await portfolio_analytics.get_asset_valuation(
-        db, workspace_id, asset_id, date.today(), resolved_currency
+        db, workspace_id, asset_id, date.today(), resolved_currency, live_quote=live_quote
     )
+    # Un solo commit qui, a fine handler (mai prima: vedi commento in
+    # live_quote_service.get_or_refresh_latest_quote) — persiste l'eventuale
+    # nuova osservazione in asset_price_quotes. Se `live_quote` era `None` o
+    # da cache, e' un commit a vuoto, innocuo.
+    await db.commit()
     return AssetValuationOut(
         currency=valuation.currency,
         quantity=valuation.quantity,
@@ -415,6 +507,9 @@ async def get_asset_valuation(
         price=valuation.price,
         price_native=valuation.price_native,
         price_native_currency=valuation.price_native_currency,
+        price_quoted_at=valuation.price_quoted_at,
+        price_is_live=valuation.price_is_live,
+        price_is_stale=valuation.price_is_stale,
     )
 
 

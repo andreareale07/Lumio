@@ -42,9 +42,20 @@ function valuesFrom(profile: MarketDataProfile | null | undefined): MarketDataPr
       api_key: "",
       price_field: profile.price_field ?? "",
       currency_field: profile.currency_field ?? "",
+      portfolio_refresh_interval_seconds: String(profile.portfolio_refresh_interval_seconds),
+      detail_refresh_interval_seconds: String(profile.detail_refresh_interval_seconds),
     };
   }
-  return { name: "", provider: "manual", endpoint: "", api_key: "", price_field: "", currency_field: "" };
+  return {
+    name: "",
+    provider: "manual",
+    endpoint: "",
+    api_key: "",
+    price_field: "",
+    currency_field: "",
+    portfolio_refresh_interval_seconds: "900",
+    detail_refresh_interval_seconds: "15",
+  };
 }
 
 /** SPEC §38: manuale / gratuito (Stooq, Yahoo) / personalizzato con API key
@@ -98,6 +109,8 @@ export function MarketDataProfileFormDialog({ open, onClose, profile }: MarketDa
           endpoint: isCustom ? values.endpoint.trim() : null,
           price_field: isCustom ? values.price_field.trim() : null,
           currency_field: isCustom ? values.currency_field.trim() || null : null,
+          portfolio_refresh_interval_seconds: Number(values.portfolio_refresh_interval_seconds),
+          detail_refresh_interval_seconds: Number(values.detail_refresh_interval_seconds),
           ...(trimmedKey ? { api_key: trimmedKey } : {}),
         };
         await updateProfile.mutateAsync(patch);
@@ -108,6 +121,8 @@ export function MarketDataProfileFormDialog({ open, onClose, profile }: MarketDa
           endpoint: isCustom ? values.endpoint.trim() : null,
           price_field: isCustom ? values.price_field.trim() : null,
           currency_field: isCustom ? values.currency_field.trim() || null : null,
+          portfolio_refresh_interval_seconds: Number(values.portfolio_refresh_interval_seconds),
+          detail_refresh_interval_seconds: Number(values.detail_refresh_interval_seconds),
           ...(trimmedKey ? { api_key: trimmedKey } : {}),
         };
         await createProfile.mutateAsync(create);
@@ -165,6 +180,21 @@ export function MarketDataProfileFormDialog({ open, onClose, profile }: MarketDa
           ))}
         </Select>
         <p className="text-sm text-text-muted">{marketDataProviderDescription(t, provider)}</p>
+
+        <Input
+          label={t("items.marketData.page.form.fields.portfolioRefreshInterval")}
+          type="number"
+          hint={t("items.marketData.page.form.portfolioRefreshIntervalHint")}
+          error={errors.portfolio_refresh_interval_seconds?.message}
+          {...register("portfolio_refresh_interval_seconds")}
+        />
+        <Input
+          label={t("items.marketData.page.form.fields.detailRefreshInterval")}
+          type="number"
+          hint={t("items.marketData.page.form.detailRefreshIntervalHint")}
+          error={errors.detail_refresh_interval_seconds?.message}
+          {...register("detail_refresh_interval_seconds")}
+        />
 
         {isCustom && (
           <>

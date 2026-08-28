@@ -3,6 +3,7 @@ import { ChevronRight, Plus, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { ErrorState } from "../../components/ui/ErrorState";
@@ -13,7 +14,7 @@ import { InvestmentTransactionFormDialog } from "./InvestmentTransactionFormDial
 import { PortfolioManageDialog } from "./PortfolioManageDialog";
 import { PortfolioSummaryBlock } from "./PortfolioSummaryBlock";
 import { PositionManualEditDialog } from "./PositionManualEditDialog";
-import { usePortfolioSummaries, usePortfolioValuation } from "./api";
+import { usePortfolioMarketDataAutoRefresh, usePortfolioSummaries, usePortfolioValuation } from "./api";
 import type { PortfolioSummaryItem } from "../../types/api";
 
 /** Livello 0 del drill-down Investimenti: vista d'insieme di TUTTI i conti
@@ -24,53 +25,81 @@ import type { PortfolioSummaryItem } from "../../types/api";
  * l'utente ha giudicato ben fatta. */
 export function InvestmentsOverviewPage() {
   const { t } = useTranslation("portfolio");
+  usePortfolioMarketDataAutoRefresh();
   const summaries = usePortfolioSummaries();
   const [manageOpen, setManageOpen] = useState(false);
   const [txnDialogOpen, setTxnDialogOpen] = useState(false);
   const [assetDialogOpen, setAssetDialogOpen] = useState(false);
   const [openingPositionOpen, setOpeningPositionOpen] = useState(false);
 
+  const managePortfoliosButton = (
+    <Button variant="secondary" size="sm" onClick={() => setManageOpen(true)}>
+      <Settings className="h-4 w-4" /> {t("overview.managePortfolios")}
+    </Button>
+  );
+  const recordTransactionButton = (
+    <Button size="sm" onClick={() => setTxnDialogOpen(true)}>
+      <Plus className="h-4 w-4" /> {t("overview.actions.recordTransaction")}
+    </Button>
+  );
+  const newAssetButton = (
+    <Button variant="secondary" size="sm" onClick={() => setAssetDialogOpen(true)}>
+      {t("overview.actions.newAsset")}
+    </Button>
+  );
+  const loadPositionButton = (
+    <Button variant="secondary" size="sm" onClick={() => setOpeningPositionOpen(true)}>
+      {t("overview.actions.loadExistingPosition")}
+    </Button>
+  );
+  // Le 4 azioni di pagina vivono nel Topbar (desktop) e in un'unica riga
+  // `md:hidden` qui sotto per mobile — stesso portal/duplicazione-per-
+  // breakpoint gia' in uso altrove (vedi `PageToolbarContext.tsx`), solo
+  // con piu' bottoni invece di uno solo.
+  const toolbarPortal = usePageToolbar(
+    <>
+      {managePortfoliosButton}
+      {newAssetButton}
+      {loadPositionButton}
+      {recordTransactionButton}
+    </>,
+  );
+
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold text-text">{t("overview.title")}</h1>
-        <Button variant="secondary" size="sm" onClick={() => setManageOpen(true)}>
-          <Settings className="h-4 w-4" /> {t("overview.managePortfolios")}
-        </Button>
+      {toolbarPortal}
+      <h1 className="text-lg font-semibold text-text">{t("overview.title")}</h1>
+
+      <div className="flex flex-wrap gap-2 md:hidden">
+        {managePortfoliosButton}
+        {newAssetButton}
+        {loadPositionButton}
+        {recordTransactionButton}
       </div>
 
-      <PortfolioSummaryBlock scope={{}} />
-
-      <Card className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-text">{t("overview.portfolioSectionTitle")}</h3>
-        {summaries.isLoading && <SkeletonRows rows={3} />}
-        {summaries.isError && (
-          <ErrorState message={t("overview.loadError")} onRetry={() => void summaries.refetch()} />
-        )}
-        {summaries.data && (
-          <ul className="flex flex-col gap-2">
-            {summaries.data.items.map((item) => (
-              <PortfolioRow key={item.portfolio_id} item={item} />
-            ))}
-            <UnassignedRow />
-          </ul>
-        )}
-        {summaries.data && summaries.data.items.length === 0 && (
-          <p className="text-sm text-text-muted">{t("overview.noPortfoliosYet")}</p>
-        )}
-      </Card>
-
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => setTxnDialogOpen(true)}>
-          <Plus className="h-4 w-4" /> {t("overview.actions.recordTransaction")}
-        </Button>
-        <Button variant="secondary" size="sm" onClick={() => setAssetDialogOpen(true)}>
-          {t("overview.actions.newAsset")}
-        </Button>
-        <Button variant="secondary" size="sm" onClick={() => setOpeningPositionOpen(true)}>
-          {t("overview.actions.loadExistingPosition")}
-        </Button>
-      </div>
+      <PortfolioSummaryBlock
+        scope={{}}
+        belowCards={
+          <Card className="flex flex-col gap-3">
+            <h3 className="text-sm font-semibold text-text">{t("overview.portfolioSectionTitle")}</h3>
+            {summaries.isLoading && <SkeletonRows rows={3} />}
+            {summaries.isError && (
+              <ErrorState message={t("overview.loadError")} onRetry={() => void summaries.refetch()} />
+            )}
+            {summaries.data && (
+              <ul className="flex flex-col gap-2">
+                {summaries.data.items.map((item) => (
+                  <PortfolioRow key={item.portfolio_id} item={item} />
+                ))}
+                <UnassignedRow />
+              </ul>
+            )}
+            {summaries.data && summaries.data.items.length === 0 && (
+              <p className="text-sm text-text-muted">{t("overview.noPortfoliosYet")}</p>
+            )}
+          </Card>
+        }
+      />
 
       <PortfolioManageDialog open={manageOpen} onClose={() => setManageOpen(false)} />
       <InvestmentTransactionFormDialog open={txnDialogOpen} onClose={() => setTxnDialogOpen(false)} />

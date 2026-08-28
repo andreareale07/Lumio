@@ -50,7 +50,7 @@ from app.services.transaction_persistence import finalize_prepared_transactions,
 from app.services.transaction_type_mapping_service import resolve_transaction_type
 from app.services.transfer_recognition import is_internal_transfer
 from app.storage import get_storage
-from app.worker.queue import enqueue_classify_import_job
+from app.worker.queue import enqueue_classify_import_job, enqueue_snapshot_backfill
 
 logger = logging.getLogger("lumio.worker.import_job")
 
@@ -377,6 +377,14 @@ async def _insert_transactions_and_complete(
         import_row.completed_at = now
 
         should_enqueue_ai_job = False
+        # FETTA 3 (storico patrimonio ricostruito): la vera fine
+        # dell'import, indipendente da `should_enqueue_ai_job` (che dipende
+        # anche da se un profilo AI e' attivo) — transazioni,
+        # InvestmentTransaction e Position sono gia' committate a questo
+        # punto, e la classificazione AI che eventualmente segue assegna
+        # solo categorie, che non possono muovere il patrimonio: non bisogna
+        # aspettarla.
+        import_completed = False
         if dedup_result.review_count > 0:
             # SPEC §19: non dichiarare "completed" se restano decisioni
             # obbligatorie — stato dedicato gia' previsto dal CHECK
@@ -387,6 +395,7 @@ async def _insert_transactions_and_complete(
             import_row.status = "ready_for_review"
         else:
             import_row.status = "completed"
+            import_completed = True
             should_enqueue_ai_job = await prepare_ai_classification_trigger(db, workspace_id, import_row)
 
         await log_event(
@@ -403,6 +412,11 @@ async def _insert_transactions_and_complete(
             },
         )
         await db.commit()
+        # Letto DOPO il commit ma DENTRO la sessione (expire_on_commit=False
+        # sulla session factory, vedi app/db/base.py, quindi il valore resta
+        # in memoria anche a sessione chiusa): serve fuori dal blocco per
+        # accodare il backfill scoped a questo import.
+        backfill_period_start = import_row.period_start
 
     await job_events.emit(
         import_uuid,
@@ -416,3 +430,11 @@ async def _insert_transactions_and_complete(
 
     if should_enqueue_ai_job:
         await enqueue_classify_import_job(import_uuid, user_uuid)
+
+    # FETTA 3 (storico patrimonio ricostruito): trigger AUTOMATICO, scoped a
+    # `period_start` (mai un download decennale per un re-import di un
+    # mese — vedi docstring di `enqueue_snapshot_backfill`). Nessuna riga
+    # importata (`period_start` mai assegnato, `rows` vuoto sopra) -> nulla
+    # da ricostruire, si salta l'accodamento per intero.
+    if import_completed and backfill_period_start is not None:
+        await enqueue_snapshot_backfill(workspace_id, user_uuid, date_from=backfill_period_start)

@@ -2,11 +2,13 @@ import uuid
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_current_workspace_id
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.financial_account import FinancialAccount
 from app.models.portfolio import Portfolio
@@ -30,13 +32,17 @@ from app.schemas.portfolios import (
     PortfolioCreate,
     PortfolioOut,
     PortfolioUpdate,
+    SnapshotBackfillRequest,
+    SnapshotBackfillTriggered,
     SnapshotRebuildTriggered,
 )
 from app.services import analytics as analytics_service
-from app.services import portfolio_analytics
+from app.services import job_events, portfolio_analytics
 from app.services.job_run_tracker import get_latest_run
 from app.services.portfolio_scope import get_portfolio_or_404, resolve_account_ids
-from app.worker.queue import enqueue_snapshot_rebuild
+from app.worker.jobs.snapshot_backfill import JOB_KIND as SNAPSHOT_BACKFILL_JOB_KIND
+from app.worker.jobs.snapshot_backfill import NAMESPACE as SNAPSHOT_BACKFILL_NAMESPACE
+from app.worker.queue import enqueue_snapshot_backfill, enqueue_snapshot_rebuild
 
 router = APIRouter(prefix="/portfolios", tags=["portfolio"])
 
@@ -393,3 +399,69 @@ async def get_snapshot_rebuild_status(
     stato eseguito."""
     run = await get_latest_run(db, workspace_id, "snapshot_rebuild")
     return JobRunOut.model_validate(run) if run else None
+
+
+# --- Storico patrimonio ricostruito (FETTA 3) -------------------------------
+# Endpoint NUOVO, non un flag su "/snapshots/rebuild": i due job scrivono
+# righe `job_runs` diverse (`job_kind` diversi), quindi guardia anti-
+# doppio-click e stato devono essere per-kind comunque; la semantica
+# differisce (secondi vs minuti — nessun `setTimeout(refetch)` ha senso
+# qui); e la terna endpoint/status/events rispecchia esattamente
+# `/classification/reclassify*` (vedi `api/v1/classification.py`).
+
+
+@router.post(
+    "/snapshots/backfill", response_model=SnapshotBackfillTriggered, status_code=status.HTTP_202_ACCEPTED
+)
+async def trigger_snapshot_backfill(
+    payload: SnapshotBackfillRequest | None = None,
+    user: User = Depends(get_current_user),
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> SnapshotBackfillTriggered:
+    """Ricostruzione manuale dell'INTERO storico patrimonio disponibile (o
+    da `payload.date_from` se specificato) — a differenza di
+    "Ricalcola adesso" (`trigger_snapshot_rebuild`, solo lo snapshot di
+    OGGI), questo job puo' impiegare minuti/ore (fase prezzi storici
+    inclusa). Stesso principio anti-doppio-click via `job_runs` di
+    `trigger_snapshot_rebuild`/`trigger_reclassification`: se e' gia'
+    'running', ritorna lo stesso job_id invece di accodarne un secondo."""
+    current = await get_latest_run(db, workspace_id, SNAPSHOT_BACKFILL_JOB_KIND)
+    if current is not None and current.status == "running":
+        return SnapshotBackfillTriggered(job_id=current.job_id or "")
+    date_from = payload.date_from if payload is not None else None
+    job_id = await enqueue_snapshot_backfill(workspace_id, user.id, date_from=date_from)
+    return SnapshotBackfillTriggered(job_id=job_id)
+
+
+@router.get("/snapshots/backfill/status", response_model=JobRunOut | None)
+async def get_snapshot_backfill_status(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> JobRunOut | None:
+    """Stato persistente dell'ultimo backfill (manuale o automatico a fine
+    import) — `null` se non e' mai stato eseguito."""
+    run = await get_latest_run(db, workspace_id, SNAPSHOT_BACKFILL_JOB_KIND)
+    return JobRunOut.model_validate(run) if run else None
+
+
+@router.get("/snapshots/backfill/events")
+async def stream_snapshot_backfill_events(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+) -> StreamingResponse:
+    """Mirror di `stream_reclassification_events`
+    (`api/v1/classification.py`), `topic_id=workspace_id` (un solo backfill
+    alla volta per workspace). A differenza di quell'endpoint, passa
+    esplicitamente il timeout proprio del job (`snapshot_backfill_job_timeout_
+    seconds`, fino a 3 ore) invece del default `import_job_timeout_seconds`
+    di `job_events.stream` — un job che puo' durare ore chiuderebbe
+    prematuramente lo stream SSE altrimenti."""
+    return StreamingResponse(
+        job_events.stream(
+            workspace_id,
+            namespace=SNAPSHOT_BACKFILL_NAMESPACE,
+            timeout_seconds=get_settings().snapshot_backfill_job_timeout_seconds,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

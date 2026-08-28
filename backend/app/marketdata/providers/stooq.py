@@ -18,7 +18,7 @@ al principio "nessuna evasione di sistemi di rilevamento").
 """
 import csv
 import io
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 import httpx
@@ -80,5 +80,17 @@ class StooqProvider:
 
     async def fetch_fx_history(
         self, from_currency: str, to_currency: str, preset: str
+    ) -> list[PricePoint] | None:
+        return None
+
+    async def fetch_history_range(
+        self, asset: AssetRef, date_from: date, date_to: date
+    ) -> list[PricePoint] | None:
+        # Stesso limite di fetch_history: nessun endpoint storico Stooq
+        # pubblico verificato.
+        return None
+
+    async def fetch_fx_history_range(
+        self, from_currency: str, to_currency: str, date_from: date, date_to: date
     ) -> list[PricePoint] | None:
         return None

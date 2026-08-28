@@ -52,7 +52,7 @@ from app.services.position_service import recompute_position
 from app.services.system_settings_service import get_setting_value
 from app.services.transaction_persistence import finalize_prepared_transactions, prepare_transaction_row
 from app.storage import get_storage
-from app.worker.queue import enqueue_classify_import_job, enqueue_import_job
+from app.worker.queue import enqueue_classify_import_job, enqueue_import_job, enqueue_snapshot_backfill
 
 _NEEDS_REVIEW_THRESHOLD_KEY = "classification.needs_review_threshold"
 
@@ -910,9 +910,14 @@ async def decide_import_review_item(
     )
     remaining_pending = remaining_result.scalar_one()
     should_enqueue_ai_job = False
+    # FETTA 3 (storico patrimonio ricostruito): stessa guardia esatta che
+    # gia' gate-a l'AI qui sopra — la "vera fine" di un import che era
+    # rimasto in `ready_for_review` e' esattamente questa transizione.
+    import_completed = False
     if remaining_pending == 0 and import_row.status == "ready_for_review":
         import_row.status = "completed"
         import_row.completed_at = now
+        import_completed = True
         should_enqueue_ai_job = await prepare_ai_classification_trigger(db, workspace_id, import_row)
 
     # Costruito PRIMA del commit: `app.current_user_id` e' impostato solo
@@ -925,6 +930,9 @@ async def decide_import_review_item(
 
     if should_enqueue_ai_job:
         await enqueue_classify_import_job(import_row.id, import_row.created_by_user_id)
+
+    if import_completed and import_row.period_start is not None:
+        await enqueue_snapshot_backfill(workspace_id, user.id, date_from=import_row.period_start)
 
     return response
 

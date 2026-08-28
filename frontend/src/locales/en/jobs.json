@@ -33,6 +33,10 @@
     "name": "Reclassification",
     "description": "Re-runs the classification pipeline (rules, system, optionally AI) on already-imported transactions — triggered by the user after a taxonomy update. Never touches manual corrections."
   },
+  "snapshotBackfill": {
+    "name": "Net worth history rebuild",
+    "description": "Rebuilds the daily net worth/portfolio history for the requested range (historical prices and FX included) — triggered automatically after an import or manually from the Net Worth page."
+  },
   "params": {
     "staleThreshold": "Stale threshold",
     "staleThresholdImport": "Stale threshold — Import",

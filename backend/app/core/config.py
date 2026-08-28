@@ -94,6 +94,25 @@ class Settings(BaseSettings):
     import_pdf_open_timeout_seconds: int = 10
     import_pdf_parse_timeout_seconds: int = 60
 
+    # --- Storico patrimonio ricostruito (FETTA 3 di
+    # docs/PLAN_TAXONOMY_I18N.md / rework Spese-Entrate-Dashboard) ---
+    # Clamp sull'inizio del backfill: una data digitata male (o un
+    # `period_start` corrotto) non deve generare decine di migliaia di
+    # righe. Quando il clamp scatta, il job lo dichiara in `run.message`,
+    # mai un troncamento silenzioso.
+    snapshot_backfill_max_years: int = 10
+    # Dominato dalla fase prezzi (chiamate HTTP per asset posseduto + FX
+    # all'indietro), non dalla matematica del calcolo — stesso ordine di
+    # grandezza di reclassification_job_timeout_seconds/
+    # ai_classification_job_timeout_seconds.
+    snapshot_backfill_job_timeout_seconds: int = 10800
+    # Rate limiting fra un asset/valuta e il successivo durante il backfill
+    # storico (Yahoo risponde 429/999 senza, vedi marketdata/providers/
+    # yahoo.py) — non usato dal refresh quotidiano (worker/jobs/market_data.py),
+    # solo dal backfill che scarica molte piu' chiamate in sequenza in un
+    # colpo solo.
+    market_data_backfill_delay_seconds: float = 0.5
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -45,5 +45,25 @@ class SnapshotRebuildTriggered(BaseModel):
     """Risposta del trigger manuale (`POST /portfolios/snapshots/rebuild`,
     DoD M09) — stesso principio di `MarketDataRefreshTriggered`: job async,
     nessun canale SSE dedicato."""
+
+    job_id: str
+
+
+class SnapshotBackfillRequest(BaseModel):
+    """Body opzionale del trigger manuale (`POST /portfolios/snapshots/
+    backfill`, FETTA 3) — `date_from=None` (default, corpo assente) =
+    "ricostruisci l'intero storico disponibile" (il job determina l'inizio
+    da `LEAST(MIN(transactions...), MIN(investment_transactions...))`,
+    clampato a `snapshot_backfill_max_years`)."""
+
+    date_from: date | None = None
+
+
+class SnapshotBackfillTriggered(BaseModel):
+    """Risposta del trigger (automatico a fine import o manuale) del
+    backfill storico patrimonio — a differenza di `SnapshotRebuildTriggered`
+    (secondi), questo job puo' impiegare minuti/ore: il progresso live vive
+    nel cruscotto Attivita' (`GET /portfolios/snapshots/backfill/events`),
+    non in un canale dedicato su questa pagina."""
 
     job_id: str

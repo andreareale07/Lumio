@@ -107,3 +107,16 @@ class CustomProvider:
         self, from_currency: str, to_currency: str, preset: str
     ) -> list[PricePoint] | None:
         return None
+
+    async def fetch_history_range(
+        self, asset: AssetRef, date_from: date, date_to: date
+    ) -> list[PricePoint] | None:
+        # Stesso limite di fetch_history: un endpoint custom e' definito per
+        # una singola quotazione, nessuna convenzione generica per uno
+        # storico su un servizio arbitrario configurato dall'utente.
+        return None
+
+    async def fetch_fx_history_range(
+        self, from_currency: str, to_currency: str, date_from: date, date_to: date
+    ) -> list[PricePoint] | None:
+        return None

@@ -14,7 +14,7 @@ sola — qui la "riga" e' un asset).
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,13 +25,21 @@ from app.marketdata.base import AssetRef, MarketDataProviderError
 from app.marketdata.registry import build_provider
 from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
+from app.models.asset_price_quote import AssetPriceQuote
 from app.models.financial_account import FinancialAccount
 from app.models.fx_rate import FxRate
+from app.models.position import Position
 from app.models.workspace import Workspace
 from app.services import fx_rate_service
 from app.services.job_run_tracker import tracked_job_run
 from app.services.market_data_profile_service import get_active_profile
 from app.services.system_settings_service import is_job_enabled
+
+# docs/SPEC_STOCK_PRICE.md: le osservazioni intraday servono solo ad
+# arricchire il grafico "1G"/"1S" del giorno corrente (vedi
+# app/api/v1/assets.py) — non uno storico a lungo termine, quindi una
+# retention breve basta ed evita una tabella che cresce senza limite.
+_INTRADAY_QUOTE_RETENTION_DAYS = 3
 
 logger = logging.getLogger(__name__)
 
@@ -154,17 +162,52 @@ async def list_workspace_owners() -> list[tuple[uuid.UUID, uuid.UUID]]:
     return [(row.workspace_id, row.owner_user_id) for row in rows]
 
 
+async def _cleanup_intraday_quotes(db: AsyncSession, workspace_id: uuid.UUID) -> None:
+    """Retention (docs/SPEC_STOCK_PRICE.md): le osservazioni intraday servono
+    solo al grafico del giorno corrente, mai uno storico a lungo termine —
+    gira ad ogni ciclo (cron o trigger manuale/automatico) indipendentemente
+    dal profilo attivo, cosi' righe rimaste da un provider disattivato in
+    seguito non si accumulano all'infinito.
+
+    NESSUN commit qui (RLS gotcha noto: `SET LOCAL app.current_user_id`
+    scade al commit — un commit intermedio qui perderebbe l'identita' RLS
+    per il resto di `_refresh_workspace`, es. la successiva
+    `get_active_profile`). Il commit resta a carico del chiamante
+    (`refresh_market_data_job`/`refresh_market_data_for_workspace`), che lo
+    fa gia' una sola volta a fine ciclo."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=_INTRADAY_QUOTE_RETENTION_DAYS)
+    await db.execute(
+        AssetPriceQuote.__table__.delete().where(
+            AssetPriceQuote.workspace_id == workspace_id, AssetPriceQuote.quoted_at < cutoff
+        )
+    )
+
+
 async def _refresh_workspace(db: AsyncSession, workspace_id: uuid.UUID) -> RefreshSummary:
+    await _cleanup_intraday_quotes(db, workspace_id)
+
     profile = await get_active_profile(db, workspace_id)
     if profile is None or profile.provider == "manual":
         return RefreshSummary(checked=0, updated=0)  # market data disabilitato o solo manuale: nulla da scaricare
 
     provider = build_provider(profile)
+    # docs/SPEC_STOCK_PRICE.md: solo gli asset con almeno una posizione
+    # ANCORA aperta (quantity != 0) — stesso filtro gia' canonico in
+    # portfolio_analytics.list_position_valuations(include_closed=False).
+    # Un asset senza posizione aperta (venduto per intero, mai posseduto)
+    # non serve a nessuna valorizzazione corrente: scaricarne comunque il
+    # prezzo sarebbe solo una chiamata sprecata al provider (e un rischio di
+    # rate-limit in piu', vedi yahoo.py). Una sola query (EXISTS), niente N+1.
     assets = (
         await db.execute(
             select(Asset).where(
                 Asset.workspace_id == workspace_id,
                 or_(Asset.symbol.is_not(None), Asset.isin.is_not(None)),
+                Asset.id.in_(
+                    select(Position.asset_id).where(
+                        Position.workspace_id == workspace_id, Position.quantity != 0
+                    )
+                ),
             )
         )
     ).scalars().all()

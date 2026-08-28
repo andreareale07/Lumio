@@ -10,24 +10,26 @@
     "kpi": {
       "currentValue": "Valore attuale",
       "costValue": "Valore a costo",
+      "gainToggleHint": "Clic per vedere l'importo in valuta",
       "invested": "Investito",
-      "returnLabel": "Rendimento",
       "realizedPl": "Utile realizzato",
-      "realizedPlHint": "da posizioni chiuse"
+      "realizedPlHint": "da posizioni chiuse",
+      "yearGain": "Guadagno nel {{year}}",
+      "yearGainVsPreviousYear": "Anno precedente: {{value}}",
+      "yearGainHint": "Include acquisti e vendite; non include ancora i dividendi (approssimazione, non un rendimento certificato)."
     },
-    "valueChart": {
-      "title": "Andamento del valore",
-      "valueLabel": "Valore",
-      "tableCaption": "Andamento del valore",
+    "returnChart": {
+      "title": "Andamento del rendimento",
+      "valueLabel": "Rendimento",
+      "tableCaption": "Andamento del rendimento",
       "tableHeaders": [
         "Data",
-        "Valore"
+        "Rendimento"
       ],
       "empty": {
         "title": "Nessuno storico disponibile",
         "description": "Registra un movimento su questi conti per iniziare a costruire lo storico."
-      },
-      "footer": "Inizio periodo {{start}} · Fine {{end}} ·"
+      }
     },
     "compositionChart": {
       "title": "Composizione",
@@ -185,6 +187,8 @@
       "action": "Torna agli investimenti"
     },
     "currentPrice": "Prezzo attuale",
+    "currentPriceLive": "Aggiornato ora",
+    "currentPriceStale": "Ultimo dato disponibile: {{value}}",
     "originalCurrencyTooltip": "Valuta originale: {{value}}",
     "priceChart": {
       "title": "Andamento prezzo",

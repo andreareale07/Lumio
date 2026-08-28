@@ -10,24 +10,26 @@
     "kpi": {
       "currentValue": "Current value",
       "costValue": "Cost value",
+      "gainToggleHint": "Click to see the amount in currency",
       "invested": "Invested",
-      "returnLabel": "Return",
       "realizedPl": "Realized profit",
-      "realizedPlHint": "from closed positions"
+      "realizedPlHint": "from closed positions",
+      "yearGain": "Gain in {{year}}",
+      "yearGainVsPreviousYear": "Previous year: {{value}}",
+      "yearGainHint": "Includes buys and sells; doesn't include dividends yet (an approximation, not a certified return)."
     },
-    "valueChart": {
-      "title": "Value over time",
-      "valueLabel": "Value",
-      "tableCaption": "Value over time",
+    "returnChart": {
+      "title": "Return over time",
+      "valueLabel": "Return",
+      "tableCaption": "Return over time",
       "tableHeaders": [
         "Date",
-        "Value"
+        "Return"
       ],
       "empty": {
         "title": "No history available",
         "description": "Record a transaction on these accounts to start building the history."
-      },
-      "footer": "Period start {{start}} · End {{end}} ·"
+      }
     },
     "compositionChart": {
       "title": "Composition",
@@ -185,6 +187,8 @@
       "action": "Back to investments"
     },
     "currentPrice": "Current price",
+    "currentPriceLive": "Updated just now",
+    "currentPriceStale": "Last available data: {{value}}",
     "originalCurrencyTooltip": "Original currency: {{value}}",
     "priceChart": {
       "title": "Price over time",

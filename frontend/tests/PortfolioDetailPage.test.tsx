@@ -5,19 +5,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AuthProvider } from "../src/app/providers/AuthProvider";
 import { PortfolioDetailPage } from "../src/features/portfolio/PortfolioDetailPage";
-import { formatMoney } from "../src/lib/format";
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-}
-
-// Stesso principio di InvestmentsOverviewPage.test.tsx: `formatMoney`
-// separa cifra e simbolo con NBSP, collassato a spazio normale dalla
-// normalizzazione di @testing-library/dom SOLO sul testo letto dal DOM,
-// mai sulla stringa del matcher — si normalizza qui allo stesso modo.
-const NBSP = String.fromCharCode(160);
-function money(amount: string | number, currency: string): string {
-  return formatMoney(amount, currency).split(NBSP).join(" ");
 }
 
 function mockUnauthenticated(url: string): Response | null {
@@ -136,7 +126,7 @@ describe("PortfolioDetailPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("mostra il blocco condiviso, gli asset e i movimenti di un portfolio reale", async () => {
+  it("mostra il blocco condiviso e gli asset di un portfolio reale", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => mockScopedApi(String(input)));
 
     renderPage("pf-1");
@@ -144,11 +134,13 @@ describe("PortfolioDetailPage", () => {
     expect(await screen.findByText("Lungo termine")).toBeInTheDocument();
     expect(screen.getByText("Il nucleo del portafoglio")).toBeInTheDocument();
 
-    // Blocco condiviso, stesso template della Panoramica — "Andamento del
-    // valore" e' univoco (a differenza di "Valore attuale"/"Rendimento",
-    // che compaiono anche come intestazioni di colonna nella tabella Asset
-    // sotto), quindi non rischia un match multiplo.
-    await screen.findByText("Andamento del valore");
+    // Blocco condiviso, stesso template della Panoramica.
+    await screen.findByText("Andamento del rendimento");
+
+    // "Valore attuale" compare sia in testata piatta (blocco condiviso) sia
+    // come intestazione di colonna nella tabella Asset sotto — mai un match
+    // unico, quindi si usa la variante *AllBy*.
+    expect((await screen.findAllByText("Valore attuale")).length).toBeGreaterThan(0);
 
     // Elenco Asset di questo ambito — la riga compare due volte nel DOM
     // (tabella desktop + card mobile, una delle due nascosta solo via CSS),
@@ -157,10 +149,8 @@ describe("PortfolioDetailPage", () => {
     expect(assetLinks[0].closest("a")).toHaveAttribute("href", "/investments/assets/asset-1");
     expect(screen.getAllByText("Trade Republic").length).toBeGreaterThan(0);
 
-    // Movimenti di questo ambito — anche qui la riga compare due volte
-    // (tabella desktop + card mobile).
-    expect((await screen.findAllByText("Acquisto")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(`-${money("18000.00", "EUR")}`).length).toBeGreaterThan(0);
+    // Il libro movimenti e' stato rimosso da questa pagina (resta solo la
+    // sezione Asset) — nessuna asserzione su "Acquisto"/importi di riga.
   });
 
   it("mostra lo pseudo-scope 'Asset senza portfolio' senza interrogare /portfolios/unassigned", async () => {
@@ -170,11 +160,11 @@ describe("PortfolioDetailPage", () => {
 
     expect(await screen.findByText("Asset senza portfolio")).toBeInTheDocument();
     expect(screen.getByText("Conti non raggruppati in nessun portfolio.")).toBeInTheDocument();
-    await screen.findByText("Valore attuale");
+    expect((await screen.findAllByText("Valore attuale")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("Vanguard FTSE All-World")).length).toBeGreaterThan(0);
   });
 
-  it("mostra un empty state quando il portfolio non ha posizioni ne' movimenti", async () => {
+  it("mostra un empty state quando il portfolio non ha posizioni", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
       mockScopedApi(String(input), { positions: { ...POSITIONS, positions: [] }, transactions: [] }),
     );
@@ -182,7 +172,6 @@ describe("PortfolioDetailPage", () => {
     renderPage("pf-1");
 
     expect(await screen.findByText("Nessuna posizione aperta in questo ambito.")).toBeInTheDocument();
-    expect(await screen.findByText("Nessun movimento")).toBeInTheDocument();
   });
 
   it("mostra un errore quando il portfolio non esiste", async () => {

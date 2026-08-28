@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel
@@ -84,6 +84,15 @@ class AssetValuationOut(BaseModel):
     price: Decimal | None = None
     price_native: Decimal | None = None
     price_native_currency: str | None = None
+    # docs/SPEC_STOCK_PRICE.md: presenti SOLO quando `price`/`price_native`
+    # vengono da una live-quote (cache Redis + eventuale fallback), non dal
+    # prezzo daily canonico — mai confuso con l'istante di scrittura di
+    # `asset_prices`. `is_stale=True` quando il provider non ha risposto in
+    # tempo e si e' mostrato l'ultimo valore noto (mai un errore, vedi
+    # `app/services/live_quote_service.py`).
+    price_quoted_at: datetime | None = None
+    price_is_live: bool = False
+    price_is_stale: bool = False
 
 
 class AllocationItemOut(BaseModel):
@@ -130,3 +139,11 @@ class NetWorthSnapshotPointOut(BaseModel):
 class NetWorthHistoryOut(BaseModel):
     currency: str
     points: list[NetWorthSnapshotPointOut]
+    # FETTA 3 (storico patrimonio ricostruito): True se almeno uno snapshot
+    # nell'intervallo richiesto e' stato scartato perche' la sua `currency`
+    # non coincide con quella risolta (bug latente gia' presente prima di
+    # questa fetta: cambiare `base_currency` del workspace svuota
+    # silenziosamente questo grafico, vedi `api/v1/analytics.py`) — rende
+    # onesto quel filtro, cosi' la UI puo' proporre "ricostruisci lo
+    # storico" invece di mostrare un grafico vuoto senza spiegazione.
+    has_mixed_currency: bool = False

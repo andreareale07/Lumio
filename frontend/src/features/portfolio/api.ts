@@ -1,6 +1,8 @@
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../lib/apiClient";
+import { useMarketDataProfiles, useMarketDataRefreshStatus, useTriggerMarketDataRefresh } from "../settings/market-data/api";
 import type {
   Asset,
   AssetProfile,
@@ -19,6 +21,7 @@ import type {
   PortfolioValuation,
   Position,
   PriceHistory,
+  SnapshotBackfillTriggered,
   SnapshotRebuildTriggered,
 } from "../../types/api";
 
@@ -90,12 +93,17 @@ export function useDeleteAsset() {
 /** Storico prezzi per il grafico di dettaglio asset (Step 1). I preset
  * giornalieri (1M/3M/6M/1A) vengono persistiti lato backend in
  * `asset_prices` alla stessa chiamata — nessun endpoint separato per
- * "salva" vs "leggi". */
-export function usePriceHistory(assetId: string | null, preset: HistoryPreset) {
+ * "salva" vs "leggi". `refetchIntervalMs` (opzionale, docs/
+ * SPEC_STOCK_PRICE.md): per il preset "1G" il backend ora serve/arricchisce
+ * `asset_price_quotes` (osservazioni intraday) ad ogni chiamata — ripetere
+ * la query a intervalli mostra quei punti via via che si accumulano, senza
+ * bisogno di un buffer lato client. `false`/omesso = nessun polling (invariato). */
+export function usePriceHistory(assetId: string | null, preset: HistoryPreset, refetchIntervalMs?: number | false) {
   return useQuery({
     queryKey: ["portfolio", "assets", assetId ?? "", "price-history", preset] as const,
     queryFn: () => api.get<PriceHistory>(`/assets/${assetId}/price-history?preset=${preset}`),
     enabled: !!assetId,
+    refetchInterval: refetchIntervalMs ?? false,
   });
 }
 
@@ -105,8 +113,13 @@ export function usePriceHistory(assetId: string | null, preset: HistoryPreset) {
  * mostrava "—" in quel caso. `currency` esplicito permette di chiedere il
  * prezzo convertito in una valuta diversa da quella base (es. la valuta
  * dell'asset, per confrontare il prezzo attuale con quello di un acquisto
- * storico registrato in quella stessa valuta). */
-export function useAssetValuation(assetId: string | null, currency?: string) {
+ * storico registrato in quella stessa valuta). `refetchIntervalMs`
+ * (opzionale, docs/SPEC_STOCK_PRICE.md): cadenza di polling per il dettaglio
+ * asset (`detail_refresh_interval_seconds` del profilo attivo) — il backend
+ * serve una live-quote da cache Redis con lock anti-stampede, mai un
+ * effetto sul prezzo daily canonico. `false`/omesso = nessun polling
+ * (invariato per chiunque non lo passi). */
+export function useAssetValuation(assetId: string | null, currency?: string, refetchIntervalMs?: number | false) {
   return useQuery({
     queryKey: ["portfolio", "assets", assetId ?? "", "valuation", currency ?? "default"] as const,
     queryFn: () => {
@@ -114,6 +127,7 @@ export function useAssetValuation(assetId: string | null, currency?: string) {
       return api.get<AssetValuation>(`/assets/${assetId}/valuation${query}`);
     },
     enabled: !!assetId,
+    refetchInterval: refetchIntervalMs ?? false,
   });
 }
 
@@ -220,6 +234,10 @@ export interface InvestmentTransactionFilters {
   unassigned?: boolean;
   asset_id?: string;
   type?: InvestmentTransactionType;
+  /** Il backend li accetta gia' (`GET /investment-transactions`) — esposti
+   * qui per i flussi Modified Dietz scoped all'anno (`PortfolioSummaryBlock.tsx`). */
+  date_from?: string;
+  date_to?: string;
   limit?: number;
   offset?: number;
 }
@@ -229,6 +247,8 @@ export function useInvestmentTransactions(filters: InvestmentTransactionFilters 
   if (filters.financial_account_id) params.set("financial_account_id", filters.financial_account_id);
   if (filters.asset_id) params.set("asset_id", filters.asset_id);
   if (filters.type) params.set("type", filters.type);
+  if (filters.date_from) params.set("date_from", filters.date_from);
+  if (filters.date_to) params.set("date_to", filters.date_to);
   params.set("limit", String(filters.limit ?? 50));
   params.set("offset", String(filters.offset ?? 0));
 
@@ -397,6 +417,47 @@ export function usePortfolioPositions(filters: PortfolioPositionsFilters = {}) {
   });
 }
 
+/** docs/SPEC_STOCK_PRICE.md: mentre una vista portfolio-wide (Panoramica
+ * Investimenti, dettaglio Portfolio) resta montata, ritrigger automatico in
+ * background dello STESSO job del bottone "Aggiorna ora" quando l'ultimo
+ * refresh e' piu' vecchio di `portfolio_refresh_interval_seconds` del
+ * profilo attivo — mai un fetch sincrono per-asset qui: si riusa
+ * l'infrastruttura job/dedup-guard gia' esistente (`useTriggerMarketData
+ * Refresh`, gia' idempotente lato server). Il polling di
+ * `useMarketDataRefreshStatus` stesso E' il meccanismo di "re-arm", nessun
+ * timer manuale da gestire. Nessun profilo attivo = no-op (market data
+ * resta sempre opzionale, DoD M09). */
+export function usePortfolioMarketDataAutoRefresh(): { isRefreshing: boolean } {
+  const queryClient = useQueryClient();
+  const profiles = useMarketDataProfiles();
+  const activeProfile = profiles.data?.find((p) => p.is_active) ?? null;
+  const idlePollMs = activeProfile ? activeProfile.portfolio_refresh_interval_seconds * 1000 : undefined;
+  const status = useMarketDataRefreshStatus(idlePollMs);
+  const triggerRefresh = useTriggerMarketDataRefresh();
+  const previousStatusRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!activeProfile || status.isLoading) return;
+    const lastRun = status.data;
+    const isStale =
+      !lastRun ||
+      (lastRun.status !== "running" &&
+        Date.now() - new Date(lastRun.finished_at ?? lastRun.started_at).getTime() >=
+          activeProfile.portfolio_refresh_interval_seconds * 1000);
+
+    if (isStale && !triggerRefresh.isPending) {
+      triggerRefresh.mutate();
+    }
+    if (previousStatusRef.current === "running" && lastRun?.status !== "running") {
+      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+    }
+    previousStatusRef.current = lastRun?.status ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reagisce solo al cambio di stato/profilo, non a triggerRefresh (nuova identita' mutation ad ogni render)
+  }, [status.data, status.isLoading, activeProfile]);
+
+  return { isRefreshing: status.data?.status === "running" };
+}
+
 /** Trigger manuale dello snapshot (DoD M09) — job async, nessun canale di
  * progresso live (stesso principio del refresh prezzi). */
 export function useTriggerSnapshotRebuild() {
@@ -411,6 +472,30 @@ export function useSnapshotRebuildStatus() {
   return useQuery({
     queryKey: ["portfolio", "snapshots", "status"] as const,
     queryFn: () => api.get<JobRun | null>("/portfolios/snapshots/status"),
+    refetchInterval: (query) => (query.state.data?.status === "running" ? 3000 : false),
+  });
+}
+
+/** Trigger della ricostruzione dell'INTERO storico patrimonio disponibile
+ * (storico patrimonio ricostruito, FETTA 3) — a differenza di
+ * `useTriggerSnapshotRebuild` (solo lo snapshot di OGGI, secondi), questo
+ * job puo' impiegare minuti/ore (fase prezzi storici inclusa): nessun
+ * `date_from` esplicito da qui, "Ricostruisci storico" ricostruisce sempre
+ * tutto cio' che e' disponibile — un backfill scoped e' innescato solo
+ * automaticamente a fine import. */
+export function useTriggerSnapshotBackfill() {
+  return useMutation({
+    mutationFn: () => api.post<SnapshotBackfillTriggered>("/portfolios/snapshots/backfill"),
+  });
+}
+
+/** Stato persistente dell'ultimo backfill (manuale o automatico a fine
+ * import) — stesso principio di `useSnapshotRebuildStatus`, `job_kind`
+ * diverso (`snapshot_backfill`, mai lo stesso job di "Ricalcola adesso"). */
+export function useSnapshotBackfillStatus() {
+  return useQuery({
+    queryKey: ["portfolio", "snapshots", "backfill", "status"] as const,
+    queryFn: () => api.get<JobRun | null>("/portfolios/snapshots/backfill/status"),
     refetchInterval: (query) => (query.state.data?.status === "running" ? 3000 : false),
   });
 }

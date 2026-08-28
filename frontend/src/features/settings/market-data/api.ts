@@ -94,11 +94,18 @@ export function useTriggerMarketDataRefresh() {
 /** Stato persistente dell'ultimo refresh (manuale o cron) — sopravvive a un
  * refresh pagina, a differenza del toast mostrato subito dopo il click.
  * Polling leggero solo mentre e' "running" (stesso principio di
- * useImport in features/imports/api.ts). */
-export function useMarketDataRefreshStatus() {
+ * useImport in features/imports/api.ts). `idlePollMs` (opzionale, docs/
+ * SPEC_STOCK_PRICE.md): quando il job NON e' "running", continua comunque a
+ * ripetere il poll a questo intervallo invece di fermarsi — e' il
+ * meccanismo con cui `usePortfolioMarketDataAutoRefresh` (features/
+ * portfolio/api.ts) ricontrolla periodicamente se il refresh bulk va
+ * ritriggerato, senza un timer separato da gestire a mano. Additivo: chi
+ * non lo passa (es. MarketDataSettingsPage) mantiene il comportamento di
+ * oggi (nessun poll da idle). */
+export function useMarketDataRefreshStatus(idlePollMs?: number | false) {
   return useQuery({
     queryKey: marketDataRefreshStatusKey,
     queryFn: () => api.get<JobRun | null>("/settings/market-data/refresh-status"),
-    refetchInterval: (query) => (query.state.data?.status === "running" ? 3000 : false),
+    refetchInterval: (query) => (query.state.data?.status === "running" ? 3000 : (idlePollMs ?? false)),
   });
 }

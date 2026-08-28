@@ -21,10 +21,12 @@ storico (`has_market_data=False` sul risultato), mai un crash (DoD M09:
 import bisect
 import uuid
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import DateTime as SA_DateTime
+from sqlalchemy import case, cast, func, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.asset import Asset
@@ -39,8 +41,10 @@ from app.models.portfolio_account import PortfolioAccount
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.position import Position
 from app.services import fx_rate_service
+from app.services.analytics_calc import generate_buckets
 from app.services.investment_strategy import STRATEGY_LABELS
-from app.services.position_calc import compute_position
+from app.services.live_quote_service import LiveQuote
+from app.services.position_calc import PositionState, compute_position
 
 # Import locale (dentro write_daily_snapshots, non qui a livello modulo):
 # `analytics.py` chiama `compute_valuation` per popolare `investment_total`
@@ -611,6 +615,42 @@ def _historical_checkpoints(date_from: date, date_to: date) -> list[date]:
     return checkpoints
 
 
+def _states_for_checkpoints(
+    movements: list[InvestmentTransaction], checkpoints: list[date]
+) -> list[tuple[PositionState | None, str | None]]:
+    """Stato di posizione (`compute_position`) e valuta nativa ad ogni
+    checkpoint, con un unico scan lineare sia sui movimenti sia sui
+    checkpoint (entrambi gia' ordinati per data): O(M + C) invece del
+    filtro-e-ricalcola-da-zero ad ogni checkpoint (O(C x M)) — usata dal
+    backfill storico patrimonio (FETTA 3), dove `checkpoints` e' UNA riga
+    per giorno per anni di storico, non solo i pochi checkpoint mensili di
+    `_historical_checkpoints`. Uno stato e' riusato verbatim quando nessun
+    nuovo movimento e' entrato nel prefisso rispetto al checkpoint
+    precedente — portafogli reali operano in pochi giorni l'anno, quindi il
+    prefisso resta identico per la stragrande maggioranza dei checkpoint
+    giornalieri consecutivi."""
+    results: list[tuple[PositionState | None, str | None]] = []
+    n = len(movements)
+    idx = 0
+    cached_len = -1
+    cached_state: PositionState | None = None
+    cached_currency: str | None = None
+    for checkpoint in checkpoints:
+        while idx < n and movements[idx].trade_date <= checkpoint:
+            idx += 1
+        if idx != cached_len:
+            if idx == 0:
+                cached_state = None
+                cached_currency = None
+            else:
+                relevant = movements[:idx]
+                cached_state = compute_position(relevant)
+                cached_currency = relevant[-1].currency
+            cached_len = idx
+        results.append((cached_state, cached_currency))
+    return results
+
+
 async def compute_historical_series(
     db: AsyncSession,
     workspace_id: uuid.UUID,
@@ -618,6 +658,7 @@ async def compute_historical_series(
     date_from: date,
     date_to: date,
     currency: str,
+    checkpoints: list[date] | None = None,
 ) -> list[tuple[date, PortfolioValuation]]:
     """Andamento storico VERO dell'ambito richiesto, per il grafico
     "Andamento del valore" di Investimenti — a differenza di
@@ -655,9 +696,18 @@ async def compute_historical_series(
     il valore ricade sul costo storico (`has_market_data=False`, stesso
     fallback di `compute_valuation`) — l'andamento mostra comunque il
     capitale investito nel tempo, mai vuoto solo perche' manca un provider
-    (DoD M09: l'app funziona anche senza)."""
-    checkpoints = _historical_checkpoints(date_from, date_to)
-    if not checkpoints:
+    (DoD M09: l'app funziona anche senza).
+
+    `checkpoints` (FETTA 3, storico patrimonio ricostruito): se fornita, usata
+    VERBATIM al posto di `_historical_checkpoints` — il backfill storico
+    passa una riga per OGNI giorno dell'intervallo (`generate_buckets(...,
+    "day")`), non i pochi checkpoint mensili/settimanali pensati per il
+    grafico "Andamento del valore". Con `checkpoints=None` (default) il
+    comportamento e il risultato sono IDENTICI a prima di questa modifica:
+    `/portfolios/analytics/performance` (l'unico consumatore esistente)
+    continua a passare `None` e non regredisce."""
+    resolved_checkpoints = checkpoints if checkpoints is not None else _historical_checkpoints(date_from, date_to)
+    if not resolved_checkpoints:
         return []
 
     query = select(InvestmentTransaction).where(
@@ -728,22 +778,30 @@ async def compute_historical_series(
         return rows[idx].rate if idx >= 0 else None
 
     cents = Decimal("0.01")
+    # Precalcolo per gruppo (conto, asset): stato + valuta ad OGNI
+    # checkpoint in O(M + C) invece di rifare `compute_position` da zero
+    # C volte per gruppo (vedi `_states_for_checkpoints`) — indispensabile
+    # con `checkpoints` giornalieri su anni di storico, innocuo con i pochi
+    # checkpoint di `_historical_checkpoints` (stesso risultato, solo piu'
+    # veloce anche li').
+    states_by_position = {
+        key: _states_for_checkpoints(movements, resolved_checkpoints) for key, movements in by_position.items()
+    }
+
     series: list[tuple[date, PortfolioValuation]] = []
-    for checkpoint in checkpoints:
+    for checkpoint_index, checkpoint in enumerate(resolved_checkpoints):
         market_value = cost_basis = unrealized_pl = realized_pl = Decimal("0")
         has_market_data = True
         has_holdings = False
         has_missing_fx_rate = False
 
-        for (_account_id, asset_id), movements in by_position.items():
-            relevant = [m for m in movements if m.trade_date <= checkpoint]
-            if not relevant:
+        for (_account_id, asset_id), states in states_by_position.items():
+            state, position_currency = states[checkpoint_index]
+            if state is None:
                 continue
-            state = compute_position(relevant)
             if state.quantity == 0 and state.realized_pl == 0:
                 continue
 
-            position_currency = relevant[-1].currency
             fx_rate = latest_fx_rate(position_currency, checkpoint)
             if fx_rate is None:
                 if state.quantity != 0:
@@ -943,10 +1001,21 @@ class AssetValuation:
     price: Decimal | None = None
     price_native: Decimal | None = None
     price_native_currency: str | None = None
+    # docs/SPEC_STOCK_PRICE.md: presenti SOLO quando il prezzo viene da una
+    # live-quote (parametro esplicito `live_quote` di `get_asset_valuation`),
+    # mai dal prezzo daily canonico — vedi live_quote_service.py.
+    price_quoted_at: datetime | None = None
+    price_is_live: bool = False
+    price_is_stale: bool = False
 
 
 async def get_asset_valuation(
-    db: AsyncSession, workspace_id: uuid.UUID, asset_id: uuid.UUID, as_of: date, currency: str
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    asset_id: uuid.UUID,
+    as_of: date,
+    currency: str,
+    live_quote: LiveQuote | None = None,
 ) -> AssetValuation:
     """P&L convertito per UN asset (somma su tutte le posizioni/conti che lo
     detengono) — stessa fonte e stesso fallback onesto a costo storico di
@@ -956,7 +1025,16 @@ async def get_asset_valuation(
     il prezzo era in una valuta diversa da quella della posizione, es. un
     ISIN giapponese quotato in JPY comprato in EUR), qui la conversione
     passa sempre da `fx_rate_service`, cosi' il rendimento resta visibile —
-    dato che l'utente considera troppo importante per sparire silenziosamente."""
+    dato che l'utente considera troppo importante per sparire silenziosamente.
+
+    `live_quote` (docs/SPEC_STOCK_PRICE.md): opzionale, passato SOLO dal
+    dettaglio di un singolo asset (`app/api/v1/assets.py`, via
+    `live_quote_service.get_or_refresh_latest_quote`) — quando presente
+    sostituisce `_latest_price` per prezzo/market_value/unrealized_pl,
+    altrimenti comportamento identico a oggi. Mai passato da
+    `compute_valuation`/`compute_allocation`/`list_position_valuations`: la
+    valorizzazione bulk e lo storico restano sul solo prezzo daily
+    canonico, come richiesto esplicitamente dalla SPEC."""
     positions = list(
         (
             await db.execute(
@@ -979,9 +1057,16 @@ async def get_asset_valuation(
     has_market_data = True
     has_missing_fx_rate = False
 
-    price_row = await _latest_price(db, workspace_id, asset_id, as_of)
+    if live_quote is not None:
+        price_native, price_native_currency = live_quote.price, live_quote.currency
+    else:
+        price_row = await _latest_price(db, workspace_id, asset_id, as_of)
+        price_native = price_row.price if price_row is not None else None
+        price_native_currency = price_row.currency if price_row is not None else None
     price_fx_rate = (
-        await fx_rate_service.get_rate(db, price_row.currency, currency, as_of) if price_row is not None else None
+        await fx_rate_service.get_rate(db, price_native_currency, currency, as_of)
+        if price_native_currency is not None
+        else None
     )
 
     for position in positions:
@@ -994,13 +1079,13 @@ async def get_asset_valuation(
         cost_basis += position_cost
         realized_pl += position.realized_pl * fx_rate
 
-        if price_row is not None and price_fx_rate is not None:
-            market_value += position.quantity * price_row.price * price_fx_rate
+        if price_native is not None and price_fx_rate is not None:
+            market_value += position.quantity * price_native * price_fx_rate
         else:
             market_value += position_cost
             has_market_data = False
 
-    price = price_row.price * price_fx_rate if price_row is not None and price_fx_rate is not None else None
+    price = price_native * price_fx_rate if price_native is not None and price_fx_rate is not None else None
 
     return AssetValuation(
         currency=currency,
@@ -1012,8 +1097,11 @@ async def get_asset_valuation(
         has_market_data=has_market_data,
         has_missing_fx_rate=has_missing_fx_rate,
         price=price.quantize(cents) if price is not None else None,
-        price_native=price_row.price if price_row is not None else None,
-        price_native_currency=price_row.currency if price_row is not None else None,
+        price_native=price_native,
+        price_native_currency=price_native_currency,
+        price_quoted_at=live_quote.quoted_at if live_quote is not None else None,
+        price_is_live=live_quote is not None,
+        price_is_stale=live_quote.stale if live_quote is not None else False,
     )
 
 
@@ -1030,3 +1118,224 @@ async def list_net_worth_snapshots(
         .order_by(NetWorthSnapshot.snapshot_date)
     )
     return list(result.scalars().all())
+
+
+def _net_worth_bucket_expr(granularity: str):
+    """Stesso schema di `analytics._bucket_expr`, qui su
+    `NetWorthSnapshot.snapshot_date` invece di `Transaction.transaction_date`
+    — non riusabile direttamente (quella e' legata a `Transaction`), ma
+    stessa logica per "semester" (Postgres `date_trunc` non lo conosce, va
+    costruito a mano a partire dall'inizio dell'anno)."""
+    if granularity == "semester":
+        year_start = func.date_trunc("year", cast(NetWorthSnapshot.snapshot_date, SA_DateTime))
+        return case(
+            (func.extract("month", NetWorthSnapshot.snapshot_date) <= 6, year_start),
+            else_=year_start + text("interval '6 months'"),
+        )
+    return func.date_trunc(granularity, cast(NetWorthSnapshot.snapshot_date, SA_DateTime))
+
+
+async def list_net_worth_snapshots_downsampled(
+    db: AsyncSession, workspace_id: uuid.UUID, granularity: str, date_from: date, date_to: date
+) -> list[NetWorthSnapshot]:
+    """Downsampling server-side per granularita' larghe (trimestre/anno) —
+    serve DA QUESTA FETTA in poi: con lo storico ricostruito (snapshot
+    giornalieri per anni, non solo da oggi in poi) una `trendWindow` con
+    granularita' 'year' copre gia' 6 anni = 2.190 punti, troppi per un
+    grafico e ~500KB di payload. UN punto per bucket — l'ULTIMO
+    `snapshot_date` disponibile in quel bucket (`DISTINCT ON`, mai una
+    media/interpolazione: il patrimonio a fine trimestre e' il dato che
+    l'utente si aspetta di vedere in un punto "trimestre", non un valore
+    smussato)."""
+    bucket_expr = _net_worth_bucket_expr(granularity)
+    bucketed_ids = (
+        select(NetWorthSnapshot.id)
+        .where(
+            NetWorthSnapshot.workspace_id == workspace_id,
+            NetWorthSnapshot.snapshot_date >= date_from,
+            NetWorthSnapshot.snapshot_date <= date_to,
+        )
+        .distinct(bucket_expr)
+        .order_by(bucket_expr, NetWorthSnapshot.snapshot_date.desc())
+        .subquery()
+    )
+    result = await db.execute(
+        select(NetWorthSnapshot)
+        .where(NetWorthSnapshot.id.in_(select(bucketed_ids.c.id)))
+        .order_by(NetWorthSnapshot.snapshot_date)
+    )
+    return list(result.scalars().all())
+
+
+# --- Storico patrimonio ricostruito (FETTA 3) -------------------------------
+#
+# Principio guida (invariato per lo snapshot di OGGI): `write_daily_snapshots`
+# resta l'UNICO percorso che passa da `compute_valuation` (quantita' ATTUALI
+# di `Position`, corrette solo per "oggi"). Il backfill qui sotto e' un
+# secondo percorso, SOLO-STORICO, che non chiama mai `compute_valuation` —
+# strutturalmente sbagliata per il passato perche' legge le quantita' attuali
+# e usa `as_of` solo per il prezzo (vedi il limite gia' documentato sopra su
+# `compute_historical_series`).
+#
+# Diviso in due funzioni separate (mai un'unica funzione che calcola E
+# scrive) per rispettare la regola di sessione del job
+# (`worker/jobs/snapshot_backfill.py`, vedi il suo docstring): `SET LOCAL
+# app.current_user_id` scade al commit, quindi il job apre una sessione RLS
+# fresca per FASE — una per il calcolo (sola lettura, zero I/O di scrittura,
+# puo' restare aperta quanto serve) e una per OGNI CHUNK di scrittura (upsert
+# + commit + chiusura, mai una transazione lunga tenuta aperta durante il
+# calcolo). Nessuna delle due funzioni committa: il chiamante lo fa (stesso
+# principio di `write_daily_snapshots`, "il chiamante e' responsabile del
+# commit").
+
+
+@dataclass
+class NetWorthBackfillDay:
+    """Un giorno della serie storica ricostruita: liquidita'/debiti da
+    `analytics.account_balance_history`, investimenti dalla `PortfolioValuation`
+    completa di `compute_historical_series` (mai solo `market_value`: servono
+    anche `cost_basis`/`unrealized_pl`/`realized_pl` per scrivere l'aggregato
+    `portfolio_snapshots`, che ha quelle colonne NOT NULL)."""
+
+    day: date
+    liquidity: Decimal
+    debt: Decimal
+    investments: PortfolioValuation
+    has_unconverted: bool
+
+
+async def compute_net_worth_backfill_series(
+    db: AsyncSession, workspace_id: uuid.UUID, date_from: date, date_to: date, currency: str
+) -> list[NetWorthBackfillDay]:
+    """Fase di calcolo IN MEMORIA (nessuna scrittura, nessun commit) del
+    backfill storico patrimonio — 'sessione B' del job
+    `snapshot_backfill.py`: carica libro mastro conti (via
+    `account_balance_history`, UNA query con window function per tutto lo
+    storico) + libro mastro investimenti/prezzi/cambi (via
+    `compute_historical_series` con un checkpoint per OGNI giorno
+    dell'intervallo, precaricati una volta sola per l'intero range), calcola
+    l'intera serie giornaliera, poi ritorna — la sessione chiama questa
+    funzione e poi si chiude, mai riusata per la fase di scrittura
+    successiva."""
+    days = generate_buckets(date_from, date_to, "day")
+    if not days:
+        return []
+
+    # Import locale: stesso motivo di `write_daily_snapshots` sopra
+    # (`analytics.py` importa gia' `compute_valuation` da questo modulo a
+    # livello di funzione — un import a livello modulo in entrambe le
+    # direzioni creerebbe un ciclo).
+    from app.services.analytics import account_balance_history
+
+    liquidity_debt = await account_balance_history(db, workspace_id, currency, date_from, date_to)
+    liquidity_by_day = {d.day: d.liquidity for d in liquidity_debt}
+    debt_by_day = {d.day: d.debt for d in liquidity_debt}
+    unconverted_by_day = {d.day: d.has_unconverted for d in liquidity_debt}
+
+    # `account_ids=None`: TUTTI i conti del workspace (stesso scope implicito
+    # di `write_daily_snapshots`/`compute_valuation(..., None, ...)` per
+    # l'aggregato "tutti i conti" — i portfolio nominati non hanno un loro
+    # backfill, vedi docstring del job).
+    investments_series = await compute_historical_series(
+        db, workspace_id, None, date_from, date_to, currency, checkpoints=days
+    )
+
+    results: list[NetWorthBackfillDay] = []
+    for day, valuation in investments_series:
+        results.append(
+            NetWorthBackfillDay(
+                day=day,
+                liquidity=liquidity_by_day.get(day, Decimal("0")),
+                debt=debt_by_day.get(day, Decimal("0")),
+                investments=valuation,
+                has_unconverted=unconverted_by_day.get(day, False) or valuation.has_missing_fx_rate,
+            )
+        )
+    return results
+
+
+async def upsert_net_worth_backfill_chunk(
+    db: AsyncSession, workspace_id: uuid.UUID, currency: str, rows: list[NetWorthBackfillDay]
+) -> None:
+    """Upsert bulk `ON CONFLICT` di un CHUNK di giorni gia' calcolati (mai
+    l'intera serie in una volta: il chiamante la spezza in chunk di ~180
+    date per tenere ogni sessione/transazione RLS breve, vedi
+    `snapshot_backfill.py`) — scrive sia `net_worth_snapshots` sia
+    l'aggregato `portfolio_snapshots` (`portfolio_id IS NULL`), la stessa
+    invariante testata di `write_daily_snapshots`
+    (`net_worth_snapshots.investments == portfolio_snapshots(NULL).market_value`).
+
+    `ON CONFLICT DO UPDATE` invece di SELECT-poi-INSERT (a differenza di
+    `_upsert_net_worth_snapshot`/`_upsert_portfolio_snapshot` sopra, ORM-based
+    e usate solo dal cron/trigger manuale 'oggi'): elimina la gara con il
+    cron delle 03:00 sulla riga di OGGI quando il backfill la riscrive
+    (`date_to` include sempre la data odierna, vedi §3.1 del piano) — l'ultimo
+    ON CONFLICT a scrivere vince, mai un errore di chiave duplicata. Il
+    chiamante e' responsabile del commit (stesso principio di
+    `write_daily_snapshots`)."""
+    if not rows:
+        return
+    cents = Decimal("0.01")
+
+    net_worth_values = [
+        {
+            "workspace_id": workspace_id,
+            "snapshot_date": r.day,
+            "currency": currency,
+            "liquidity": r.liquidity,
+            "debt": r.debt,
+            "investments": r.investments.market_value,
+            # SPEC §31: Net Worth = Cash + Investments - Liabilities. `debt'
+            # e' gia' un saldo con segno (negativo quando si e' in debito),
+            # si SOMMA cosi' com'e' — stesso principio di
+            # `_upsert_net_worth_snapshot` sopra.
+            "net_worth": (r.liquidity + r.debt + r.investments.market_value).quantize(cents),
+        }
+        for r in rows
+    ]
+    nw_stmt = pg_insert(NetWorthSnapshot).values(net_worth_values)
+    nw_stmt = nw_stmt.on_conflict_do_update(
+        constraint="uq_net_worth_snapshots_workspace_date",
+        set_={
+            "currency": nw_stmt.excluded.currency,
+            "liquidity": nw_stmt.excluded.liquidity,
+            "debt": nw_stmt.excluded.debt,
+            "investments": nw_stmt.excluded.investments,
+            "net_worth": nw_stmt.excluded.net_worth,
+        },
+    )
+    await db.execute(nw_stmt)
+
+    portfolio_values = [
+        {
+            "workspace_id": workspace_id,
+            "portfolio_id": None,
+            "snapshot_date": r.day,
+            "currency": currency,
+            "market_value": r.investments.market_value,
+            "cost_basis": r.investments.cost_basis,
+            "unrealized_pl": r.investments.unrealized_pl,
+            "realized_pl": r.investments.realized_pl,
+            "has_market_data": r.investments.has_market_data,
+        }
+        for r in rows
+    ]
+    pf_stmt = pg_insert(PortfolioSnapshot).values(portfolio_values)
+    # Nessun vincolo NOMINATO su questa unicita' (indice PARZIALE creato via
+    # SQL diretto in migration 0010_market_data.py, `WHERE portfolio_id IS
+    # NULL"): `index_elements`+`index_where`, non `constraint=`, e' l'unico
+    # modo per cui SQLAlchemy possa individuare un indice parziale come
+    # target ON CONFLICT senza un nome di vincolo esplicito.
+    pf_stmt = pf_stmt.on_conflict_do_update(
+        index_elements=["workspace_id", "snapshot_date"],
+        index_where=text("portfolio_id IS NULL"),
+        set_={
+            "currency": pf_stmt.excluded.currency,
+            "market_value": pf_stmt.excluded.market_value,
+            "cost_basis": pf_stmt.excluded.cost_basis,
+            "unrealized_pl": pf_stmt.excluded.unrealized_pl,
+            "realized_pl": pf_stmt.excluded.realized_pl,
+            "has_market_data": pf_stmt.excluded.has_market_data,
+        },
+    )
+    await db.execute(pf_stmt)

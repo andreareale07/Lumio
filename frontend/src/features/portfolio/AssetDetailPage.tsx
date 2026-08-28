@@ -19,8 +19,10 @@ import {
   formatMoney,
   formatPercent,
   formatSignedMoney,
+  formatTime,
 } from "../../lib/format";
 import type { AssetProfile, HistoryPreset } from "../../types/api";
+import { useMarketDataProfiles } from "../settings/market-data/api";
 import {
   useAssetProfile,
   useAssets,
@@ -49,15 +51,23 @@ export function AssetDetailPage() {
   const { data: assets, isLoading, isError, refetch } = useAssets();
   const asset = assets?.find((a) => a.id === assetId);
   const positions = usePositions({ asset_id: assetId, only_open: false });
-  const history = usePriceHistory(assetId ?? null, preset);
+  // docs/SPEC_STOCK_PRICE.md: mentre questa pagina resta aperta, prezzo e
+  // grafico "1G" si aggiornano alla cadenza configurata sul profilo attivo
+  // (`detail_refresh_interval_seconds`) — il backend serve una live-quote da
+  // cache Redis (mai un effetto sul prezzo daily canonico), e per "1G" serve/
+  // arricchisce `asset_price_quotes`. Nessun profilo attivo = nessun polling.
+  const marketDataProfiles = useMarketDataProfiles();
+  const activeProfile = marketDataProfiles.data?.find((p) => p.is_active) ?? null;
+  const detailRefetchMs = activeProfile ? activeProfile.detail_refresh_interval_seconds * 1000 : undefined;
+  const history = usePriceHistory(assetId ?? null, preset, preset === "1G" ? detailRefetchMs : undefined);
   const purchases = useInvestmentTransactions({ asset_id: assetId, type: "buy", limit: 100 });
   const assetProfile = useAssetProfile(assetId ?? null);
-  const valuation = useAssetValuation(assetId ?? null);
+  const valuation = useAssetValuation(assetId ?? null, undefined, detailRefetchMs);
   // Prezzo attuale nella STESSA valuta dei singoli acquisti (di norma quella
   // dell'asset, es. EUR per un titolo comprato via Trade Republic anche se
   // quotato dal provider in JPY/USD) — serve alle colonne "Rendimento" della
   // lista Acquisti sotto, un confronto in valute diverse sarebbe scorretto.
-  const nativeValuation = useAssetValuation(assetId ?? null, asset?.currency);
+  const nativeValuation = useAssetValuation(assetId ?? null, asset?.currency, detailRefetchMs);
 
   if (isLoading) return <SkeletonRows rows={4} />;
   if (isError) {
@@ -119,12 +129,15 @@ export function AssetDetailPage() {
 
   // Gli intervalli intraday (1G/1S) hanno bisogno dell'ora in etichetta,
   // altrimenti piu' punti dello stesso giorno sarebbero indistinguibili sul
-  // grafico (bug osservato in verifica manuale).
+  // grafico (bug osservato in verifica manuale). "1G" e' sempre un solo
+  // giorno (oggi): la data ripetuta su ogni tick sarebbe solo rumore,
+  // basta l'ora. "1S" (5 giorni) attraversa piu' giorni distinti e resta
+  // su data+ora.
   const isIntraday = preset === "1G" || preset === "1S";
   const historyCurrency = history.data?.currency ?? asset.currency;
   const points = (history.data?.points ?? []).map((p) => ({
     period: p.at,
-    label: isIntraday ? formatDateTime(p.at) : formatDate(p.at),
+    label: preset === "1G" ? formatTime(p.at) : isIntraday ? formatDateTime(p.at) : formatDate(p.at),
     value: Number(p.price),
   }));
 
@@ -171,6 +184,13 @@ export function AssetDetailPage() {
                 </span>
               )}
             </div>
+            {valuation.data?.price_is_live && (
+              <p className="text-xs text-text-muted">
+                {valuation.data.price_is_stale && valuation.data.price_quoted_at
+                  ? t("assetDetail.currentPriceStale", { value: formatDateTime(valuation.data.price_quoted_at) })
+                  : t("assetDetail.currentPriceLive")}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -201,7 +221,12 @@ export function AssetDetailPage() {
         {history.isLoading ? (
           <SkeletonRows rows={4} />
         ) : (
-          <AreaTrendChart data={points} currency={historyCurrency} valueLabel={t("assetDetail.priceChart.valueLabel")} />
+          <AreaTrendChart
+            data={points}
+            currency={historyCurrency}
+            valueLabel={t("assetDetail.priceChart.valueLabel")}
+            yAxisDomain="tight"
+          />
         )}
       </ChartCard>
 

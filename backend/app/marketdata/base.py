@@ -154,3 +154,30 @@ class MarketDataProvider(Protocol):
         Solleva `MarketDataProviderError` solo per problemi di comunicazione
         con un endpoint che dovrebbe rispondere."""
         ...
+
+    async def fetch_history_range(
+        self, asset: AssetRef, date_from: date, date_to: date
+    ) -> list[PricePoint] | None:
+        """Storico GIORNALIERO per un range di date arbitrario (storico
+        patrimonio ricostruito, FETTA 3) — a differenza di `fetch_history`,
+        che accetta solo i preset fissi di `HISTORY_PRESETS`
+        (`app/api/v1/assets.py`; il piu' lungo, "Max", e' MENSILE su Yahoo,
+        inutilizzabile per popolare `asset_prices` senza tradire l'intento
+        di quei preset). `None` = questo provider non supporta un range
+        arbitrario (non un errore: il chiamante prova un fallback su
+        `fetch_history(asset, "1A")` prima di arrendersi, vedi
+        `app/services/price_history_backfill.py`). Solleva
+        `MarketDataProviderError` solo per problemi di comunicazione con un
+        endpoint che dovrebbe rispondere."""
+        ...
+
+    async def fetch_fx_history_range(
+        self, from_currency: str, to_currency: str, date_from: date, date_to: date
+    ) -> list[PricePoint] | None:
+        """Simmetrico di `fetch_history_range` per una coppia di valute —
+        serve al backfill FX all'indietro (§3.5 del piano): `fetch_fx_history`
+        con preset "Max" e' insufficiente per anni di storico (mensile su
+        Yahoo) ed e' comunque pensato per la copertura "recente" del refresh
+        quotidiano, non per un backfill mirato a un range specifico. `None` =
+        provider senza supporto per un range arbitrario."""
+        ...
