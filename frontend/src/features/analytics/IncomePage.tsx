@@ -11,6 +11,10 @@ export function IncomePage() {
       title={t("income.title")}
       icon={Banknote}
       emptyDescription={t("income.emptyDescription")}
+      hierarchyTitle={t("breakdown.hierarchy.incomeTitle")}
+      merchantsTitle={t("breakdown.merchants.incomeTitle")}
+      showDailyRate={false}
+      showStability
     />
   );
 }

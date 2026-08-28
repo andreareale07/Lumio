@@ -91,5 +91,19 @@
   "distributionPolicy": {
     "accumulating": "Accumulo (probabile)",
     "distributing": "Distribuzione (probabile)"
+  },
+  "cadence": {
+    "monthly": "Mensile",
+    "four_weekly": "Ogni 4 settimane",
+    "quarterly": "Trimestrale",
+    "annual": "Annuale"
+  },
+  "recurringStatus": {
+    "active": "Attiva",
+    "ended": "Terminata"
+  },
+  "anomalyType": {
+    "category_outlier": "Fuori norma per la categoria",
+    "series_deviation": "Fuori norma per questa ricorrenza"
   }
 }

@@ -11,6 +11,10 @@ export function ExpensesPage() {
       title={t("expenses.title")}
       icon={Receipt}
       emptyDescription={t("expenses.emptyDescription")}
+      hierarchyTitle={t("breakdown.hierarchy.expenseTitle")}
+      merchantsTitle={t("breakdown.merchants.expenseTitle")}
+      showDailyRate
+      showStability={false}
     />
   );
 }

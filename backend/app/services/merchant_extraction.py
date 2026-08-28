@@ -72,6 +72,14 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", without_accents.upper()).strip()
 
 
+# Alias pubblico (FETTA 2 rilevazione ricorrenze, `recurrence_calc.py`):
+# stessa normalizzazione (NFKD + rimozione accenti + maiuscolo + collasso
+# spazi), riusata per far collassare sulla stessa chiave di serie varianti
+# di caso/accento dello stesso token — solo un rename/alias additivo, ZERO
+# cambi di comportamento della pipeline di estrazione merchant sopra.
+normalize_for_matching = _normalize
+
+
 def _strip_prefix(text: str) -> str:
     for pattern in _PREFIX_PATTERNS:
         stripped = pattern.sub("", text, count=1)

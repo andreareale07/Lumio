@@ -1,20 +1,55 @@
 {
   "breakdown": {
     "errorMessage": "Data unavailable.",
-    "trendChart": {
+    "comparisonYearSuffix": "vs previous year",
+    "rhythm": {
+      "total": "Total",
+      "average": "Monthly average",
+      "median": "Median {{value}}",
+      "notAvailable": "n/a",
+      "dailyRateTitle": "Daily rate",
+      "dailyRateValue": "{{value}} per day",
+      "projection": "End-of-period projection {{value}}",
+      "transactionsCount": "Transactions",
+      "averagePerTransaction": "{{value}} on average"
+    },
+    "stability": {
+      "title": "Stability",
+      "monthsWithIncome": "{{count}} of {{total}} months with income",
+      "concentration": "{{share}} comes from {{source}}"
+    },
+    "trend": {
       "title": "Trend",
       "emptyTitle": "No data",
-      "tableCaption": "Monthly trend",
-      "tableHeaders": ["Period", "Total"]
+      "tableCaption": "Trend",
+      "tableHeaders": ["Period", "Total", "Typical"],
+      "typicalLabel": "Typical",
+      "averagePart": "Average {{value}}",
+      "medianPart": "Median {{value}}",
+      "yoyPart": "{{value}} vs last year"
     },
-    "categoryChart": {
-      "title": "Categories",
-      "emptyTitle": "No categories",
-      "tableCaption": "By category",
-      "tableHeaders": ["Category", "Total", "Share"]
+    "hierarchy": {
+      "expenseTitle": "Where your money goes",
+      "incomeTitle": "Where it comes from",
+      "emptyTitle": "No data",
+      "tableCaption": "Category hierarchy",
+      "tableHeaders": ["Category", "Total", "Share", "Transactions"],
+      "expand": "Show subcategories",
+      "transactionsCount_one": "{{count}} transaction",
+      "transactionsCount_other": "{{count}} transactions",
+      "vsTypical": "{{value}} vs typical",
+      "directOnParent": "No subcategory",
+      "showAll": "Show all",
+      "showLess": "Show less"
     },
     "merchants": {
-      "title": "Merchants",
+      "expenseTitle": "Top merchants",
+      "incomeTitle": "Top sources",
+      "emptyTitle": "No data",
+      "tableCaption": "Top merchants",
+      "tableHeaders": ["Merchant", "Total", "Share", "Transactions"],
+      "othersRow_one": "{{count}} other merchant",
+      "othersRow_other": "{{count}} other merchants",
       "breakdownTitle": "Top merchants",
       "noMerchant": "No merchant"
     }
@@ -24,12 +59,13 @@
     "subtitle": "Total net worth: liquidity, debt and investments.",
     "errorMessage": "Data unavailable.",
     "rebuildNow": "Recalculate now",
+    "backfillHistory": "Rebuild history",
     "history": {
       "title": "Net worth over time",
       "tableCaption": "Net worth over time",
       "tableHeaders": ["Date", "Net worth"],
       "emptyTitle": "No history yet",
-      "emptyDescription": "History builds up day by day from the automatic snapshot — use 'Recalculate now' to create one right away."
+      "emptyDescription": "History is built from the transactions you've already imported — use 'Rebuild history' to generate it right away, instead of waiting for tomorrow's snapshot."
     },
     "composition": {
       "title": "Composition",
@@ -50,5 +86,33 @@
   "income": {
     "title": "Income",
     "emptyDescription": "Classified income in this period will appear here."
+  },
+  "recurring": {
+    "title": "Recurring",
+    "subtitle": "Subscriptions and other expenses that repeat on a recognizable rhythm.",
+    "monthlyTotal": "{{value}} per month",
+    "nextExpected": "Next expected {{date}}",
+    "priceChange": "{{old}} → {{new}} since {{date}}",
+    "ended": "Ended",
+    "variableAmount": "Variable amount",
+    "emptyTitle": "No recurring series detected",
+    "emptyDescription": "As soon as a subscription or repeated movement has a recognizable rhythm, it will show up here.",
+    "insufficientData": "History is still too short to recognize recurring series.",
+    "dismiss": "Dismiss",
+    "dismissed": "Dismissed",
+    "undo": "Undo",
+    "occurrencesCount_one": "{{count}} occurrence",
+    "occurrencesCount_other": "{{count}} occurrences"
+  },
+  "anomalies": {
+    "title": "Anomalies",
+    "subtitle": "Movements that stand out from your usual habits.",
+    "baselineNote": "Compared to the last 12 months",
+    "vsCategory": "{{value}} vs category average",
+    "vsSeries": "{{value}} vs usual amount",
+    "emptyTitle": "No anomalies detected",
+    "emptyDescription": "Movements that deviate significantly from your habits will show up here.",
+    "insufficientData": "History is still too short to detect anomalies.",
+    "ignore": "Ignore"
   }
 }

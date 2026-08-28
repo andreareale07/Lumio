@@ -23,6 +23,7 @@ negativo per i debiti, vedi `csv_import.py:_resolve_amount_and_direction`).
 Il saldo di un conto in valuta diversa viene convertito PRIMA di sommare
 l'ancora col delta (stesso tasso per entrambi, alla data `as_of` richiesta).
 """
+import bisect
 import uuid
 from dataclasses import dataclass
 from datetime import date
@@ -35,11 +36,13 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
+from app.models.fx_rate import FxRate
 from app.models.transaction import Transaction
 from app.models.workspace import Workspace
 from app.services import fx_rate_service
 from app.services.analytics_calc import (
     GRANULARITIES,
+    forward_fill_daily_series,
     generate_buckets,
     previous_period,
     reconstruct_running_series,
@@ -442,17 +445,28 @@ async def by_category(
     date_from: date,
     date_to: date,
     financial_account_id: uuid.UUID | None = None,
+    parent_id: uuid.UUID | None = None,
 ) -> list[dict]:
     """Breakdown a DUE livelli (SPEC §22: le sottocategorie del seed non
     vanno oltre un livello): le transazioni di una sottocategoria vengono
     raggruppate sotto la categoria padre via `COALESCE(parent_id, id)`. Il
     drill-down per merchant dentro una categoria e' `by_merchant(...,
     category_id=...)` (SPEC_FE §30 raggruppa per merchant, non per
-    sottocategoria)."""
+    sottocategoria).
+
+    `parent_id` (redesign Spese/Entrate, FETTA 1): quando presente, il
+    raggruppamento cambia LIVELLO invece di filtrare soltanto — si
+    raggruppa per `category_id` puro (le foglie dentro quel padre) invece
+    che per `COALESCE(parent_id, category_id)`, e si filtrano solo le
+    transazioni di quel padre o di una sua sottocategoria (stesso pattern
+    padre-O-figlio gia' usato in `cash_flow`/`by_merchant`). Una riga con
+    `category_id == parent_id` (transazioni taggate direttamente sul padre,
+    senza sottocategoria) torna con il nome del padre stesso — rietichettata
+    lato frontend, non qui: e' un dettaglio di presentazione, non di dato."""
     amount_filter = Transaction.amount < 0 if direction == "expense" else Transaction.amount > 0
     fx_rate = fx_rate_service.fx_rate_expr(Transaction.currency, Transaction.transaction_date, currency)
     converted_abs_amount = func.abs(Transaction.amount * fx_rate)
-    group_key = func.coalesce(Category.parent_id, Transaction.category_id)
+    group_key = Transaction.category_id if parent_id is not None else func.coalesce(Category.parent_id, Transaction.category_id)
     query = (
         select(
             group_key.label("group_id"),
@@ -472,17 +486,102 @@ async def by_category(
     )
     if financial_account_id is not None:
         query = query.where(Transaction.financial_account_id == financial_account_id)
+    if parent_id is not None:
+        query = query.where(or_(Transaction.category_id == parent_id, Category.parent_id == parent_id))
 
     rows = (await db.execute(query)).all()
     return await _label_category_rows(db, rows)
 
 
+async def category_trend(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    currency: str,
+    direction: str,
+    granularity: str,
+    date_from: date,
+    date_to: date,
+    financial_account_id: uuid.UUID | None = None,
+    parent_id: uuid.UUID | None = None,
+) -> dict:
+    """Matrice bucket x categoria (redesign Spese/Entrate, FETTA 1): UNA
+    query al posto di N chiamate sequenziali a `cash_flow(category_id=...)`
+    (una per categoria — 15-30 nel caso reale). Alimenta la sparkline per
+    riga e lo scostamento "vs tipico" della gerarchia categorie, sia per le
+    categorie padre sia (via `parent_id`) per le loro sottocategorie.
+
+    ATTENZIONE: ritorna zeri densi per ogni bucket senza dati e NON puo'
+    distinguere "nessun dato ancora quel mese" da "quel mese questa
+    categoria ha speso zero" — la maschera dei mesi fantasma e' una
+    proprieta' GLOBALE del workspace (va derivata dalla serie `/cash-flow`
+    aggregata, entrate E spese entrambe a zero), mai filtrata qui: una
+    categoria genuinamente a zero in un mese e' un dato vero."""
+    amount_filter = Transaction.amount < 0 if direction == "expense" else Transaction.amount > 0
+    fx_rate = fx_rate_service.fx_rate_expr(Transaction.currency, Transaction.transaction_date, currency)
+    converted_abs_amount = func.abs(Transaction.amount * fx_rate)
+    bucket_expr = _bucket_expr(granularity)
+    group_key = Transaction.category_id if parent_id is not None else func.coalesce(Category.parent_id, Transaction.category_id)
+    query = (
+        select(
+            bucket_expr.label("bucket"),
+            group_key.label("group_id"),
+            func.sum(converted_abs_amount).label("total"),
+        )
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.workspace_id == workspace_id,
+            Transaction.transaction_type.notin_(_EXCLUDED_FROM_CASH_FLOW),
+            amount_filter,
+            Transaction.transaction_date >= date_from,
+            Transaction.transaction_date <= date_to,
+        )
+        .group_by(bucket_expr, group_key)
+    )
+    if financial_account_id is not None:
+        query = query.where(Transaction.financial_account_id == financial_account_id)
+    if parent_id is not None:
+        query = query.where(or_(Transaction.category_id == parent_id, Category.parent_id == parent_id))
+
+    rows = (await db.execute(query)).all()
+    buckets = generate_buckets(date_from, date_to, granularity)
+    cents = Decimal("0.01")
+
+    totals_by_group: dict[uuid.UUID | None, Decimal] = {}
+    values_by_group: dict[uuid.UUID | None, dict[date, Decimal]] = {}
+    for r in rows:
+        group_id = r.group_id
+        amount = Decimal(r.total).quantize(cents)
+        totals_by_group[group_id] = totals_by_group.get(group_id, Decimal("0")) + amount
+        values_by_group.setdefault(group_id, {})[r.bucket.date()] = amount
+
+    ordered_groups = sorted(totals_by_group.keys(), key=lambda g: totals_by_group[g], reverse=True)
+    labeled = await _category_names(db, [g for g in ordered_groups if g is not None])
+
+    series = []
+    for group_id in ordered_groups:
+        category = labeled.get(group_id)
+        per_bucket = values_by_group.get(group_id, {})
+        series.append(
+            {
+                "category_id": group_id,
+                "name": category.name if category is not None else "Senza categoria",
+                "total": totals_by_group[group_id],
+                "values": [per_bucket.get(b, Decimal("0")) for b in buckets],
+            }
+        )
+    return {"buckets": buckets, "series": series}
+
+
+async def _category_names(db: AsyncSession, category_ids: list[uuid.UUID]) -> dict[uuid.UUID, Category]:
+    if not category_ids:
+        return {}
+    cat_rows = (await db.execute(select(Category).where(Category.id.in_(category_ids)))).scalars().all()
+    return {c.id: c for c in cat_rows}
+
+
 async def _label_category_rows(db: AsyncSession, rows) -> list[dict]:
     category_ids = [r.group_id for r in rows if r.group_id is not None]
-    categories: dict[uuid.UUID, Category] = {}
-    if category_ids:
-        cat_rows = (await db.execute(select(Category).where(Category.id.in_(category_ids)))).scalars().all()
-        categories = {c.id: c for c in cat_rows}
+    categories = await _category_names(db, category_ids)
 
     total_all = sum((Decimal(r.total) for r in rows), Decimal("0")) or Decimal("1")
     result = []
@@ -567,3 +666,232 @@ async def by_merchant(
             }
         )
     return result
+
+
+# --- Storico patrimonio ricostruito (FETTA 3) -------------------------------
+#
+# `account_balance_history` riproduce la semantica "ancora + delta" di
+# `_ACCOUNT_BALANCES_SQL` sopra, ma per TUTTI i giorni di un intervallo in
+# UNA sola query invece di un round-trip per data (~3.650 per 10 anni). Mai
+# il walk all'indietro di `balance_history`/`reconstruct_running_series`:
+# quello fa dipendere ogni giorno PASSATO dal saldo di OGGI, quindi un
+# import recente riscriverebbe silenziosamente snapshot di anni fa — qui
+# invece il saldo di un giorno dipende SOLO da righe a quel giorno o
+# precedenti (proprieta' che rende corretto il trigger incrementale a fine
+# import, vedi worker/jobs/import_job.py: un import di un mese richiede di
+# ricalcolare solo da quel mese in poi, mai l'intero storico).
+#
+# Tecnica SQL: stessa "ancora + delta" espressa con window function invece
+# delle due CTE correlate di sopra, cosi' si ottiene il saldo di OGNI riga
+# (non solo l'ultima) in un solo passaggio:
+#   running        = SUM(amount) OVER (PARTITION BY account ORDER BY
+#                    transaction_date, created_at, id ROWS UNBOUNDED PRECEDING)
+#   anchor_seq     = COUNT(balance_after) OVER (stessa finestra) — cumulativo,
+#                    incrementa esattamente alla riga che E' un'ancora: tutte
+#                    le righe fra due ancore (l'ancora successiva inclusa)
+#                    condividono lo stesso anchor_seq, quindi un MAX(...)
+#                    PARTITION BY (account, anchor_seq) recupera balance_after
+#                    e running DI QUELLA RIGA ANCORA per l'intero gruppo,
+#                    senza LAG/IGNORE NULLS (non disponibile in Postgres per
+#                    le window function).
+#   balance_at_row = COALESCE(anchor_balance,0) + running - COALESCE(anchor_running,0)
+# Per un conto senza alcuna ancora (`balance_after` sempre NULL), anchor_seq
+# resta 0 per ogni riga: la formula collassa su `running` puro — stesso
+# comportamento del ramo `LEFT JOIN anchors` di `_ACCOUNT_BALANCES_SQL`
+# quando `anchor_date IS NULL`.
+#
+# Nessun filtro `transaction_date >= :date_from`: il running sum deve
+# scorrere l'intera storia del conto per essere corretto (il saldo di un
+# giorno qualsiasi dipende da TUTTO cio' che lo precede), quindi la query
+# resta delimitata solo da `:date_to`. Il filtro sulla finestra richiesta
+# avviene in Python (vedi sotto), dove serve solo a decidere quali giorni
+# restituire, non a limitare la correttezza del calcolo.
+_ACCOUNT_BALANCE_HISTORY_SQL = text(
+    """
+    WITH activity AS (
+        SELECT
+            t.financial_account_id AS financial_account_id,
+            t.transaction_date AS transaction_date,
+            t.created_at AS created_at,
+            t.id AS id,
+            t.balance_after AS balance_after,
+            SUM(t.amount) OVER w AS running,
+            COUNT(t.balance_after) OVER w AS anchor_seq
+        FROM transactions t
+        WHERE t.workspace_id = :workspace_id
+          AND t.transaction_date <= :date_to
+        WINDOW w AS (
+            PARTITION BY t.financial_account_id
+            ORDER BY t.transaction_date, t.created_at, t.id
+            ROWS UNBOUNDED PRECEDING
+        )
+    ),
+    anchored AS (
+        SELECT
+            financial_account_id,
+            transaction_date,
+            created_at,
+            id,
+            running,
+            MAX(CASE WHEN balance_after IS NOT NULL THEN balance_after END)
+                OVER (PARTITION BY financial_account_id, anchor_seq) AS anchor_balance,
+            MAX(CASE WHEN balance_after IS NOT NULL THEN running END)
+                OVER (PARTITION BY financial_account_id, anchor_seq) AS anchor_running
+        FROM activity
+    ),
+    balances AS (
+        SELECT DISTINCT ON (financial_account_id, transaction_date)
+            financial_account_id,
+            transaction_date,
+            COALESCE(anchor_balance, 0) + running - COALESCE(anchor_running, 0) AS balance
+        FROM anchored
+        ORDER BY financial_account_id, transaction_date, created_at DESC, id DESC
+    )
+    SELECT
+        b.financial_account_id AS financial_account_id,
+        b.transaction_date AS transaction_date,
+        b.balance AS balance,
+        fa.account_type AS account_type,
+        fa.currency AS currency
+    FROM balances b
+    JOIN financial_accounts fa ON fa.id = b.financial_account_id
+    WHERE fa.workspace_id = :workspace_id
+      AND fa.is_active = true
+    ORDER BY b.financial_account_id, b.transaction_date
+    """
+).bindparams(
+    bindparam("workspace_id", type_=PG_UUID(as_uuid=True)),
+    bindparam("date_to", type_=SA_Date),
+)
+
+
+@dataclass
+class DailyNetWorthComponents:
+    """Liquidita'/debiti aggregati (gia' convertiti in `currency`, gia'
+    classificati via `LIQUIDITY_ACCOUNT_TYPES`/`DEBT_ACCOUNT_TYPES`) per un
+    singolo giorno — mai la scomposizione per conto: nessun consumatore di
+    questa funzione (il backfill dello storico patrimonio) ne ha bisogno, a
+    differenza di `account_balances` (usata dalla vista "saldi correnti",
+    che SI' elenca conto per conto)."""
+
+    day: date
+    liquidity: Decimal
+    debt: Decimal
+    has_unconverted: bool = False
+
+
+async def _preload_fx_rates(
+    db: AsyncSession, currencies: set[str], target_currency: str
+) -> dict[str, list[FxRate]]:
+    """Precarica TUTTI i tassi disponibili per le valute richieste verso
+    `target_currency`, una sola volta per l'intero intervallo — poi cercati
+    con bisezione in memoria (stessa tecnica di
+    `portfolio_analytics.compute_historical_series`, che qui si evita di
+    duplicare come dipendenza diretta importando solo il pattern, non la
+    funzione: `analytics.py` e `portfolio_analytics.py` gia' si
+    inter-importano localmente, vedi `account_balances`)."""
+    if not currencies:
+        return {}
+    rows = list(
+        (
+            await db.execute(
+                select(FxRate)
+                .where(FxRate.to_currency == target_currency, FxRate.from_currency.in_(currencies))
+                .order_by(FxRate.from_currency, FxRate.rate_date)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    by_currency: dict[str, list[FxRate]] = {}
+    for row in rows:
+        by_currency.setdefault(row.from_currency, []).append(row)
+    return by_currency
+
+
+def _bisect_fx_rate(rows: list[FxRate] | None, as_of: date) -> Decimal | None:
+    if not rows:
+        return None
+    idx = bisect.bisect_right(rows, as_of, key=lambda r: r.rate_date) - 1
+    return rows[idx].rate if idx >= 0 else None
+
+
+async def account_balance_history(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    currency: str,
+    date_from: date,
+    date_to: date,
+) -> list[DailyNetWorthComponents]:
+    """Storico giornaliero di liquidita'/debiti per TUTTO l'intervallo
+    richiesto, in UNA query (vedi `_ACCOUNT_BALANCE_HISTORY_SQL` sopra) +
+    forward-fill puro in Python (`forward_fill_daily_series`) per i giorni
+    senza movimenti — usata dal backfill dello storico patrimonio
+    (`portfolio_analytics.compute_net_worth_backfill_series`), MAI dalla
+    vista "saldi correnti" (`account_balances`, che resta invariata e
+    valorizza anche gli investimenti via `compute_valuation`: qui SOLO
+    liquidita'/debiti, gli investimenti storici vengono da
+    `compute_historical_series` con checkpoint giornalieri, mai da qui)."""
+    if date_from > date_to:
+        return []
+
+    rows = (
+        await db.execute(_ACCOUNT_BALANCE_HISTORY_SQL, {"workspace_id": workspace_id, "date_to": date_to})
+    ).mappings().all()
+
+    known_by_account: dict[uuid.UUID, dict[date, Decimal]] = {}
+    account_currency: dict[uuid.UUID, str] = {}
+    account_type: dict[uuid.UUID, str] = {}
+    for row in rows:
+        account_id = row["financial_account_id"]
+        known_by_account.setdefault(account_id, {})[row["transaction_date"]] = Decimal(row["balance"])
+        account_currency[account_id] = row["currency"]
+        account_type[account_id] = row["account_type"]
+
+    foreign_currencies = {c for c in account_currency.values() if c != currency}
+    fx_by_currency = await _preload_fx_rates(db, foreign_currencies, currency)
+
+    days = generate_buckets(date_from, date_to, "day")
+    cents = Decimal("0.01")
+    liquidity_by_day: dict[date, Decimal] = {d: Decimal("0") for d in days}
+    debt_by_day: dict[date, Decimal] = {d: Decimal("0") for d in days}
+    unconverted_by_day: dict[date, bool] = {d: False for d in days}
+
+    for account_id, per_day in known_by_account.items():
+        acc_type = account_type[account_id]
+        if acc_type not in LIQUIDITY_ACCOUNT_TYPES and acc_type not in DEBT_ACCOUNT_TYPES:
+            continue
+        acc_currency = account_currency[account_id]
+        # Ancora del forward-fill: il saldo dell'ultimo giorno CON attivita'
+        # precedente a `date_from` (0 se il conto non ha alcuna storia
+        # anteriore alla finestra richiesta) — permette di scopare un
+        # backfill INCREMENTALE (es. `date_from` = inizio dell'ultimo
+        # import) senza dover rigenerare ogni giorno dall'inizio dei tempi.
+        known_before = {d: bal for d, bal in per_day.items() if d < date_from}
+        initial = known_before[max(known_before)] if known_before else Decimal("0")
+        filled = forward_fill_daily_series(days, per_day, initial)
+
+        rate_rows = fx_by_currency.get(acc_currency)
+        for day, native_balance in filled:
+            if acc_currency == currency:
+                rate: Decimal | None = Decimal("1")
+            else:
+                rate = _bisect_fx_rate(rate_rows, day)
+            if rate is None:
+                unconverted_by_day[day] = True
+                continue
+            converted = native_balance * rate
+            if acc_type in LIQUIDITY_ACCOUNT_TYPES:
+                liquidity_by_day[day] += converted
+            else:
+                debt_by_day[day] += converted
+
+    return [
+        DailyNetWorthComponents(
+            day=d,
+            liquidity=liquidity_by_day[d].quantize(cents),
+            debt=debt_by_day[d].quantize(cents),
+            has_unconverted=unconverted_by_day[d],
+        )
+        for d in days
+    ]

@@ -1,20 +1,55 @@
 {
   "breakdown": {
     "errorMessage": "Dati non disponibili.",
-    "trendChart": {
+    "comparisonYearSuffix": "vs anno precedente",
+    "rhythm": {
+      "total": "Totale",
+      "average": "Media mensile",
+      "median": "Mediana {{value}}",
+      "notAvailable": "n/d",
+      "dailyRateTitle": "Ritmo",
+      "dailyRateValue": "{{value}} al giorno",
+      "projection": "Proiezione fine periodo {{value}}",
+      "transactionsCount": "Movimenti",
+      "averagePerTransaction": "{{value}} in media"
+    },
+    "stability": {
+      "title": "Stabilità",
+      "monthsWithIncome": "{{count}} mesi su {{total}} con entrate",
+      "concentration": "Il {{share}} arriva da {{source}}"
+    },
+    "trend": {
       "title": "Andamento",
       "emptyTitle": "Nessun dato",
-      "tableCaption": "Andamento mensile",
-      "tableHeaders": ["Periodo", "Totale"]
+      "tableCaption": "Andamento",
+      "tableHeaders": ["Periodo", "Totale", "Tipico"],
+      "typicalLabel": "Tipico",
+      "averagePart": "Media {{value}}",
+      "medianPart": "Mediana {{value}}",
+      "yoyPart": "{{value}} vs anno scorso"
     },
-    "categoryChart": {
-      "title": "Categorie",
-      "emptyTitle": "Nessuna categoria",
-      "tableCaption": "Per categoria",
-      "tableHeaders": ["Categoria", "Totale", "Quota"]
+    "hierarchy": {
+      "expenseTitle": "Dove vanno i soldi",
+      "incomeTitle": "Da dove arrivano",
+      "emptyTitle": "Nessun dato",
+      "tableCaption": "Gerarchia categorie",
+      "tableHeaders": ["Categoria", "Totale", "Quota", "Movimenti"],
+      "expand": "Mostra sottocategorie",
+      "transactionsCount_one": "{{count}} movimento",
+      "transactionsCount_other": "{{count}} movimenti",
+      "vsTypical": "{{value}} vs tipico",
+      "directOnParent": "Senza sottocategoria",
+      "showAll": "Mostra tutte",
+      "showLess": "Mostra meno"
     },
     "merchants": {
-      "title": "Merchant",
+      "expenseTitle": "Top merchant",
+      "incomeTitle": "Top sorgenti",
+      "emptyTitle": "Nessun dato",
+      "tableCaption": "Top merchant",
+      "tableHeaders": ["Merchant", "Totale", "Quota", "Movimenti"],
+      "othersRow_one": "Altro {{count}} merchant",
+      "othersRow_other": "Altri {{count}} merchant",
       "breakdownTitle": "Top merchant",
       "noMerchant": "Senza merchant"
     }
@@ -24,12 +59,13 @@
     "subtitle": "Patrimonio totale: liquidità, debiti e investimenti.",
     "errorMessage": "Dati non disponibili.",
     "rebuildNow": "Ricalcola adesso",
+    "backfillHistory": "Ricostruisci storico",
     "history": {
       "title": "Patrimonio nel tempo",
       "tableCaption": "Patrimonio nel tempo",
       "tableHeaders": ["Data", "Patrimonio"],
       "emptyTitle": "Nessuno storico ancora",
-      "emptyDescription": "Lo storico si costruisce giorno per giorno dallo snapshot automatico — usa 'Ricalcola adesso' per crearne subito uno."
+      "emptyDescription": "Lo storico si costruisce dai tuoi movimenti gia' importati — usa 'Ricostruisci storico' per generarlo subito, invece di aspettare lo snapshot di domani."
     },
     "composition": {
       "title": "Composizione",
@@ -50,5 +86,33 @@
   "income": {
     "title": "Entrate",
     "emptyDescription": "Le entrate classificate in questo periodo appariranno qui."
+  },
+  "recurring": {
+    "title": "Ricorrenze",
+    "subtitle": "Abbonamenti e altre spese che si ripetono con un ritmo riconoscibile.",
+    "monthlyTotal": "{{value}} al mese",
+    "nextExpected": "Prossimo atteso {{date}}",
+    "priceChange": "{{old}} → {{new}} dal {{date}}",
+    "ended": "Terminata",
+    "variableAmount": "Importo variabile",
+    "emptyTitle": "Nessuna ricorrenza rilevata",
+    "emptyDescription": "Non appena un abbonamento o un movimento ripetuto avra' un ritmo riconoscibile, comparira' qui.",
+    "insufficientData": "Storico ancora troppo breve per riconoscere delle ricorrenze.",
+    "dismiss": "Ignora",
+    "dismissed": "Ignorata",
+    "undo": "Annulla",
+    "occurrencesCount_one": "{{count}} occorrenza",
+    "occurrencesCount_other": "{{count}} occorrenze"
+  },
+  "anomalies": {
+    "title": "Anomalie",
+    "subtitle": "Movimenti fuori dal solito rispetto alle tue abitudini.",
+    "baselineNote": "Rispetto agli ultimi 12 mesi",
+    "vsCategory": "{{value}} vs media della categoria",
+    "vsSeries": "{{value}} vs importo abituale",
+    "emptyTitle": "Nessuna anomalia rilevata",
+    "emptyDescription": "I movimenti che si scostano molto dalle tue abitudini compariranno qui.",
+    "insufficientData": "Storico ancora troppo breve per rilevare anomalie.",
+    "ignore": "Ignora"
   }
 }

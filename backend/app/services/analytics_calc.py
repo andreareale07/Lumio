@@ -3,6 +3,7 @@ dipendenza da DB/FastAPI, unit-testabile in isolamento come `rules_engine.py`.
 Il lato DB-aware (query di aggregazione) vive in `app/services/analytics.py`,
 che chiama queste funzioni per la parte di calcolo.
 """
+import calendar
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -24,6 +25,20 @@ def _add_months(d: date, months: int) -> date:
     year = d.year + total // 12
     month = total % 12 + 1
     return date(year, month, 1)
+
+
+def add_months_clamped(d: date, months: int) -> date:
+    """Aritmetica calendariale per la rilevazione ricorrenze (FETTA 2,
+    `recurrence_calc.py`): a differenza di `_add_months` sopra (che scatta
+    SEMPRE al giorno 1 del mese risultante — corretto per i bucket, inutile
+    per proiettare "prossimo addebito atteso"), preserva il giorno del mese
+    e lo CLAMPA all'ultimo giorno valido del mese di destinazione: 31 gennaio
+    + 1 mese = 28/29 febbraio (mai 1 marzo, mai un errore)."""
+    total = d.month - 1 + months
+    year = d.year + total // 12
+    month = total % 12 + 1
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(d.day, last_day))
 
 
 def _bucket_start(d: date, granularity: str) -> date:
@@ -103,3 +118,32 @@ def reconstruct_running_series(
         delta_next = deltas.get(next_bucket, Decimal("0"))
         balances[i] = balances[i + 1] - delta_next
     return list(zip(buckets, balances))
+
+
+def forward_fill_daily_series(
+    days: list[date], known: dict[date, Decimal], initial: Decimal = Decimal("0")
+) -> list[tuple[date, Decimal]]:
+    """Forward-fill puro di una serie giornaliera (storico patrimonio
+    ricostruito, FETTA 3): ogni giorno SENZA una riga in `known` eredita il
+    valore dell'ultimo giorno CON un valore noto (o `initial` se nessun
+    giorno precedente ne ha uno) — a differenza di
+    `reconstruct_running_series` (che va a RITROSO da un saldo attuale noto,
+    usato da `balance_history`), qui si va in AVANTI da un'ancora storica:
+    `account_balance_history` produce una riga solo per i giorni con
+    attivita' (la query SQL e' un DISTINCT ON per giorno), i giorni senza
+    movimenti fra due transazioni vanno riempiti col saldo del giorno
+    precedente, mai a zero (un conto senza movimenti per una settimana non
+    ha un saldo nullo in quella settimana).
+
+    `initial` e' il saldo del giorno immediatamente prima di `days[0]` (0 se
+    il conto non ha alcuna attivita' precedente a quel giorno — coerente col
+    fatto che, senza alcuna ancora, la formula del saldo collassa sul
+    running sum a partire da zero, vedi `analytics.account_balance_history`).
+    """
+    result: list[tuple[date, Decimal]] = []
+    current = initial
+    for day in days:
+        if day in known:
+            current = known[day]
+        result.append((day, current))
+    return result

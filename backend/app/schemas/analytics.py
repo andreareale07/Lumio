@@ -106,6 +106,22 @@ class MerchantBreakdownOut(BaseModel):
     items: list[MerchantBreakdownItemOut]
 
 
+class CategoryTrendSeriesOut(BaseModel):
+    category_id: uuid.UUID | None
+    name: str
+    total: Decimal
+    values: list[Decimal]
+
+
+class CategoryTrendOut(BaseModel):
+    currency: str
+    direction: str
+    granularity: str
+    period: PeriodOut
+    buckets: list[date]
+    series: list[CategoryTrendSeriesOut]
+
+
 # Riesportata cosi' che il router possa validare il parametro `granularity`
 # in query senza importare direttamente il modulo di calcolo puro.
 __all__ = [
@@ -122,4 +138,6 @@ __all__ = [
     "CategoryBreakdownOut",
     "MerchantBreakdownItemOut",
     "MerchantBreakdownOut",
+    "CategoryTrendSeriesOut",
+    "CategoryTrendOut",
 ]

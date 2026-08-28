@@ -82,9 +82,22 @@ const BY_MERCHANT_ALIMENTARI = {
   ],
 };
 
+const CATEGORY_TREND = {
+  currency: "EUR",
+  direction: "expense",
+  granularity: "month",
+  period: PERIOD,
+  buckets: ["2026-08-01"],
+  series: [
+    { category_id: "cat-alimentari", name: "Alimentari", total: "300.00", values: ["300.00"] },
+    { category_id: null, name: "Senza categoria", total: "200.00", values: ["200.00"] },
+  ],
+};
+
 function baseMocks() {
   return mockFetchByUrl([
     { test: /\/analytics\/summary/, response: () => jsonResponse(SUMMARY) },
+    { test: /\/analytics\/category-trend/, response: () => jsonResponse(CATEGORY_TREND) },
     { test: /\/analytics\/cash-flow/, response: () => jsonResponse(CASH_FLOW) },
     {
       test: /\/analytics\/by-merchant.*category_id=cat-alimentari/,
@@ -92,6 +105,7 @@ function baseMocks() {
     },
     { test: /\/analytics\/by-merchant/, response: () => jsonResponse(BY_MERCHANT_ALL) },
     { test: /\/analytics\/by-category/, response: () => jsonResponse(BY_CATEGORY) },
+    { test: /\/categories/, response: () => jsonResponse([]) },
   ]);
 }
 

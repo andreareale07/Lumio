@@ -91,5 +91,19 @@
   "distributionPolicy": {
     "accumulating": "Accumulating (likely)",
     "distributing": "Distributing (likely)"
+  },
+  "cadence": {
+    "monthly": "Monthly",
+    "four_weekly": "Every 4 weeks",
+    "quarterly": "Quarterly",
+    "annual": "Annual"
+  },
+  "recurringStatus": {
+    "active": "Active",
+    "ended": "Ended"
+  },
+  "anomalyType": {
+    "category_outlier": "Out of the ordinary for the category",
+    "series_deviation": "Out of the ordinary for this series"
   }
 }
