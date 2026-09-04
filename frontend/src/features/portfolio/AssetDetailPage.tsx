@@ -23,6 +23,7 @@ import {
 } from "../../lib/format";
 import type { AssetProfile, HistoryPreset } from "../../types/api";
 import { useMarketDataProfiles } from "../settings/market-data/api";
+import { AssetTaxCard } from "../tax/AssetTaxCard";
 import {
   useAssetProfile,
   useAssets,
@@ -309,6 +310,7 @@ export function AssetDetailPage() {
       />
 
       <AssetInfoCard profile={assetProfile.data} currency={asset.currency} />
+      <AssetTaxCard assetId={asset.id} />
     </div>
   );
 }

@@ -70,6 +70,10 @@
         "reappliedWithSkipped_other": "{{count}} transazioni aggiornate, {{skipped}} lasciate intatte perché modificate a mano."
       }
     },
+    "tax": {
+      "label": "Fiscalità",
+      "description": "Residenza fiscale e regole applicate agli investimenti."
+    },
     "currency": {
       "label": "Valuta",
       "description": "Imposta la valuta di riferimento del workspace.",

@@ -105,5 +105,27 @@
   "anomalyType": {
     "category_outlier": "Out of the ordinary for the category",
     "series_deviation": "Out of the ordinary for this series"
+  },
+  "taxJurisdiction": {
+    "IT": "Italy"
+  },
+  "taxRegime": {
+    "amministrato": "Administered",
+    "dichiarativo": "Declarative"
+  },
+  "taxAssetClassification": {
+    "azioni": "Stocks",
+    "etf_armonizzato": "Harmonized ETF",
+    "obbligazioni": "Bonds",
+    "titoli_stato_whitelist": "Government bonds (whitelist)",
+    "cripto": "Cryptocurrencies",
+    "derivati": "Derivatives",
+    "etf_non_armonizzato": "Non-harmonized ETF",
+    "certificati": "Certificates",
+    "unclassified": "Unclassified"
+  },
+  "taxIncomeCategory": {
+    "redditi_capitale": "Capital income",
+    "redditi_diversi": "Miscellaneous income"
   }
 }

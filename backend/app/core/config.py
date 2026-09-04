@@ -113,6 +113,12 @@ class Settings(BaseSettings):
     # colpo solo.
     market_data_backfill_delay_seconds: float = 0.5
 
+    # --- Fiscalita' conti titoli (SPEC_TAX_REGIME.md, FETTA 1) ---
+    # Giurisdizione usata quando il workspace non ha ancora dichiarato la
+    # propria residenza fiscale per l'anno richiesto — la response propaga
+    # `residence_declared=False` fino alla UI, mai un default silenzioso.
+    tax_default_jurisdiction: str = "IT"
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,0 +1,138 @@
+{
+  "common": {
+    "untranslatedCode": "non tradotto",
+    "disclaimer": "Le cifre mostrate qui sono una stima di Lumio, non una dichiarazione fiscale: verificale sempre con un commercialista prima di usarle in dichiarazione."
+  },
+  "settings": {
+    "title": "Fiscalità",
+    "tabs": { "config": "Configurazione", "rules": "Regole applicate" },
+    "config": {
+      "intro": "La residenza fiscale determina quale regolamento (giurisdizione) si applica ai tuoi investimenti. Impostala una volta sola: resta valida finché non la cambi, non serve ridichiararla ogni anno. Se in passato hai vissuto sotto giurisdizioni diverse, aggiungi più righe indicando l'anno in cui è iniziato ciascun periodo (es. 2010 Italia, 2015 Svizzera, 2020 Italia) — Lumio ricostruisce gli intervalli da solo. In Italia non esiste lo split-year: si è residenti per l'intero anno solare, per questo la scelta è per anno, mai per una data specifica.",
+      "yearLabel": "A partire dall'anno",
+      "jurisdictionLabel": "Giurisdizione",
+      "addResidence": "Aggiungi periodo",
+      "save": "Salva",
+      "remove": "Rimuovi",
+      "ongoing": "oggi",
+      "empty": {
+        "title": "Nessuna residenza fiscale dichiarata",
+        "description": "Senza una residenza dichiarata, Lumio applica di default le regole italiane — dichiarala per renderlo esplicito."
+      }
+    },
+    "rules": {
+      "intro": "Il regolamento fiscale vigente alla data selezionata — la stessa struttura dati che alimenta i calcoli, mai un testo scritto a parte.",
+      "asOfLabel": "Vigente al",
+      "treatmentsTitle": "Trattamento per classe e tipo di evento",
+      "table": {
+        "assetClass": "Classe",
+        "eventKind": "Evento",
+        "gainCategory": "Plusvalenza",
+        "lossCategory": "Minusvalenza",
+        "rate": "Aliquota",
+        "coefficient": "Coefficiente imponibile",
+        "reference": "Riferimento normativo"
+      },
+      "eventKind": { "sale": "Cessione", "income": "Cedola/dividendo" },
+      "notCodified": "Non codificato — escluso dal calcolo",
+      "offsetTitle": "Matrice di compensazione",
+      "offsetDescription": "Una minusvalenza in questa categoria può compensare una plusvalenza in quest'altra:",
+      "offsetNone": "Nessuna coppia compensabile in questo regolamento.",
+      "carryForwardTitle": "Riporto delle minusvalenze",
+      "carryForwardYears": "Le minusvalenze non compensate si possono riportare per {{years}} anni dalla formazione.",
+      "conversionsTitle": "Conversioni storiche dello stock (DL 66/2014)",
+      "conversionsDescription": "Le minusvalenze formate prima del cambio di aliquota si usano oggi a un valore ridotto, fissato per legge:",
+      "conversionRow": "Formate {{from}} → usabili al {{coefficient}}%",
+      "conversionFromStart": "da sempre fino al",
+      "regimesTitle": "Regimi ammessi",
+      "assetClassesTitle": "Classi fiscali",
+      "codifiedBadge": "Copre calcolo",
+      "notCodifiedBadge": "Non codificata",
+      "assumptionBadge": "Assunzione non verificata",
+      "assumptionNote": "Nota:"
+    }
+  },
+  "account": {
+    "regimeSection": {
+      "title": "Regime fiscale",
+      "description": "Un conto titoli può attraversare più regimi nel tempo (es. un conto nato dichiarativo diventato amministrato dopo un cambio IBAN) — ogni periodo vale dalla sua data fino al successivo.",
+      "regimeCode": "Regime",
+      "effectiveFrom": "Vigente dal",
+      "add": "Aggiungi periodo",
+      "remove": "Rimuovi",
+      "noPeriods": "Nessun periodo di regime impostato.",
+      "duplicateError": "Esiste già un periodo con questa data di decorrenza.",
+      "addError": "Impossibile aggiungere il periodo di regime."
+    },
+    "tab": {
+      "title": "Fiscalità",
+      "currentRegime": "Regime attuale",
+      "noRegime": "Nessun regime impostato",
+      "periodsTitle": "Storico periodi",
+      "lossPocketTitle": "Zainetto di questo conto",
+      "lossPocketTotal": "Capienza disponibile",
+      "seeFull": "Vai allo zainetto completo"
+    }
+  },
+  "asset": {
+    "card": {
+      "title": "Classificazione fiscale",
+      "classLabel": "Classe",
+      "derivedBadge": "Calcolata",
+      "overrideBadge": "Inserita da te",
+      "notCodifiedBadge": "Non codificata — esclusa dal calcolo",
+      "change": "Modifica",
+      "resetToDerived": "Usa il valore calcolato",
+      "dialogTitle": "Classificazione fiscale dell'asset",
+      "dialogDescription": "Sovrascrivi la classe derivata automaticamente solo se sai che è sbagliata (es. un ETC scambiato per ETF armonizzato).",
+      "save": "Salva",
+      "saveError": "Impossibile salvare la classificazione."
+    }
+  },
+  "lossPocket": {
+    "page": {
+      "title": "Zainetto fiscale",
+      "intro": "Le minusvalenze non ancora compensate, per perimetro. Nessun totale somma amministrato e dichiarativo: sono due contenitori separati per legge.",
+      "newOpening": "Nuovo saldo di apertura",
+      "perimeterAggregate": "Dichiarativo (aggregato)",
+      "capacityLabel": "Capienza disponibile",
+      "atLeastPrefix": "almeno",
+      "capacityExhausted": "capienza esaurita"
+    },
+    "emptyStates": {
+      "noRegime": {
+        "title": "Nessun regime impostato",
+        "description": "Lo zainetto fiscale non ha senso senza sapere in che regime è il tuo conto titoli — apri il conto, poi Modifica, e imposta il regime fiscale in fondo alla pagina.",
+        "action": "Vai ai conti"
+      },
+      "noData": {
+        "title": "Lumio non calcola ancora le minusvalenze dai movimenti",
+        "description": "Questo è un limite di Lumio in questa fase, non significa che tu non abbia minusvalenze pregresse: se ne hai, inseriscile come saldo di apertura.",
+        "action": "Inserisci un saldo di apertura"
+      }
+    },
+    "table": {
+      "formationDate": "Formata il",
+      "nominal": "Nominale",
+      "coefficient": "Coefficiente",
+      "usable": "Usabile",
+      "expiresOn": "Scade il",
+      "expired": "Scaduta",
+      "source": "Fonte",
+      "sourceUserOpening": "Inserita da te"
+    },
+    "openingDialog": {
+      "title": "Nuovo saldo di apertura",
+      "perimeterLabel": "Perimetro",
+      "perimeterPlaceholder": "Scegli il perimetro…",
+      "perimeterAggregateOption": "Dichiarativo — aggregato su tutti i conti",
+      "perimeterHint": "Le fonti si contraddicono su cosa succede alle minusvalenze passando da un regime all'altro: scegli tu il perimetro corretto, Lumio non lo indovina.",
+      "formationDate": "Data di formazione",
+      "incomeCategory": "Categoria di reddito",
+      "amount": "Importo (nominale, non convertito)",
+      "save": "Salva",
+      "cancel": "Annulla",
+      "error": "Impossibile salvare il saldo di apertura.",
+      "perimeterRequired": "Scegli un perimetro."
+    }
+  }
+}

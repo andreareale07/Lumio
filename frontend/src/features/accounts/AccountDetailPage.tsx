@@ -24,6 +24,10 @@ import {
 } from "../analytics/api";
 import { formatBucketLabel } from "../analytics/chartData";
 import { useTransactions } from "../transactions/api";
+import { Badge } from "../../components/ui/Badge";
+import { useLossPocket, useResolveTaxRegime, useTaxRegimePeriods } from "../tax/api";
+import { useTaxRegimeLabel } from "../tax/labels";
+import { TaxCodeBadge } from "../tax/TaxCodeBadge";
 import { AccountDeleteDialog } from "./AccountDeleteDialog";
 import { useAccounts } from "./api";
 import { useAccountTypeLabel } from "./labels";
@@ -32,12 +36,8 @@ export function AccountDetailPage() {
   const { t } = useTranslation("accounts");
   const accountTypeLabel = useAccountTypeLabel();
   const navigate = useNavigate();
+  const { t: tTax } = useTranslation("tax");
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const TABS = [
-    { key: "overview", label: t("detail.tabs.overview") },
-    { key: "transactions", label: t("detail.tabs.transactions") },
-    { key: "analytics", label: t("detail.tabs.analytics") },
-  ];
   const { accountId } = useParams<{ accountId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get("tab") ?? "overview";
@@ -72,6 +72,15 @@ export function AccountDetailPage() {
     );
   }
 
+  // Nessun filtro per account_type (vedi AccountEditPage): un conto
+  // "checking" puo' comunque essere un conto titoli in pratica.
+  const TABS = [
+    { key: "overview", label: t("detail.tabs.overview") },
+    { key: "transactions", label: t("detail.tabs.transactions") },
+    { key: "analytics", label: t("detail.tabs.analytics") },
+    { key: "tax", label: tTax("account.tab.title") },
+  ];
+
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -80,6 +89,7 @@ export function AccountDetailPage() {
           <p className="text-sm text-text-muted">
             {accountTypeLabel(account.account_type)} · {account.currency}
           </p>
+          <AccountTaxRegimeBadge accountId={account.id} />
         </div>
         <div className="flex items-center gap-3">
           {accountBalance && (
@@ -105,6 +115,7 @@ export function AccountDetailPage() {
       {tab === "overview" && <AccountOverviewTab accountId={accountId} onSeeAll={() => setTab("transactions")} />}
       {tab === "transactions" && <AccountTransactionsTab accountId={accountId} />}
       {tab === "analytics" && <AccountAnalyticsTab accountId={accountId} currency={account.currency} />}
+      {tab === "tax" && <AccountTaxTab accountId={account.id} />}
 
       <AccountDeleteDialog
         account={deleteOpen ? account : null}
@@ -336,6 +347,70 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
           />
         </ChartCard>
       )}
+    </div>
+  );
+}
+
+function AccountTaxRegimeBadge({ accountId }: { accountId: string }) {
+  const regimeLabel = useTaxRegimeLabel();
+  const { t } = useTranslation("tax");
+  const today = new Date().toISOString().slice(0, 10);
+  const resolved = useResolveTaxRegime(accountId, today);
+  if (!resolved.data?.regime_code) return null;
+  return (
+    <div className="mt-1">
+      <Badge tone="primary">
+        <TaxCodeBadge value={regimeLabel(resolved.data.regime_code)} />
+      </Badge>
+      <span className="ml-1 text-xs text-text-muted">{t("account.tab.currentRegime")}</span>
+    </div>
+  );
+}
+
+function AccountTaxTab({ accountId }: { accountId: string }) {
+  const { t } = useTranslation("tax");
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: periods } = useTaxRegimePeriods(accountId);
+  const regimeLabel = useTaxRegimeLabel();
+  const pocket = useLossPocket(today);
+  const accountTotal = pocket.data?.totals_by_perimeter[accountId] ?? null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <h3 className="text-sm font-semibold text-text">{t("account.tab.periodsTitle")}</h3>
+        {(!periods || periods.length === 0) && (
+          <p className="mt-2 text-sm text-text-muted">{t("account.tab.noRegime")}</p>
+        )}
+        {periods && periods.length > 0 && (
+          <ul className="mt-2 flex flex-col gap-1 text-sm">
+            {periods
+              .slice()
+              .sort((a, b) => a.effective_from.localeCompare(b.effective_from))
+              .map((period) => (
+                <li key={period.id} className="flex items-center gap-2 text-text">
+                  <Badge tone="neutral">
+                    <TaxCodeBadge value={regimeLabel(period.regime_code)} />
+                  </Badge>
+                  {t("account.regimeSection.effectiveFrom")}: {formatDate(period.effective_from)}
+                </li>
+              ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-text">{t("account.tab.lossPocketTitle")}</h3>
+          <LinkButton to="/investments/tax" variant="ghost" size="sm">
+            {t("account.tab.seeFull")}
+          </LinkButton>
+        </div>
+        <p className="mt-2 text-sm text-text-muted">{t("account.tab.lossPocketTotal")}</p>
+        <p className="font-numeric text-lg font-semibold text-text">
+          {accountTotal !== null ? formatMoney(accountTotal, "EUR") : "—"}
+        </p>
+      </div>
     </div>
   );
 }

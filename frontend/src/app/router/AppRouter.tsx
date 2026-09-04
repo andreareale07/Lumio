@@ -25,6 +25,8 @@ import { IntegrationsSettingsPage } from "../../features/settings/integrations/I
 import { JobsSettingsPage } from "../../features/settings/jobs/JobsSettingsPage";
 import { MarketDataSettingsPage } from "../../features/settings/market-data/MarketDataSettingsPage";
 import { SettingsHubPage } from "../../features/settings/SettingsHubPage";
+import { TaxSettingsPage } from "../../features/settings/tax/TaxSettingsPage";
+import { TaxLossPocketPage } from "../../features/tax/TaxLossPocketPage";
 import { TransactionTypeMappingsPage } from "../../features/settings/transaction-types/TransactionTypeMappingsPage";
 import { TransactionsPage } from "../../features/transactions/TransactionsPage";
 import { useAuth } from "../providers/AuthProvider";
@@ -60,6 +62,7 @@ export function AppRouter() {
       <Route path="/investments" element={<Protected><InvestmentsOverviewPage /></Protected>} />
       <Route path="/investments/portfolios/:portfolioId" element={<Protected><PortfolioDetailPage /></Protected>} />
       <Route path="/investments/assets/:assetId" element={<Protected><AssetDetailPage /></Protected>} />
+      <Route path="/investments/tax" element={<Protected><TaxLossPocketPage /></Protected>} />
       <Route path="/accounts" element={<Protected><AccountsPage /></Protected>} />
       <Route path="/accounts/:accountId/edit" element={<Protected><AccountEditPage /></Protected>} />
       <Route path="/accounts/:accountId" element={<Protected><AccountDetailPage /></Protected>} />
@@ -80,6 +83,7 @@ export function AppRouter() {
           <Route path="ai" element={<AISettingsPage />} />
           <Route path="market-data" element={<MarketDataSettingsPage />} />
           <Route path="currency" element={<CurrencySettingsPage />} />
+          <Route path="tax" element={<TaxSettingsPage />} />
           <Route path="transaction-types" element={<TransactionTypeMappingsPage />} />
           <Route path="jobs" element={<JobsSettingsPage />} />
           <Route

@@ -318,7 +318,9 @@ export interface ImportMapping {
 export interface ImportRecord {
   id: Uuid;
   workspace_id: Uuid;
-  financial_account_id: Uuid;
+  // Nullable: appena dopo l'upload, prima che il conto sia stato
+  // confermato/creato via POST /imports/{id}/resolve-account.
+  financial_account_id: Uuid | null;
   import_mapping_id: Uuid | null;
   mapping_config: MappingConfig | null;
   file_type: ImportFileType;
@@ -347,6 +349,22 @@ export interface ImportRecord {
 
 export type AiClassificationStatus = "pending" | "running" | "completed" | "failed" | "skipped";
 
+/** IBAN/nominativo del titolare letti dall'intestazione del documento
+ * (capability opzionale del parser) — `null`/campi `null` se non
+ * supportato o non trovato, mai un valore indovinato. */
+export interface ExtractedAccountInfo {
+  iban: string | null;
+  holder_name: string | null;
+}
+
+/** Un conto del workspace proposto come possibile destinatario di questo
+ * import — sempre da confermare esplicitamente, mai applicato da solo. */
+export interface AccountCandidate {
+  account_id: Uuid;
+  account_name: string;
+  match_reason: "iban" | "iban_history";
+}
+
 export interface ImportPreview {
   columns: string[];
   sample_rows: string[][];
@@ -354,6 +372,8 @@ export interface ImportPreview {
   available_mappings: ImportMapping[];
   detected_bank_code: string | null;
   detected_bank_name: string | null;
+  extracted_account_info: ExtractedAccountInfo | null;
+  account_candidates: AccountCandidate[];
 }
 
 export interface ImportUploadResponse {
@@ -1056,4 +1076,141 @@ export interface DetectionOverride {
   transaction_id: Uuid | null;
   decision: string;
   created_at: IsoDateTime;
+}
+
+// --- Fiscalita' conti titoli (SPEC_TAX_REGIME.md, FETTA 1) ------------------
+//
+// I regimi/classi/categorie NON sono enum frontend (a differenza di
+// ACCOUNT_TYPES/ASSET_TYPES sopra): sono liste dichiarate dal backend
+// (`TaxJurisdiction`), mai un array `as const` qui — vedi
+// `features/tax/labels.ts` per come si etichettano senza assumerne i valori.
+
+export interface TaxJurisdiction {
+  code: string;
+  label_key: string;
+}
+
+export interface TaxRegimeOption {
+  code: string;
+  label_key: string;
+  pocket_scope: "per_account" | "aggregate";
+  calc_model: "realized" | "accrued";
+}
+
+export interface TaxAssetClass {
+  code: string;
+  label_key: string;
+  codified: boolean;
+}
+
+export interface TaxTreatment {
+  asset_class: string;
+  event_kind: string;
+  gain_category: string;
+  loss_category: string;
+  status: "codified" | "not_codified";
+  rate: string | null;
+  taxable_coefficient: string;
+  legal_reference: string;
+  assumption: boolean;
+  assumption_note: string | null;
+}
+
+export interface TaxOffsetRule {
+  loss_category: string;
+  gain_category: string;
+}
+
+export interface TaxLossConversion {
+  formed_from: IsoDate | null;
+  formed_until: IsoDate;
+  coefficient: string;
+  legal_reference: string;
+}
+
+export interface TaxCarryForwardRule {
+  years: number;
+  assumption: boolean;
+  assumption_note: string | null;
+}
+
+export interface TaxRulesetSummary {
+  code: string;
+  valid_from: IsoDate;
+  valid_until: IsoDate | null;
+}
+
+export interface TaxRulesetDetail extends TaxRulesetSummary {
+  treatments: TaxTreatment[];
+  offset_rules: TaxOffsetRule[];
+  carry_forward: TaxCarryForwardRule;
+  loss_conversions: TaxLossConversion[];
+  regimes: TaxRegimeOption[];
+  asset_classes: TaxAssetClass[];
+}
+
+export interface WorkspaceTaxResidence {
+  id: Uuid;
+  workspace_id: Uuid;
+  fiscal_year: number;
+  jurisdiction_code: string;
+  created_at: IsoDateTime;
+  updated_at: IsoDateTime;
+}
+
+export interface TaxRegimePeriod {
+  id: Uuid;
+  workspace_id: Uuid;
+  financial_account_id: Uuid;
+  regime_code: string;
+  effective_from: IsoDate;
+  created_at: IsoDateTime;
+}
+
+export interface AssetTaxClassification {
+  asset_id: Uuid;
+  asset_class: string | null;
+  is_override: boolean;
+  codified: boolean;
+}
+
+export interface TaxLossOpening {
+  id: Uuid;
+  workspace_id: Uuid;
+  financial_account_id: Uuid | null;
+  formation_date: IsoDate;
+  formed_under_ruleset_code: string;
+  income_category: string;
+  amount: string;
+  created_at: IsoDateTime;
+  updated_at: IsoDateTime;
+}
+
+export interface TaxLossOpeningCreate {
+  financial_account_id: Uuid | null;
+  formation_date: IsoDate;
+  income_category: string;
+  amount: string;
+}
+
+export interface LossPocketRow {
+  formation_date: IsoDate;
+  nominal: string;
+  income_category: string;
+  perimeter: string;
+  source: string;
+  formed_under_ruleset_code: string;
+  applied_ruleset_code: string;
+  coefficient: string;
+  usable_amount: string;
+  conversion_reference: string | null;
+  expires_on: IsoDate;
+  is_expired: boolean;
+}
+
+export interface LossPocket {
+  rows: LossPocketRow[];
+  totals_by_perimeter: Record<string, string>;
+  residence_declared: boolean;
+  computed_from_movements: boolean;
 }

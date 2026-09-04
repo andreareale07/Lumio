@@ -1,0 +1,138 @@
+{
+  "common": {
+    "untranslatedCode": "untranslated",
+    "disclaimer": "The figures shown here are an estimate from Lumio, not a tax filing: always check with an accountant before using them in a tax return."
+  },
+  "settings": {
+    "title": "Taxes",
+    "tabs": { "config": "Configuration", "rules": "Applied rules" },
+    "config": {
+      "intro": "Your tax residence determines which regulation (jurisdiction) applies to your investments. Set it once: it stays valid until you change it, no need to redeclare it every year. If you lived under different jurisdictions in the past, add more than one row with the year each period started (e.g. 2010 Italy, 2015 Switzerland, 2020 Italy) — Lumio reconstructs the intervals for you. Italy has no split-year rule: you're a resident for the whole calendar year, that's why this is chosen per year, never for a specific date.",
+      "yearLabel": "Starting from year",
+      "jurisdictionLabel": "Jurisdiction",
+      "addResidence": "Add period",
+      "save": "Save",
+      "remove": "Remove",
+      "ongoing": "today",
+      "empty": {
+        "title": "No tax residence declared",
+        "description": "Without a declared residence, Lumio defaults to Italian rules — declare it to make that explicit."
+      }
+    },
+    "rules": {
+      "intro": "The tax regulation in force on the selected date — the same data structure that drives the calculations, never a separate write-up.",
+      "asOfLabel": "In force on",
+      "treatmentsTitle": "Treatment by class and event type",
+      "table": {
+        "assetClass": "Class",
+        "eventKind": "Event",
+        "gainCategory": "Gain",
+        "lossCategory": "Loss",
+        "rate": "Rate",
+        "coefficient": "Taxable coefficient",
+        "reference": "Legal reference"
+      },
+      "eventKind": { "sale": "Disposal", "income": "Coupon/dividend" },
+      "notCodified": "Not codified — excluded from the calculation",
+      "offsetTitle": "Offset matrix",
+      "offsetDescription": "A loss in this category can offset a gain in this other one:",
+      "offsetNone": "No offsettable pair under this ruleset.",
+      "carryForwardTitle": "Loss carry-forward",
+      "carryForwardYears": "Unoffset losses can be carried forward for {{years}} years from formation.",
+      "conversionsTitle": "Historical stock conversions (DL 66/2014)",
+      "conversionsDescription": "Losses formed before the rate change are usable today at a reduced value, fixed by law:",
+      "conversionRow": "Formed {{from}} → usable at {{coefficient}}%",
+      "conversionFromStart": "ever since, until",
+      "regimesTitle": "Admitted regimes",
+      "assetClassesTitle": "Tax classes",
+      "codifiedBadge": "Covers calculation",
+      "notCodifiedBadge": "Not codified",
+      "assumptionBadge": "Unverified assumption",
+      "assumptionNote": "Note:"
+    }
+  },
+  "account": {
+    "regimeSection": {
+      "title": "Tax regime",
+      "description": "A brokerage account can go through more than one regime over time (e.g. an account born declarative that became administered after an IBAN change) — each period applies from its date until the next one.",
+      "regimeCode": "Regime",
+      "effectiveFrom": "In force from",
+      "add": "Add period",
+      "remove": "Remove",
+      "noPeriods": "No tax regime period set.",
+      "duplicateError": "A period with this start date already exists.",
+      "addError": "Could not add the regime period."
+    },
+    "tab": {
+      "title": "Taxes",
+      "currentRegime": "Current regime",
+      "noRegime": "No regime set",
+      "periodsTitle": "Period history",
+      "lossPocketTitle": "This account's loss pocket",
+      "lossPocketTotal": "Available capacity",
+      "seeFull": "Go to the full loss pocket"
+    }
+  },
+  "asset": {
+    "card": {
+      "title": "Tax classification",
+      "classLabel": "Class",
+      "derivedBadge": "Derived",
+      "overrideBadge": "Set by you",
+      "notCodifiedBadge": "Not codified — excluded from the calculation",
+      "change": "Change",
+      "resetToDerived": "Use the derived value",
+      "dialogTitle": "Asset tax classification",
+      "dialogDescription": "Override the automatically derived class only if you know it's wrong (e.g. an ETC mistaken for a harmonized ETF).",
+      "save": "Save",
+      "saveError": "Could not save the classification."
+    }
+  },
+  "lossPocket": {
+    "page": {
+      "title": "Loss pocket",
+      "intro": "Losses not yet offset, by perimeter. No total ever sums administered and declarative: they're two separate buckets by law.",
+      "newOpening": "New opening balance",
+      "perimeterAggregate": "Declarative (aggregate)",
+      "capacityLabel": "Available capacity",
+      "atLeastPrefix": "at least",
+      "capacityExhausted": "capacity exhausted"
+    },
+    "emptyStates": {
+      "noRegime": {
+        "title": "No regime set",
+        "description": "The loss pocket doesn't mean anything without knowing what regime your brokerage account is under — open the account, then Edit, and set the tax regime at the bottom of the page.",
+        "action": "Go to accounts"
+      },
+      "noData": {
+        "title": "Lumio doesn't compute losses from transactions yet",
+        "description": "This is a limitation of Lumio at this stage, not a sign that you have no prior losses: if you do, add them as an opening balance.",
+        "action": "Add an opening balance"
+      }
+    },
+    "table": {
+      "formationDate": "Formed on",
+      "nominal": "Nominal",
+      "coefficient": "Coefficient",
+      "usable": "Usable",
+      "expiresOn": "Expires on",
+      "expired": "Expired",
+      "source": "Source",
+      "sourceUserOpening": "Set by you"
+    },
+    "openingDialog": {
+      "title": "New opening balance",
+      "perimeterLabel": "Perimeter",
+      "perimeterPlaceholder": "Choose the perimeter…",
+      "perimeterAggregateOption": "Declarative — aggregate across all accounts",
+      "perimeterHint": "Sources disagree on what happens to losses when moving between regimes: you choose the correct perimeter, Lumio won't guess it for you.",
+      "formationDate": "Formation date",
+      "incomeCategory": "Income category",
+      "amount": "Amount (nominal, not converted)",
+      "save": "Save",
+      "cancel": "Cancel",
+      "error": "Could not save the opening balance.",
+      "perimeterRequired": "Choose a perimeter."
+    }
+  }
+}

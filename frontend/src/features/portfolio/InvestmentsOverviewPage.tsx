@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, Plus, Settings } from "lucide-react";
+import { ChevronRight, Percent, Plus, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +7,7 @@ import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { ErrorState } from "../../components/ui/ErrorState";
+import { LinkButton } from "../../components/ui/LinkButton";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { formatMoney, formatPercent, formatSignedMoney } from "../../lib/format";
 import { AssetFormDialog } from "./AssetFormDialog";
@@ -52,7 +53,12 @@ export function InvestmentsOverviewPage() {
       {t("overview.actions.loadExistingPosition")}
     </Button>
   );
-  // Le 4 azioni di pagina vivono nel Topbar (desktop) e in un'unica riga
+  const taxButton = (
+    <LinkButton to="/investments/tax" variant="ghost" size="sm">
+      <Percent className="h-4 w-4" /> {t("tax:lossPocket.page.title")}
+    </LinkButton>
+  );
+  // Le 5 azioni di pagina vivono nel Topbar (desktop) e in un'unica riga
   // `md:hidden` qui sotto per mobile — stesso portal/duplicazione-per-
   // breakpoint gia' in uso altrove (vedi `PageToolbarContext.tsx`), solo
   // con piu' bottoni invece di uno solo.
@@ -62,6 +68,7 @@ export function InvestmentsOverviewPage() {
       {newAssetButton}
       {loadPositionButton}
       {recordTransactionButton}
+      {taxButton}
     </>,
   );
 
@@ -75,6 +82,7 @@ export function InvestmentsOverviewPage() {
         {newAssetButton}
         {loadPositionButton}
         {recordTransactionButton}
+        {taxButton}
       </div>
 
       <PortfolioSummaryBlock

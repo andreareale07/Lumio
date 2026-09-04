@@ -74,6 +74,8 @@ async def _clean_tables():
                 "job_runs, transaction_type_mappings, financial_account_iban_history, "
                 "transaction_dedup_decisions, transaction_review_items, "
                 "detection_overrides, "
+                "workspace_tax_residences, financial_account_tax_regimes, "
+                "asset_tax_classifications, tax_loss_opening_balances, "
                 "google_integrations, audit_log CASCADE"
             )
         )

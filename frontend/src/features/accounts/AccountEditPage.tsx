@@ -8,6 +8,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
 import { SkeletonRows } from "../../components/ui/Skeleton";
+import { AccountTaxRegimeSection } from "../tax/AccountTaxRegimeSection";
 import { useAccounts } from "./api";
 import { AccountForm, IbanHistorySection } from "./AccountForm";
 
@@ -65,6 +66,15 @@ export function AccountEditPage() {
       </Card>
       <Card>
         <IbanHistorySection accountId={account.id} />
+      </Card>
+      {/* Nessun filtro per account_type: un conto "checking" puo' essere
+       * comunque un conto titoli in pratica (es. usato anche per la spesa
+       * quotidiana, stesso principio gia' documentato sopra in
+       * AccountForm — investment_transactions/positions si legano
+       * all'id del conto, mai al suo account_type). Restringere qui
+       * escluderebbe esattamente quel caso reale. */}
+      <Card>
+        <AccountTaxRegimeSection accountId={account.id} />
       </Card>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Coins, FolderTree, Link2, ListChecks, Sparkles, LineChart, Tags, Wand2 } from "lucide-react";
+import { Coins, FolderTree, Link2, ListChecks, Percent, Sparkles, LineChart, Tags, Wand2 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
 export interface SettingsPageLink {
@@ -31,6 +31,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { to: "/settings/categories", icon: FolderTree, itemKey: "categories" },
       { to: "/settings/transaction-types", icon: Tags, itemKey: "transactionTypes" },
       { to: "/settings/currency", icon: Coins, itemKey: "currency" },
+      { to: "/settings/tax", icon: Percent, itemKey: "tax" },
     ],
   },
   {

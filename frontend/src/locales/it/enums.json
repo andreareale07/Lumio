@@ -105,5 +105,27 @@
   "anomalyType": {
     "category_outlier": "Fuori norma per la categoria",
     "series_deviation": "Fuori norma per questa ricorrenza"
+  },
+  "taxJurisdiction": {
+    "IT": "Italia"
+  },
+  "taxRegime": {
+    "amministrato": "Amministrato",
+    "dichiarativo": "Dichiarativo"
+  },
+  "taxAssetClassification": {
+    "azioni": "Azioni",
+    "etf_armonizzato": "ETF armonizzato",
+    "obbligazioni": "Obbligazioni",
+    "titoli_stato_whitelist": "Titoli di Stato (whitelist)",
+    "cripto": "Criptovalute",
+    "derivati": "Derivati",
+    "etf_non_armonizzato": "ETF non armonizzato",
+    "certificati": "Certificati",
+    "unclassified": "Non classificato"
+  },
+  "taxIncomeCategory": {
+    "redditi_capitale": "Redditi di capitale",
+    "redditi_diversi": "Redditi diversi"
   }
 }

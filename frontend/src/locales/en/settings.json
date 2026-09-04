@@ -70,6 +70,10 @@
         "reappliedWithSkipped_other": "{{count}} transactions updated, {{skipped}} left untouched because edited by hand."
       }
     },
+    "tax": {
+      "label": "Taxes",
+      "description": "Tax residence and the rules applied to your investments."
+    },
     "currency": {
       "label": "Currency",
       "description": "Set the workspace's reference currency.",
