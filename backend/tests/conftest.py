@@ -76,6 +76,7 @@ async def _clean_tables():
                 "detection_overrides, "
                 "workspace_tax_residences, financial_account_tax_regimes, "
                 "asset_tax_classifications, tax_loss_opening_balances, "
+                "tax_realized_event_overrides, "
                 "google_integrations, audit_log CASCADE"
             )
         )

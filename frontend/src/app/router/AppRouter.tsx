@@ -27,6 +27,7 @@ import { MarketDataSettingsPage } from "../../features/settings/market-data/Mark
 import { SettingsHubPage } from "../../features/settings/SettingsHubPage";
 import { TaxSettingsPage } from "../../features/settings/tax/TaxSettingsPage";
 import { TaxLossPocketPage } from "../../features/tax/TaxLossPocketPage";
+import { TaxRealizedEventsPage } from "../../features/tax/TaxRealizedEventsPage";
 import { TransactionTypeMappingsPage } from "../../features/settings/transaction-types/TransactionTypeMappingsPage";
 import { TransactionsPage } from "../../features/transactions/TransactionsPage";
 import { useAuth } from "../providers/AuthProvider";
@@ -63,6 +64,7 @@ export function AppRouter() {
       <Route path="/investments/portfolios/:portfolioId" element={<Protected><PortfolioDetailPage /></Protected>} />
       <Route path="/investments/assets/:assetId" element={<Protected><AssetDetailPage /></Protected>} />
       <Route path="/investments/tax" element={<Protected><TaxLossPocketPage /></Protected>} />
+      <Route path="/investments/tax/realized-events" element={<Protected><TaxRealizedEventsPage /></Protected>} />
       <Route path="/accounts" element={<Protected><AccountsPage /></Protected>} />
       <Route path="/accounts/:accountId/edit" element={<Protected><AccountEditPage /></Protected>} />
       <Route path="/accounts/:accountId" element={<Protected><AccountDetailPage /></Protected>} />

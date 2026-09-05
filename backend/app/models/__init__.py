@@ -28,6 +28,7 @@ from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.position import Position
 from app.models.rule import Rule
 from app.models.tax_loss_opening_balance import TaxLossOpeningBalance
+from app.models.tax_realized_event_override import TaxRealizedEventOverride
 from app.models.transaction import Transaction
 from app.models.transaction_dedup_decision import TransactionDedupDecision
 from app.models.transaction_review_item import TransactionReviewItem
@@ -68,6 +69,7 @@ __all__ = [
     "Position",
     "Rule",
     "TaxLossOpeningBalance",
+    "TaxRealizedEventOverride",
     "Transaction",
     "TransactionDedupDecision",
     "TransactionReviewItem",

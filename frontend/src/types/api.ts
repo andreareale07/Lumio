@@ -1280,3 +1280,51 @@ export interface TaxableGains {
   remaining_pocket_by_perimeter: Record<string, string>;
   excluded_events: ExcludedRealizedEvent[];
 }
+
+// Un evento e' identificato dalla coppia (lot_transaction_id,
+// sell_transaction_id), univoca per costruzione — mai una sola data.
+export interface ClassifiedRealizedEvent {
+  financial_account_id: Uuid;
+  asset_id: Uuid;
+  trade_date: IsoDate;
+  quantity: string;
+  proceeds: string;
+  cost_basis: string;
+  gain_or_loss: string;
+  lot_formation_date: IsoDate;
+  lot_transaction_id: Uuid;
+  sell_transaction_id: Uuid;
+  asset_class: string | null;
+  gain_category: string | null;
+  loss_category: string | null;
+  rate: string | null;
+  taxable_coefficient: string | null;
+  legal_reference: string | null;
+  perimeter: string | null;
+  formed_under_ruleset_code: string | null;
+  excluded_reason: string | null;
+  is_overridden: boolean;
+}
+
+export interface RealizedEventsPage {
+  items: ClassifiedRealizedEvent[];
+  total: number;
+}
+
+export interface TaxEventOverrideInput {
+  override_gain_or_loss: string | null;
+  excluded: boolean;
+  notes: string | null;
+}
+
+export interface TaxEventOverride {
+  id: Uuid;
+  workspace_id: Uuid;
+  lot_transaction_id: Uuid;
+  sell_transaction_id: Uuid;
+  override_gain_or_loss: string | null;
+  excluded: boolean;
+  notes: string | null;
+  created_at: IsoDateTime;
+  updated_at: IsoDateTime;
+}

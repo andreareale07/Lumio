@@ -42,7 +42,7 @@ TAX_ASSET_CLASSES: tuple[TaxAssetClass, ...] = (
     TaxAssetClass(
         code="etf_non_armonizzato", label_key="taxAssetClassification.etf_non_armonizzato", codified=False
     ),
-    TaxAssetClass(code="certificati", label_key="taxAssetClassification.certificati", codified=False),
+    TaxAssetClass(code="certificati", label_key="taxAssetClassification.certificati", codified=True),
     TaxAssetClass(code="unclassified", label_key="taxAssetClassification.unclassified", codified=False),
 )
 
@@ -67,6 +67,16 @@ def _treatments(rate: Decimal, legal_reference: str, sale_coefficient_titoli_sta
     return (
         TaxTreatment(
             asset_class="azioni",
+            event_kind="sale",
+            gain_category="redditi_diversi",
+            loss_category="redditi_diversi",
+            status="codified",
+            rate=rate,
+            taxable_coefficient=Decimal("1"),
+            legal_reference=legal_reference,
+        ),
+        TaxTreatment(
+            asset_class="certificati",
             event_kind="sale",
             gain_category="redditi_diversi",
             loss_category="redditi_diversi",
@@ -161,7 +171,7 @@ _IT_2012_01 = TaxRuleset(
     # senza ricorrere al trucco del DL 66/2014).
     treatments=_treatments(
         rate=Decimal("0.20"), legal_reference="DL 138/2011 conv. L. 148/2011",
-    )[:5]
+    )[:6]
     + (
         TaxTreatment(
             asset_class="titoli_stato_whitelist",

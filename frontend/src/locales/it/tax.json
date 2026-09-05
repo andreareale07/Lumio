@@ -147,6 +147,52 @@
       "cancel": "Annulla",
       "error": "Impossibile salvare il saldo di apertura.",
       "perimeterRequired": "Scegli un perimetro."
+    },
+    "excludedReason": {
+      "asset_not_codified": "asset non codificato",
+      "no_regime_at_date": "nessun regime a questa data",
+      "treatment_not_codified": "trattamento non codificato",
+      "user_excluded": "escluso manualmente"
     }
+  },
+  "realizedEventsPage": {
+    "title": "Eventi realizzati",
+    "intro": "Ogni vendita che chiude (anche parzialmente) un lotto — inclusi gli eventi esclusi dal calcolo, con motivo. Vista di audit, non di riepilogo: mostra il dato grezzo calcolato, mai una vista \"già pronta per la dichiarazione\".",
+    "filters": {
+      "asset": "Titolo",
+      "allAssets": "Tutti i titoli",
+      "account": "Conto",
+      "allAccounts": "Tutti i conti",
+      "excludedOnly": "Solo esclusi"
+    },
+    "table": {
+      "date": "Data",
+      "asset": "Titolo",
+      "account": "Conto",
+      "amount": "Guadagno/perdita",
+      "status": "Stato"
+    },
+    "empty": {
+      "title": "Nessun evento realizzato",
+      "description": "Nessuna vendita ha ancora chiuso un lotto — o nessuna corrisponde ai filtri scelti."
+    },
+    "pagination": {
+      "showing": "{{from}}–{{to}} di {{total}}",
+      "previous": "Precedente",
+      "next": "Successivo"
+    }
+  },
+  "eventOverride": {
+    "sectionTitle": "Eventi realizzati",
+    "title": "Correggi evento realizzato",
+    "description": "Sovrascrivi il guadagno/perdita calcolato solo se sai che è sbagliato (es. un costo di carico storico prima di usare Lumio), o escludilo manualmente dal calcolo.",
+    "amountLabel": "Guadagno/perdita corretto (vuoto = usa il valore calcolato)",
+    "excludeLabel": "Escludi questo evento dal calcolo",
+    "notesLabel": "Nota (facoltativa)",
+    "correct": "Correggi",
+    "remove": "Rimuovi override",
+    "overriddenBadge": "corretto manualmente",
+    "saveError": "Impossibile salvare la correzione.",
+    "deleteError": "Impossibile rimuovere la correzione."
   }
 }

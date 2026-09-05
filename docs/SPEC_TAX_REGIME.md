@@ -524,13 +524,32 @@ ricalcolata "a ritroso" con il senno di poi.
 
 ## Cosa resta fuori anche da FETTA 2 (rimandato a dopo)
 
-**Override per singolo evento** (l'utente corregge un `RealizedTaxEvent` specifico — es. un
-prezzo di carico storico sbagliato): il modello dati non lo impedisce (ogni evento ha un'
-identità derivabile da `investment_transaction_id` + indice del lotto consumato) ma
-l'interfaccia non si costruisce nella prima fetta di FETTA 2. **Chiusura d'anno**
-(`tax_year_closures`): congela il numero dichiarato, si costruisce solo quando serve
-davvero (nessuna finta implementazione preventiva) — la docstring di `tax_calc.py` lo marca
-già come unica eccezione futura al principio "derivato, non persistito".
+**Override per singolo evento**: **FATTO** (2026-09-05) — `tax_realized_event_overrides`
+(migration 0040), integrato in `tax_realized_service.py`, endpoint dedicati
+(`GET /tax/realized-events`, `PUT`/`DELETE .../override`), UI minimale su
+`/investments/tax`. Un evento e' identificato dalla coppia
+`(lot_transaction_id, sell_transaction_id)`, univoca per costruzione.
+
+**Chiusura d'anno** (`tax_year_closures`): **deliberatamente NON costruita** — chiarito con
+l'utente (2026-09-05) che lo zainetto calcolato da Lumio e' uno strumento decisionale
+("come muoversi negli investimenti"), non un dato usato per compilare una dichiarazione dei
+redditi reale. Ha senso solo per il perimetro **dichiarativo** (nell'amministrato e' la banca,
+sostituto d'imposta, a tenere il conteggio ufficiale — l'utente non dichiara nulla di suo).
+Il congelamento si puo' introdurre in futuro se e quando servira' davvero (nessuna finta
+implementazione preventiva) — la docstring di `tax_calc.py` lo marca gia' come unica
+eccezione futura al principio "derivato, non persistito".
+
+**Codifica classi asset mancanti**: **certificati FATTO** (2026-09-05) — trattamento
+`sale`, `redditi_diversi` simmetrico come azioni, nessun coefficiente speciale (ricerca
+normativa: art. 67 TUIR, stesso regime delle azioni). `codified=True` in
+`TAX_ASSET_CLASSES`. **Cripto e ETF non armonizzato rimandati**: cripto ha una timeline di
+aliquote indipendente e disconnessa dai confini dei ruleset esistenti (26%+franchigia
+2.000€ fino al 2024, 33% senza franchigia dal 2025, 33%/26%-stablecoin dal 2026) e richiede
+concetti di schema nuovi (franchigia, versionamento temporale indipendente); ETF non
+armonizzato è tassato all'aliquota IRPEF marginale progressiva (23-43%) del contribuente,
+incompatibile con il modello `TaxTreatment.rate: Decimal` flat-rate — Lumio non conosce il
+reddito personale complessivo, non è un gap "da codificare" ma un'incompatibilità
+architetturale.
 
 ## Ordine di implementazione
 
@@ -576,3 +595,161 @@ Da marcare nel codice e mostrare in UI, mai da trattare come certezza:
 
 Nessun numero prodotto da Lumio va usato in dichiarazione senza validazione di un
 commercialista, e la UI lo dice sempre (disclaimer permanente, non un modal una tantum).
+
+## Limite noto: una sola giurisdizione per query, non giurisdizione-per-evento (2026-09-05)
+
+Domanda dell'utente: "se ho uno storico fiscale in UK e nel 2026 sono passato in Italia,
+`/investments/tax` mi mostra anche la situazione UK?". Oggi `JURISDICTIONS`
+([registry.py](backend/app/tax/registry.py)) contiene **solo l'Italia** — lo scenario non è
+riproducibile in pratica, nessuna seconda giurisdizione esiste da selezionare in
+`WorkspaceTaxResidence`.
+
+Esiste però un gap architetturale reale, da tenere a mente se/quando si aggiungerà una
+seconda giurisdizione: `resolve_tax_context` (`tax_context.py:40`) risolve **una singola
+giurisdizione** in base alla data della query (`on`, tipicamente oggi), e quella stessa
+istanza viene passata per intero a `list_realized_events`/`compute_tax_lots` — non c'è
+risoluzione **per evento** in base alla data in cui l'evento è effettivamente accaduto. Un
+utente con residenza UK fino al 2025 e Italia dal 2026 vedrebbe, con l'architettura attuale,
+anche gli eventi del 2023 (epoca UK) valutati con le regole della giurisdizione VIGENTE OGGI
+(Italia), non con quelle che erano davvero in vigore allora. Nessun codice da scrivere ora
+(non c'è una seconda giurisdizione con cui verificarlo) — solo tracciabilità per non
+dimenticarlo quando servirà davvero.
+
+---
+
+# FETTA 3 — brief di design (2026-09-05, nessun codice ancora)
+
+Riprende i due punti lasciati aperti in "Cosa NON è in FETTA 1": vista dichiarativa avanzata
+e proiezione "se vendo oggi" / simulatore ordine di vendita. Richiede FETTA 2 (motore a
+lotti, zainetto computed, compensazione progressiva), ora completa.
+
+## Scope A — Vista dichiarativa avanzata
+
+Riepilogo annuale, per perimetro e categoria di reddito (redditi_diversi/redditi_capitale),
+pronto da passare a un commercialista: plusvalenze lorde, minusvalenze usate per anno di
+formazione, imponibile netto, imposta stimata — un "quadro RT-like" a sola lettura, mai un
+modulo compilabile o un dato da inviare all'Agenzia.
+
+Riuso pressoché totale: `tax_realized_service.list_realized_events` +
+`tax_calc.compute_taxable_gains` già producono tutti i numeri; manca solo il
+raggruppamento per anno solare e la vista/tabella dedicata. Nessuna nuova entità DB, nessun
+nuovo calcolo — è essenzialmente un aggregatore + presentazione sopra dati che esistono già.
+
+**DECISION REQUIRED**: basta una vista a schermo (`/investments/tax`, nuova sezione "Riepilogo
+annuale") o serve anche un export (CSV/PDF) da poter allegare a una mail al commercialista?
+La vista a schermo è a costo minimo (riuso totale); l'export aggiunge una libreria di
+generazione file e un job — sproporzionato se l'utente copia i numeri a mano oggi.
+
+## Scope B — Simulatore "se vendo oggi"
+
+Per un asset in portafoglio, l'utente indica una quantità ipotetica; il sistema calcola,
+senza persistere nulla, il gain/loss risultante iniettando un movimento sintetico
+`sell(quantity=X, price=prezzo_corrente, trade_date=oggi)` nella stessa lista di movimenti
+reali passata a `compute_tax_lots` — il motore consuma i lotti esistenti secondo il
+`lot_consumption_order` della giurisdizione esattamente come farebbe con una vendita vera.
+Il risultato si passa poi a `compute_taxable_gains` (aggiungendolo agli eventi reali) per
+mostrare l'effetto marginale: quanto di questa ipotetica plusvalenza verrebbe compensato dal
+pool residuo, quanto resterebbe imponibile, quanta imposta stimata ne deriverebbe.
+
+Nessuna scrittura DB, nessun nuovo modello — puro riuso delle funzioni esistenti con un
+movimento sintetico invece che uno letto da `investment_transactions`. Rischio principale:
+tenere ben separato "eventi reali" da "eventi simulati" in ogni punto della UI, per non
+confondere mai un numero ipotetico con uno realizzato (stesso principio del disclaimer
+sempre visibile).
+
+**DECISION REQUIRED**: la simulazione riguarda un asset alla volta (l'utente apre l'asset,
+inserisce una quantità) o multi-asset ("se vendessi tutto quello in plusvalenza")? Consiglio:
+partire da singolo asset — è il caso d'uso più chiaro e riusa la pagina asset esistente
+([AssetDetailPage.tsx](frontend/src/features/portfolio/AssetDetailPage.tsx)) senza una nuova
+superficie UI.
+
+## Scope C — "Simulatore ordine di vendita": non è quello che sembra
+
+Nota architetturale prima di preventivare questo scope: se la giurisdizione impone un
+`lot_consumption_order` fisso (LIFO in Italia), l'utente **non può scegliere quale lotto
+vendere** — lo decide sempre il motore in base all'ordine dichiarato dalla giurisdizione.
+"Simulatore ordine di vendita" come concetto libero (scegliere il lotto più conveniente da
+liquidare) non è legalmente disponibile in Italia: sarebbe un numero che Lumio mostra ma che
+non corrisponde a un'operazione fiscalmente valida.
+
+Quello che resta possibile è già lo Scope B: simulare "se vendo N unità oggi" e vedere quale
+lotto verrebbe consumato (per via del LIFO) e con quale risultato — non una scelta, solo una
+proiezione di ciò che accadrebbe comunque.
+
+**Raccomandazione**: non costruire uno Scope C separato — collassa in Scope B, che già
+risponde alla domanda reale ("cosa succede se vendo?") senza promettere una libertà di scelta
+che la norma non consente.
+
+## Priorità consigliata
+
+1. Scope B (simulatore "se vendo oggi", singolo asset) — riuso quasi totale, nessuna nuova
+   entità, risponde alla domanda operativa più concreta ("conviene vendere questo ora?").
+2. Scope A (vista dichiarativa annuale, solo schermo) — riuso totale, utile ma meno urgente
+   di una decisione d'investimento imminente.
+3. Export CSV/PDF per lo Scope A — solo se l'utente lo richiede esplicitamente dopo aver
+   usato la vista a schermo; costo non giustificato a priori.
+
+---
+
+# Regime gestito — brief di design (2026-09-05, nessun codice ancora)
+
+Il modello dati lo prevede già (`TaxRegimeOption.calc_model: "realized" | "accrued"`,
+[base.py:152](backend/app/tax/base.py:152)) ma nessun motore lo calcola. Questo brief
+descrive cosa servirebbe, non lo implementa.
+
+## Perché non è un'estensione di FETTA 2, ma un secondo motore parallelo
+
+Il regime gestito tassa il risultato **maturato** a fine anno (plusvalore/minusvalore
+dell'intero patrimonio nel wrapper), non i singoli realizzi. Tre conseguenze architetturali:
+
+1. **Il motore a lotti (LIFO/FIFO, FETTA 2) non si applica**: non esistono "eventi di
+   realizzo" da classificare, perché non conta quando/a che prezzo hai comprato un singolo
+   lotto — conta solo il valore del patrimonio a inizio e fine anno. `tax_lot_calc.py` e
+   `tax_realized_service.py` restano specifici del `calc_model="realized"`.
+2. **Serve una valutazione puntuale del patrimonio a due date** (1 gennaio e 31 dicembre,
+   o data di apertura/chiusura contratto se infrannuale) — non un evento transazionale.
+   Lumio ha già l'infrastruttura di valutazione (prezzi storici, sostanza analitica —
+   [lumio_sostanza_analitica](docs/SPEC.md) §30) ma quella calcola andamento nel tempo per
+   dashboard, mai un "valore fiscale a una data" pensato per un calcolo d'imposta.
+3. **I redditi di capitale sono compensabili al suo interno** — l'opposto
+   dell'amministrato/dichiarativo, dove `redditi_capitale` non compensa mai (vedi
+   `_OFFSET_RULES` in [italy.py:63](backend/app/tax/rulesets/italy.py:63), unico per l'intera
+   giurisdizione). Questo significa che **la matrice di compensazione oggi non è
+   regime-aware, solo ruleset-aware**: per il gestito servirebbe una seconda matrice
+   `OffsetRule` selezionata in base al regime attivo sul conto, non solo alla data. Cambio
+   architetturale non banale: `can_offset` andrebbe parametrizzato per `calc_model`, non solo
+   per `TaxRuleset`.
+
+## Cosa servirebbe (alto livello, non un piano di implementazione)
+
+- Un secondo servizio (`tax_accrued_calc.py` o simile) che, per un conto in regime gestito,
+  legge il valore di patrimonio a inizio/fine periodo (riuso dei prezzi storici esistenti,
+  nuova funzione di valutazione "a una data" se non già isolabile da quella esistente) e
+  produce un singolo `AccruedTaxEvent` per anno/periodo, non una lista di eventi per
+  transazione.
+- Una matrice di compensazione alternativa (redditi_capitale ↔ redditi_diversi compensabili)
+  attiva solo quando il calc_model del regime è `accrued`.
+- Il perimetro dello zainetto per il gestito è il singolo contratto (mai aggregato, nemmeno
+  con altri conti gestiti dello stesso workspace) — coerente con `pocket_scope="per_account"`
+  già usato dall'amministrato, ma da confermare che sia davvero lo stesso significato per un
+  wrapper gestito (un "contratto" gestito potrebbe non coincidere 1:1 con un
+  `financial_account` in Lumio).
+
+## DECISION REQUIRED (da confermare con l'utente, non da inventare)
+
+1. **Serve davvero ora?** Nessun conto reale dell'utente è oggi in regime gestito
+   (verificare: se non lo è, il ROI di questo lavoro è zero fino a quando non lo sarà).
+   Consiglio: non avviare l'implementazione finché non c'è un caso d'uso reale — il modello
+   dati è già pronto a non renderlo impossibile, che era l'unico impegno preso in FETTA 1.
+2. **Cadenza della valutazione**: sempre anno solare (1/1–31/12) o segue le date di
+   apertura/chiusura del contratto/periodo di regime (come già avviene per `TaxRegimePeriod`)?
+   Rilevante se un conto passa da amministrato a gestito a metà anno.
+3. **Fonte del valore di patrimonio a una data**: riusare la stessa pipeline di
+   `asset_prices`/sostanza analitica, o serve una snapshot dedicata più robusta (es. l'ultimo
+   prezzo noto potrebbe non coincidere con l'estratto conto ufficiale del gestore, che è la
+   fonte legale del valore maturato)? Tensione reale: Lumio calcola sui prezzi di mercato che
+   conosce, il gestore potrebbe avere un NAV proprio.
+
+Raccomandazione complessiva: **non implementare finché non emerge un caso d'uso reale**
+(decisione 1) — a differenza di FETTA 3, qui il costo di un secondo motore parallelo è alto
+e il ritorno è zero senza un conto gestito reale da calcolare.

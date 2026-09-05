@@ -19,14 +19,18 @@ from app.schemas.tax import (
     AssetTaxClassificationOut,
     AssetTaxClassificationSetIn,
     CarryForwardRuleOut,
+    ClassifiedRealizedEventOut,
     ExcludedRealizedEventOut,
     LossConversionOut,
     LossPocketOut,
     LossPocketRowOut,
     OffsetRuleOut,
+    RealizedEventsPageOut,
     TaxableGainRowOut,
     TaxableGainsOut,
     TaxAssetClassOut,
+    TaxEventOverrideIn,
+    TaxEventOverrideOut,
     TaxJurisdictionOut,
     TaxLossOpeningCreate,
     TaxLossOpeningOut,
@@ -42,10 +46,11 @@ from app.schemas.tax import (
     WorkspaceTaxResidenceIn,
     WorkspaceTaxResidenceOut,
 )
-from app.services import tax_classification_service, tax_opening_service, tax_regime_service
+from app.services import tax_classification_service, tax_event_override_service, tax_opening_service, tax_regime_service
 from app.services.audit_log_service import log_event
 from app.services.tax_context import resolve_tax_context
 from app.services.tax_gains_service import compute_tax_summary
+from app.services.tax_realized_service import list_realized_events, paginate_realized_events
 from app.tax.registry import JURISDICTIONS, get_jurisdiction
 
 router = APIRouter(prefix="/tax", tags=["tax"])
@@ -461,3 +466,82 @@ async def get_taxable_gains(
         remaining_pocket_by_perimeter=summary.taxable_gains.remaining_pocket_by_perimeter,
         excluded_events=_excluded_events_out(summary),
     )
+
+
+# --- Eventi realizzati + override per singolo evento --------------------
+
+
+@router.get("/realized-events", response_model=RealizedEventsPageOut)
+async def get_realized_events(
+    on: date = Query(),
+    asset_id: uuid.UUID | None = Query(default=None),
+    financial_account_id: uuid.UUID | None = Query(default=None),
+    excluded_only: bool = Query(default=False),
+    limit: int = Query(default=25, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> RealizedEventsPageOut:
+    """Elenco paginato/filtrabile degli eventi realizzati classificati
+    (inclusi quelli esclusi, con motivo) — usato dalla UI per scegliere
+    quale evento correggere con un override. Il calcolo sottostante resta
+    per intero in memoria (nessuna tabella persistita, FETTA 2): qui si
+    filtra/pagina solo la vista, non il calcolo."""
+    context = await resolve_tax_context(db, workspace_id, on)
+    events = await list_realized_events(db, workspace_id, context.jurisdiction, on)
+    page, total = paginate_realized_events(
+        events,
+        asset_id=asset_id,
+        financial_account_id=financial_account_id,
+        excluded_only=excluded_only,
+        limit=limit,
+        offset=offset,
+    )
+    return RealizedEventsPageOut(items=[ClassifiedRealizedEventOut(**vars(e)) for e in page], total=total)
+
+
+@router.put(
+    "/realized-events/{lot_transaction_id}/{sell_transaction_id}/override",
+    response_model=TaxEventOverrideOut,
+)
+async def set_realized_event_override(
+    lot_transaction_id: uuid.UUID,
+    sell_transaction_id: uuid.UUID,
+    payload: TaxEventOverrideIn,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TaxEventOverrideOut:
+    override = await tax_event_override_service.set_override(
+        db,
+        workspace_id,
+        lot_transaction_id,
+        sell_transaction_id,
+        payload.override_gain_or_loss,
+        payload.excluded,
+        payload.notes,
+    )
+    await log_event(
+        db, workspace_id, user.id, "TAX_SETTING_CHANGED",
+        entity_type="tax_realized_event_override", entity_id=override.id,
+    )
+    await db.commit()
+    return override
+
+
+@router.delete(
+    "/realized-events/{lot_transaction_id}/{sell_transaction_id}/override",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_realized_event_override(
+    lot_transaction_id: uuid.UUID,
+    sell_transaction_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    await tax_event_override_service.delete_override(db, workspace_id, lot_transaction_id, sell_transaction_id)
+    await log_event(
+        db, workspace_id, user.id, "TAX_SETTING_CHANGED", entity_type="tax_realized_event_override",
+    )
+    await db.commit()

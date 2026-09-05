@@ -147,6 +147,52 @@
       "cancel": "Cancel",
       "error": "Could not save the opening balance.",
       "perimeterRequired": "Choose a perimeter."
+    },
+    "excludedReason": {
+      "asset_not_codified": "asset not codified",
+      "no_regime_at_date": "no regime on this date",
+      "treatment_not_codified": "treatment not codified",
+      "user_excluded": "manually excluded"
     }
+  },
+  "realizedEventsPage": {
+    "title": "Realized events",
+    "intro": "Every sale that closes (even partially) a lot — including events excluded from the calculation, with a reason. An audit view, not a summary: shows the raw calculated figure, never a \"ready to file\" view.",
+    "filters": {
+      "asset": "Asset",
+      "allAssets": "All assets",
+      "account": "Account",
+      "allAccounts": "All accounts",
+      "excludedOnly": "Excluded only"
+    },
+    "table": {
+      "date": "Date",
+      "asset": "Asset",
+      "account": "Account",
+      "amount": "Gain/loss",
+      "status": "Status"
+    },
+    "empty": {
+      "title": "No realized events",
+      "description": "No sale has closed a lot yet — or none match the chosen filters."
+    },
+    "pagination": {
+      "showing": "{{from}}–{{to}} of {{total}}",
+      "previous": "Previous",
+      "next": "Next"
+    }
+  },
+  "eventOverride": {
+    "sectionTitle": "Realized events",
+    "title": "Correct realized event",
+    "description": "Override the calculated gain/loss only if you know it's wrong (e.g. a historical cost basis from before you used Lumio), or manually exclude it from the calculation.",
+    "amountLabel": "Corrected gain/loss (empty = use the calculated value)",
+    "excludeLabel": "Exclude this event from the calculation",
+    "notesLabel": "Note (optional)",
+    "correct": "Correct",
+    "remove": "Remove override",
+    "overriddenBadge": "manually corrected",
+    "saveError": "Could not save the correction.",
+    "deleteError": "Could not remove the correction."
   }
 }

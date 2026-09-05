@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { PiggyBank, Plus } from "lucide-react";
-import { Link } from "react-router-dom";
+import { PiggyBank, Plus, Receipt } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { api } from "../../lib/apiClient";
+import { PAGE_WIDTH_WIDE } from "../../components/layout/pageWidths";
 import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { BackLink } from "../../components/ui/BackLink";
-import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -19,6 +18,7 @@ import { useAccounts } from "../accounts/api";
 import { useAssets } from "../portfolio/api";
 import type { Asset, LossPocketRow, TaxableGains, TaxRegimePeriod } from "../../types/api";
 import { useTaxLossOpenings, useLossPocket, useTaxableGains } from "./api";
+import { AssetCell, SourceBadge } from "./components";
 import { TaxLossOpeningDialog } from "./TaxLossOpeningDialog";
 
 /** `/investments/tax` (SPEC_TAX_REGIME.md FETTA 1) — due sezioni implicite
@@ -60,23 +60,40 @@ export function TaxLossPocketPage() {
       <Plus className="h-4 w-4" /> {t("lossPocket.page.newOpening")}
     </Button>
   );
-  const toolbarPortal = usePageToolbar(hasAnyRegime ? newOpeningButton : null);
+  const realizedEventsButton = (
+    <LinkButton to="/investments/tax/realized-events" size="sm" variant="secondary">
+      <Receipt className="h-4 w-4" /> {t("eventOverride.sectionTitle")}
+    </LinkButton>
+  );
+  const toolbarPortal = usePageToolbar(
+    hasAnyRegime ? (
+      <div className="flex gap-2">
+        {realizedEventsButton}
+        {newOpeningButton}
+      </div>
+    ) : null,
+  );
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4">
+    <div className={PAGE_WIDTH_WIDE}>
       {toolbarPortal}
       <div>
         <BackLink to="/investments" label={t("portfolio:overview.title")} />
         <h1 className="mt-1 text-lg font-semibold text-text">{t("lossPocket.page.title")}</h1>
         <p className="text-sm text-text-muted">{t("lossPocket.page.intro")}</p>
       </div>
-      {hasAnyRegime && <div className="md:hidden">{newOpeningButton}</div>}
+      {hasAnyRegime && (
+        <div className="flex flex-wrap gap-2 md:hidden">
+          {realizedEventsButton}
+          {newOpeningButton}
+        </div>
+      )}
 
       <p className="rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">{t("common.disclaimer")}</p>
 
       {!isLoading && !isError && (pocket.data?.excluded_events.length ?? 0) > 0 && (
         <p className="rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
-          {t("lossPocket.page.coverageNotice", { count: pocket.data!.excluded_events.length })}
+          {t("lossPocket.coverageNotice", { count: pocket.data!.excluded_events.length })}
         </p>
       )}
 
@@ -107,11 +124,14 @@ export function TaxLossPocketPage() {
         />
       )}
 
-      {!isLoading && !isError && hasAnyRegime && (pocket.data?.rows.length ?? 0) > 0 && pocket.data && (
-        <div className="flex flex-col gap-3">
-          {Object.entries(
-            groupRowsByPerimeter(pocket.data.rows, pocket.data.remaining_by_perimeter),
-          ).map(([perimeter, group]) => (
+      {!isLoading && !isError && hasAnyRegime && (pocket.data?.rows.length ?? 0) > 0 && pocket.data && (() => {
+        const groups = Object.entries(groupRowsByPerimeter(pocket.data.rows, pocket.data.remaining_by_perimeter));
+        // Griglia a due colonne solo con 2+ perimetri (amministrato + dichiarativo):
+        // con un solo perimetro un grid-cols-2 lascerebbe metà pagina vuota invece
+        // di usare davvero lo spazio in più.
+        return (
+        <div className={groups.length > 1 ? "grid grid-cols-1 gap-3 xl:grid-cols-2" : "flex flex-col gap-3"}>
+          {groups.map(([perimeter, group]) => (
             <Card key={perimeter} className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-text">
@@ -201,7 +221,8 @@ export function TaxLossPocketPage() {
             </Card>
           ))}
         </div>
-      )}
+        );
+      })()}
 
       {!isLoading && !isError && (taxableGains.data?.rows.length ?? 0) > 0 && (
         <TaxableGainsSection taxableGains={taxableGains.data!} accountNameById={accountNameById} assetById={assetById} />
@@ -212,12 +233,6 @@ export function TaxLossPocketPage() {
   );
 }
 
-/** FETTA 2: compensazione progressiva delle plusvalenze realizzate contro
- * lo zainetto — vista separata dalle card sopra (quelle restano "quanto ho
- * disponibile prima di consumarlo", questa "quanto resta da tassare dopo
- * averlo consumato"). Compare solo se esiste almeno una plusvalenza
- * realizzata (nessuno stato vuoto dedicato: senza vendite in guadagno la
- * sezione non ha nulla da dire, sparisce senza bisogno di spiegarlo). */
 function TaxableGainsSection({
   taxableGains,
   accountNameById,
@@ -291,26 +306,6 @@ function currencyGuess() {
   return "EUR";
 }
 
-/** Collega ogni riga al titolo/vendita che l'ha generata (chiarezza
- * richiesta dall'utente in QA: "non capisco chi contribuisce allo
- * zainetto, quale movimento, quale vendita") — link diretto al dettaglio
- * asset, dove l'elenco Acquisti/vendite permette di risalire al singolo
- * movimento. `null` per le aperture manuali (nessun titolo specifico, un
- * saldo aggregato) — mai un trattino silenzioso senza spiegazione. */
-function AssetCell({ assetId, assetById }: { assetId: string | null; assetById: Map<string, Asset> }) {
-  const { t } = useTranslation("tax");
-  if (assetId === null) {
-    return <span className="text-text-muted">{t("lossPocket.table.manualEntry")}</span>;
-  }
-  const asset = assetById.get(assetId);
-  const label = asset ? (asset.symbol ?? asset.name) : assetId;
-  return (
-    <Link to={`/investments/assets/${assetId}`} className="font-medium text-primary hover:underline">
-      {label}
-    </Link>
-  );
-}
-
 /** Mostra la capacita' REALE rimasta di una riga dopo la compensazione
  * delle plusvalenze (FETTA 2) — mai il solo valore grezzo `nominal`
  * (`usable_amount` dal backend), che da solo sembrava capienza ancora
@@ -328,19 +323,6 @@ function RemainingCell({ nominal, remaining }: { nominal: string; remaining: str
       )}
     </div>
   );
-}
-
-/** Badge distintivo per riga (SPEC_TAX_REGIME.md: "calcolato" vs "inserito
- * dall'utente", mai un numero senza dire da dove viene) — `source` arriva
- * dal backend come stringa libera, non un enum frontend: solo "computed"
- * ha un significato noto (FETTA 2), qualunque altro valore (oggi solo
- * "user_opening") cade nel default onesto. */
-function SourceBadge({ source }: { source: string }) {
-  const { t } = useTranslation("tax");
-  if (source === "computed") {
-    return <Badge tone="primary">{t("lossPocket.table.sourceComputed")}</Badge>;
-  }
-  return <Badge tone="neutral">{t("lossPocket.table.sourceUserOpening")}</Badge>;
 }
 
 function groupRowsByPerimeter(rows: LossPocketRow[], totals: Record<string, string>) {

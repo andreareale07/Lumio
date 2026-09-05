@@ -5,7 +5,10 @@ import { buildQueryString } from "../../lib/queryString";
 import type {
   AssetTaxClassification,
   LossPocket,
+  RealizedEventsPage,
   TaxableGains,
+  TaxEventOverride,
+  TaxEventOverrideInput,
   TaxJurisdiction,
   TaxLossOpening,
   TaxLossOpeningCreate,
@@ -190,5 +193,61 @@ export function useTaxableGains(on: string) {
     queryKey: taxTaxableGainsKey(on),
     queryFn: () => api.get<TaxableGains>(`/tax/taxable-gains${buildQueryString({ on })}`),
     enabled: !!on,
+  });
+}
+
+export interface RealizedEventsFilters {
+  on: string;
+  asset_id?: string;
+  financial_account_id?: string;
+  excluded_only?: boolean;
+  limit: number;
+  offset: number;
+}
+
+export const taxRealizedEventsKey = (filters: RealizedEventsFilters) => ["tax", "realized-events", filters] as const;
+
+/** Elenco paginato/filtrabile degli eventi realizzati (inclusi quelli
+ * esclusi, con motivo) — usato dalla pagina dedicata
+ * `/investments/tax/realized-events` per scegliere quale evento correggere
+ * con un override (FETTA 2, "override per singolo evento"). Il backend
+ * calcola per intero in memoria e pagina solo la vista: `total` è un
+ * conteggio esatto, non un'euristica. */
+export function useRealizedEvents(filters: RealizedEventsFilters) {
+  return useQuery({
+    queryKey: taxRealizedEventsKey(filters),
+    queryFn: () => api.get<RealizedEventsPage>(`/tax/realized-events${buildQueryString(filters)}`),
+    enabled: !!filters.on,
+  });
+}
+
+function invalidateRealizedEvents(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ["tax", "realized-events"] });
+  queryClient.invalidateQueries({ queryKey: ["tax", "loss-pocket"] });
+  queryClient.invalidateQueries({ queryKey: ["tax", "taxable-gains"] });
+}
+
+export function useSetEventOverride() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      lotTransactionId,
+      sellTransactionId,
+      input,
+    }: {
+      lotTransactionId: string;
+      sellTransactionId: string;
+      input: TaxEventOverrideInput;
+    }) => api.put<TaxEventOverride>(`/tax/realized-events/${lotTransactionId}/${sellTransactionId}/override`, input),
+    onSuccess: () => invalidateRealizedEvents(queryClient),
+  });
+}
+
+export function useDeleteEventOverride() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lotTransactionId, sellTransactionId }: { lotTransactionId: string; sellTransactionId: string }) =>
+      api.delete<void>(`/tax/realized-events/${lotTransactionId}/${sellTransactionId}/override`),
+    onSuccess: () => invalidateRealizedEvents(queryClient),
   });
 }

@@ -245,3 +245,64 @@ class TaxableGainsOut(BaseModel):
     tax_due_by_perimeter: dict[str, Decimal]
     remaining_pocket_by_perimeter: dict[str, Decimal]
     excluded_events: list[ExcludedRealizedEventOut] = Field(default_factory=list)
+
+
+# --- Eventi realizzati + override per singolo evento (FETTA 2) --------------
+
+
+class ClassifiedRealizedEventOut(BaseModel):
+    """Rispecchia `ClassifiedRealizedEvent` 1:1 — un evento e' identificato
+    dalla coppia `(lot_transaction_id, sell_transaction_id)`, univoca per
+    costruzione (mai una sola data, ambigua con piu' movimenti stesso
+    giorno)."""
+
+    financial_account_id: uuid.UUID
+    asset_id: uuid.UUID
+    trade_date: date
+    quantity: Decimal
+    proceeds: Decimal
+    cost_basis: Decimal
+    gain_or_loss: Decimal
+    lot_formation_date: date
+    lot_transaction_id: uuid.UUID
+    sell_transaction_id: uuid.UUID
+    asset_class: str | None
+    gain_category: str | None
+    loss_category: str | None
+    rate: Decimal | None
+    taxable_coefficient: Decimal | None
+    legal_reference: str | None
+    perimeter: str | None
+    formed_under_ruleset_code: str | None
+    excluded_reason: str | None
+    is_overridden: bool
+
+
+class RealizedEventsPageOut(BaseModel):
+    """Pagina filtrata/ordinata sopra `list_realized_events` (già calcolato
+    per intero in memoria, nessuna query paginata a DB) — `total` è un
+    conteggio esatto post-filtro, non un'euristica basata sul riempimento
+    della pagina."""
+
+    items: list[ClassifiedRealizedEventOut]
+    total: int
+
+
+class TaxEventOverrideIn(BaseModel):
+    override_gain_or_loss: Decimal | None = None
+    excluded: bool = False
+    notes: str | None = None
+
+
+class TaxEventOverrideOut(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    lot_transaction_id: uuid.UUID
+    sell_transaction_id: uuid.UUID
+    override_gain_or_loss: Decimal | None
+    excluded: bool
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
