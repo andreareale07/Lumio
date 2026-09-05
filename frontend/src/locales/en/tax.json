@@ -105,12 +105,16 @@
         "action": "Go to accounts"
       },
       "noData": {
-        "title": "Lumio doesn't compute losses from transactions yet",
-        "description": "This is a limitation of Lumio at this stage, not a sign that you have no prior losses: if you do, add them as an opening balance.",
+        "title": "No losses right now",
+        "description": "Lumio automatically computes losses from your recorded buys/sells, but none show up — if you have losses from before you started using Lumio (or that Lumio can't reconstruct), add them as an opening balance.",
         "action": "Add an opening balance"
       }
     },
+    "coverageNotice_one": "{{count}} sale excluded from the calculation (uncodified asset or account with no regime on that date) — the total is partial.",
+    "coverageNotice_other": "{{count}} sales excluded from the calculation (uncodified asset or account with no regime on that date) — the total is partial.",
     "table": {
+      "asset": "Asset",
+      "manualEntry": "Manual balance",
       "formationDate": "Formed on",
       "nominal": "Nominal",
       "coefficient": "Coefficient",
@@ -118,7 +122,17 @@
       "expiresOn": "Expires on",
       "expired": "Expired",
       "source": "Source",
-      "sourceUserOpening": "Set by you"
+      "sourceUserOpening": "Set by you",
+      "sourceComputed": "Computed",
+      "consumed": "of which {{value}} already offset"
+    },
+    "taxableGains": {
+      "title": "Gains and tax due",
+      "taxDue": "Estimated tax",
+      "remainingPocket": "Remaining pocket",
+      "nominal": "Gain",
+      "offset": "Offset",
+      "taxableAmount": "Taxable"
     },
     "openingDialog": {
       "title": "New opening balance",

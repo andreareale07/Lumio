@@ -235,6 +235,27 @@
         "gainPct": "Rendimento %"
       },
       "atCostSuffix": " (a costo)"
+    },
+    "movements": {
+      "title": "Acquisti",
+      "loadError": "Movimenti non disponibili.",
+      "empty": "Nessun acquisto registrato per questo asset.",
+      "statusHeader": "Stato",
+      "status": {
+        "open": "Aperta",
+        "closed": "Chiusa",
+        "partial": "Parzialmente chiusa"
+      },
+      "sellRow": "Vendita",
+      "closedOn": "chiusa il {{date}}",
+      "stillHeld": "ancora possedute",
+      "seeBelow": "vedi righe sotto",
+      "totals": {
+        "title": "Totale realizzato + non realizzato",
+        "realized": "Realizzato totale",
+        "unrealized": "Non realizzato totale",
+        "overall": "Totale complessivo"
+      }
     }
   },
   "detail": {

@@ -414,17 +414,142 @@ Poi su Docker, sul workspace reale:
 ## Cosa NON è in FETTA 1
 
 Motore a lotti LIFO, eventi realizzativi, compensazione progressiva evento-per-evento,
-override per singolo evento, chiusura d'anno (**FETTA 2**). Vista dichiarativa avanzata e
-proiezione "se vendo oggi" / simulatore ordine di vendita (**FETTA 3**, richiede FETTA 2).
-Regime gestito (modello predisposto, non implementato). Cripto, derivati, certificati, ETF non
-armonizzati: la classe fiscale esiste come dato ma è `not_codified` → esclusa e segnalata.
+override per singolo evento, chiusura d'anno (**FETTA 2**, brief sotto). Vista dichiarativa
+avanzata e proiezione "se vendo oggi" / simulatore ordine di vendita (**FETTA 3**, richiede
+FETTA 2). Regime gestito (modello predisposto, non implementato). Cripto, derivati,
+certificati, ETF non armonizzati: la classe fiscale esiste come dato ma è `not_codified` →
+esclusa e segnalata.
 
-**Vincolo di progetto da rispettare ora anche se FETTA 2 non si implementa**: quando si
-creerà `tax_lots` (FETTA 2), la sua chiave dovrà essere `(workspace_id, asset_id)` con
-`financial_account_id` come **attributo del lotto**, non come partizione della chiave —
-altrimenti il LIFO sulla posizione complessiva del contribuente (risposta AdE 204/2023)
-diventa impossibile senza rifare lo schema. Non riguarda le tabelle di FETTA 1, ma condiziona
-come si penserà il ledger dopo.
+---
+
+# FETTA 2 — motore a lotti (brief operativo)
+
+Decisioni prese con l'utente prima di scrivere codice (stessa disciplina di FETTA 1: la
+tensione normativa qui sotto era esplicitamente lasciata aperta da FETTA 1, non un dettaglio
+tecnico da inventare in corsa).
+
+## Decisione: perimetro del LIFO
+
+**Il LIFO consuma i lotti SEMPRE per singolo conto**, mai aggregato tra conti diversi anche
+se stesso perimetro (dichiarativo). Motivazione: un broker ha una custodia fisica separata e
+non vede cosa possiedi altrove — per l'amministrato è esattamente come funziona nella realtà
+(il sostituto d'imposta preleva/compensa solo su ciò che vede lui). Per il dichiarativo,
+l'aggregazione tra conti resta ma avviene **a valle**, sullo zainetto (già aggregato per
+perimetro fin da FETTA 1), non nel motore di consumo dei lotti stesso — la tensione con la
+risposta AdE 204/2023 (LIFO sulla posizione complessiva del contribuente) è quindi
+consapevolmente non risolta al livello del motore, spostata sul fatto che lo zainetto
+compensa comunque a valle su tutto il perimetro dichiarativo. Marcata
+`FISCAL ASSUMPTION REQUIRING VALIDATION` nel codice.
+
+Questo NON contraddice il vincolo già scritto sopra (chiave `tax_lots` = `(workspace_id,
+asset_id)`, non partizionata per conto): il vincolo resta per non chiudere la porta a un
+futuro cambio di consumo aggregato, ma FETTA 2 filtra sempre per `financial_account_id` nella
+query di consumo.
+
+**Correzione fatta durante l'implementazione** (domanda dell'utente: "perché LIFO, è
+specifico dell'Italia?"): il criterio di consumo (LIFO) è una prassi amministrativa
+dell'Agenzia delle Entrate, non una regola universale — altri paesi usano criteri diversi
+(USA: FIFO di default; UK: share-pooling; non verificato con ricerca fresca in questa
+sessione, solo l'esistenza di alternative è certa). Per questo `lot_consumption_order`
+("lifo" | "fifo") è un campo di `TaxRuleset` (`app/tax/base.py`), valorizzato `"lifo"` sui 3
+ruleset italiani — MAI cablato dentro `tax_lot_calc.py`, che lo riceve come parametro
+esplicito. Stessa filosofia già seguita per aliquote/categorie/regimi: una regola
+giurisdizione-specifica è sempre un dato dichiarato, mai un comportamento fisso nel motore
+generico.
+
+## Decisione: derivato, non persistito (stesso principio di FETTA 1)
+
+**Nessuna tabella `tax_lots` in FETTA 2**: i lotti e gli eventi realizzativi si calcolano a
+lettura da `investment_transactions` (unica sorgente di verità, SPEC §35), esattamente come
+`position_calc.py` deriva le posizioni — mai un secondo ledger da tenere sincronizzato. Stesso
+precedente già citato in FETTA 1 (`compute_historical_series`,
+`portfolio_analytics.py:654`): l'utente corregge/retrodata i movimenti, un lotto congelato
+diverge silenziosamente. Il vincolo sulla chiave sopra resta comunque valido nel caso in cui
+in futuro servisse persisterli per performance.
+
+## Motore puro: `app/services/tax_lot_calc.py`
+
+Parallelo a `position_calc.py` (mai modificato, riusa `Protocol MovementLike` ma **non** la
+conflazione `fees + tax` di quel modulo — vedi sopra "Due vincoli non negoziabili"):
+
+- **Costo del lotto (buy/opening)**: `qty * price + fees`. `tax` NON entra nel costo — è un
+  esito (ritenuta), mai un onere accessorio.
+- **Provento della vendita (sell)**: `qty * price - fees`. Stesso principio: `tax` non riduce
+  il provento, il realizzo si calcola al lordo della ritenuta.
+- **Consumo LIFO**: stack per `(financial_account_id, asset_id)`; una vendita consuma dal
+  lotto più recente indietro nel tempo finché la quantità non è coperta (una vendita può
+  attraversare più lotti). Ogni porzione consumata genera un `RealizedTaxEvent` con
+  `formation_date` = data della VENDITA (la minus/plusvalenza si forma al realizzo, non
+  all'acquisto), `gain_or_loss = proceeds_portion - lot_cost_portion`.
+- **Split**: scala quantity/unit_cost di ogni lotto aperto dello stesso asset, stesso
+  principio di `position_calc.py` (il valore totale non cambia).
+- **`adjustment`**: delta positivo → lotto sintetico con `price` fornito come costo (se
+  `price` assente, escluso con warning — nessun costo inventabile); delta negativo → consumo
+  LIFO silenzioso, **nessun** `RealizedTaxEvent` (è una correzione dati, non una cessione
+  reale — stesso principio di `position_service.py` per gli adjustment).
+- **`dividend`**: mai un evento di costo/vendita sul lotto (stesso `_NO_EFFECT_TYPES` di
+  `position_calc.py`) — è reddito di capitale, gestito come `event_kind="income"` verso
+  `TaxTreatment`, non tocca i lotti.
+- Come già oggi in `position_calc.py`: nessuna eccezione su dati "sporchi" (vendita che
+  eccede la quantità posseduta) — warning accumulato, risultato onesto, mai un blocco.
+
+## Classificazione e trattamento per evento
+
+Ogni `RealizedTaxEvent` (buy/sell reali, non i lotti sintetici da adjustment) viene
+classificato DOPO il calcolo puro, nel service DB-aware (`tax_realized_service.py`):
+`jurisdiction.derive_asset_class`/override (`tax_classification_service.py`, riuso diretto)
+→ `jurisdiction.treatment(asset_class, "sale", trade_date)` → se `not_codified`, l'evento è
+escluso dal totale e segnalato (stessa "copertura parziale" di FETTA 1), mai un numero
+inventato.
+
+## Integrazione con lo zainetto
+
+Un `RealizedTaxEvent` con `gain_or_loss < 0` diventa un `LossPocketEntry` con
+`source="computed"` (il campo esiste già dal design di FETTA 1,
+`app/services/tax_calc.py::LossPocketEntry.source`) — **nessuna modifica a
+`build_loss_pocket`**, solo un nuovo produttore di entry accanto alle aperture manuali.
+`formed_under_ruleset_code` risolto dal server sulla data di vendita, stesso principio delle
+aperture manuali.
+
+## Compensazione progressiva evento-per-evento
+
+Per ogni `RealizedTaxEvent` con `gain_or_loss > 0` (plusvalenza), PRIMA di considerarla
+imponibile: cerca capacità disponibile nello zainetto dello stesso perimetro con
+`can_offset(loss_category, gain_category, on)` vero, consuma FIFO per anno di formazione
+(stessa `CarryForwardRule`, riusa la stessa assunzione già marcata in FETTA 1), riduce la
+plusvalenza imponibile e la capacità residua del pozzo di pari importo. Gli eventi si
+processano in **ordine cronologico** per perimetro (non per conto): una compensazione decisa
+oggi deve rispecchiare l'ordine reale in cui gli eventi sono accaduti nel tempo, mai
+ricalcolata "a ritroso" con il senno di poi.
+
+## Cosa resta fuori anche da FETTA 2 (rimandato a dopo)
+
+**Override per singolo evento** (l'utente corregge un `RealizedTaxEvent` specifico — es. un
+prezzo di carico storico sbagliato): il modello dati non lo impedisce (ogni evento ha un'
+identità derivabile da `investment_transaction_id` + indice del lotto consumato) ma
+l'interfaccia non si costruisce nella prima fetta di FETTA 2. **Chiusura d'anno**
+(`tax_year_closures`): congela il numero dichiarato, si costruisce solo quando serve
+davvero (nessuna finta implementazione preventiva) — la docstring di `tax_calc.py` lo marca
+già come unica eccezione futura al principio "derivato, non persistito".
+
+## Ordine di implementazione
+
+1. **FATTO** — `tax_lot_calc.py` (puro, nessun DB), verificato a mano (LIFO/FIFO
+   parametrizzato, separazione fees/tax, split, oversell, adjustment). 2. **FATTO** —
+   `tax_realized_service.py` (DB-aware: legge `investment_transactions`, classifica,
+   produce `ClassifiedRealizedEvent[]`, esclude e segnala asset non codificati/conti senza
+   regime a quella data). 3. **FATTO** — `tax_gains_service.compute_tax_summary` orchestra
+   aperture manuali + eventi calcolati in un'unica lettura; `GET /tax/loss-pocket` mostra le
+   minusvalenze `computed` accanto a `user_opening` (`tax_calc.build_loss_pocket` non
+   modificata, resta sul solo pool di perdite). 4. **FATTO** — `tax_calc.compute_taxable_gains`
+   (nuova funzione pura, compensazione progressiva cronologica per perimetro, FIFO sul pool)
+   + `GET /tax/taxable-gains`. Verificato end-to-end (smoke reale via API, non solo unit):
+   una vendita che genera sia una minusvalenza che una plusvalenza nello stesso giorno
+   (stesso esempio motivante dell'utente) compensa correttamente, zainetto "grezzo" mai
+   mutato alla fonte. 5. **DA FARE** — Frontend: la vista zainetto (`/investments/tax`) deve
+   mostrare le minusvalenze `computed` insieme a quelle manuali (badge diverso, coerente col
+   principio "calcolato vs inserito dall'utente" già in FETTA 1) + una vista/sezione per
+   `GET /tax/taxable-gains` (imposta dovuta, capienza residua per perimetro).
 
 ---
 

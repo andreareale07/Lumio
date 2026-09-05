@@ -534,6 +534,29 @@ export interface Asset {
   display_name: string | null;
 }
 
+// Scomposizione aperto/chiuso di un acquisto (bug reale: il rendimento
+// calcolato contro il prezzo attuale non ha senso per una posizione gia'
+// venduta). Il criterio di abbinamento acquisto/vendita e' quello della
+// giurisdizione fiscale corrente (LIFO/FIFO), non un valore fisso.
+export interface ClosedPortion {
+  quantity: string;
+  sell_transaction_id: Uuid;
+  sell_trade_date: IsoDate;
+  proceeds: string;
+  cost_basis: string;
+  gain_or_loss: string;
+}
+
+export interface LotBreakdownRow {
+  transaction_id: Uuid;
+  financial_account_id: Uuid;
+  trade_date: IsoDate;
+  quantity: string;
+  price: string;
+  open_quantity: string;
+  closed_portions: ClosedPortion[];
+}
+
 export interface Portfolio {
   id: Uuid;
   workspace_id: Uuid;
@@ -1206,11 +1229,54 @@ export interface LossPocketRow {
   conversion_reference: string | null;
   expires_on: IsoDate;
   is_expired: boolean;
+  // null per le aperture manuali (saldo aggregato, non legato a un
+  // titolo) — valorizzato per le righe "computed" (FETTA 2).
+  asset_id: Uuid | null;
+  // Capacita' REALE rimasta dopo la compensazione delle plusvalenze —
+  // <= usable_amount sempre, 0 se completamente consumata. `usable_amount`
+  // resta il valore grezzo mai mutato (audit).
+  remaining_amount: string;
+}
+
+// FETTA 2: un evento realizzativo reale (vendita) che NON entra nello
+// zainetto/nella compensazione — asset non codificato o conto senza regime
+// impostato a quella data. Mai un numero inventato, mai sparito: resta
+// visibile qui con il motivo.
+export interface ExcludedRealizedEvent {
+  financial_account_id: Uuid;
+  asset_id: Uuid;
+  trade_date: IsoDate;
+  gain_or_loss: string;
+  excluded_reason: string;
 }
 
 export interface LossPocket {
   rows: LossPocketRow[];
+  // Totale GREZZO per perimetro, mai toccato dalla compensazione (audit).
   totals_by_perimeter: Record<string, string>;
+  // Capacita' REALE rimasta per perimetro dopo la compensazione — usare
+  // questo, non `totals_by_perimeter`, per il numero "capienza disponibile"
+  // in UI.
+  remaining_by_perimeter: Record<string, string>;
   residence_declared: boolean;
   computed_from_movements: boolean;
+  excluded_events: ExcludedRealizedEvent[];
+}
+
+export interface TaxableGainRow {
+  trade_date: IsoDate;
+  perimeter: string;
+  gain_category: string;
+  nominal: string;
+  offset_amount: string;
+  taxable_amount: string;
+  tax_due: string;
+  asset_id: Uuid;
+}
+
+export interface TaxableGains {
+  rows: TaxableGainRow[];
+  tax_due_by_perimeter: Record<string, string>;
+  remaining_pocket_by_perimeter: Record<string, string>;
+  excluded_events: ExcludedRealizedEvent[];
 }

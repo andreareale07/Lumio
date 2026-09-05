@@ -5,6 +5,7 @@ import { buildQueryString } from "../../lib/queryString";
 import type {
   AssetTaxClassification,
   LossPocket,
+  TaxableGains,
   TaxJurisdiction,
   TaxLossOpening,
   TaxLossOpeningCreate,
@@ -150,6 +151,7 @@ export function useTaxLossOpenings() {
 function invalidateLossPocket(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: taxLossOpeningsKey });
   queryClient.invalidateQueries({ queryKey: ["tax", "loss-pocket"] });
+  queryClient.invalidateQueries({ queryKey: ["tax", "taxable-gains"] });
 }
 
 export function useCreateTaxLossOpening() {
@@ -174,6 +176,19 @@ export function useLossPocket(on: string) {
   return useQuery({
     queryKey: taxLossPocketKey(on),
     queryFn: () => api.get<LossPocket>(`/tax/loss-pocket${buildQueryString({ on })}`),
+    enabled: !!on,
+  });
+}
+
+export const taxTaxableGainsKey = (on: string) => ["tax", "taxable-gains", on] as const;
+
+/** FETTA 2: compensazione progressiva delle plusvalenze realizzate contro
+ * lo zainetto — vista separata da `useLossPocket` (quella resta la vista
+ * onesta "quanto ho disponibile prima di consumarlo"). */
+export function useTaxableGains(on: string) {
+  return useQuery({
+    queryKey: taxTaxableGainsKey(on),
+    queryFn: () => api.get<TaxableGains>(`/tax/taxable-gains${buildQueryString({ on })}`),
     enabled: !!on,
   });
 }

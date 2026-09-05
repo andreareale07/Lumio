@@ -4,6 +4,7 @@ impostazioni, un'unica risorsa `/tax` evita di forzare l'accoppiamento in
 una delle tre."""
 import uuid
 from datetime import date
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -18,10 +19,13 @@ from app.schemas.tax import (
     AssetTaxClassificationOut,
     AssetTaxClassificationSetIn,
     CarryForwardRuleOut,
+    ExcludedRealizedEventOut,
     LossConversionOut,
     LossPocketOut,
     LossPocketRowOut,
     OffsetRuleOut,
+    TaxableGainRowOut,
+    TaxableGainsOut,
     TaxAssetClassOut,
     TaxJurisdictionOut,
     TaxLossOpeningCreate,
@@ -40,8 +44,8 @@ from app.schemas.tax import (
 )
 from app.services import tax_classification_service, tax_opening_service, tax_regime_service
 from app.services.audit_log_service import log_event
-from app.services.tax_calc import LossPocketEntry, build_loss_pocket
 from app.services.tax_context import resolve_tax_context
+from app.services.tax_gains_service import compute_tax_summary
 from app.tax.registry import JURISDICTIONS, get_jurisdiction
 
 router = APIRouter(prefix="/tax", tags=["tax"])
@@ -402,6 +406,19 @@ async def delete_loss_pocket_opening(
 # --- Zainetto ------------------------------------------------------------
 
 
+def _excluded_events_out(summary) -> list[ExcludedRealizedEventOut]:
+    return [
+        ExcludedRealizedEventOut(
+            financial_account_id=e.financial_account_id,
+            asset_id=e.asset_id,
+            trade_date=e.trade_date,
+            gain_or_loss=e.gain_or_loss,
+            excluded_reason=e.excluded_reason,
+        )
+        for e in summary.excluded_events
+    ]
+
+
 @router.get("/loss-pocket", response_model=LossPocketOut)
 async def get_loss_pocket(
     on: date = Query(),
@@ -409,22 +426,38 @@ async def get_loss_pocket(
     db: AsyncSession = Depends(get_db),
 ) -> LossPocketOut:
     context = await resolve_tax_context(db, workspace_id, on)
-    openings = await tax_opening_service.list_openings(db, workspace_id)
-    entries = [
-        LossPocketEntry(
-            formation_date=o.formation_date,
-            nominal=o.amount,
-            income_category=o.income_category,
-            perimeter=str(o.financial_account_id) if o.financial_account_id is not None else "dichiarativo",
-            source="user_opening",
-            formed_under_ruleset_code=o.formed_under_ruleset_code,
-        )
-        for o in openings
-    ]
-    ruleset = context.jurisdiction.ruleset_at(on)
-    result = build_loss_pocket(entries, ruleset, on)
+    summary = await compute_tax_summary(db, workspace_id, context.jurisdiction, on)
+    computed_rows = [r for r in summary.loss_pocket.rows if r.source == "computed"]
+    remaining_per_row = summary.taxable_gains.remaining_per_row
+    remaining_by_perimeter: dict[str, Decimal] = {}
+    for row, remaining in zip(summary.loss_pocket.rows, remaining_per_row):
+        if row.is_expired:
+            continue
+        remaining_by_perimeter[row.perimeter] = remaining_by_perimeter.get(row.perimeter, Decimal("0")) + remaining
     return LossPocketOut(
-        rows=[LossPocketRowOut(**vars(r)) for r in result.rows],
-        totals_by_perimeter=result.totals_by_perimeter,
+        rows=[
+            LossPocketRowOut(**vars(row), remaining_amount=remaining)
+            for row, remaining in zip(summary.loss_pocket.rows, remaining_per_row)
+        ],
+        totals_by_perimeter=summary.loss_pocket.totals_by_perimeter,
+        remaining_by_perimeter=remaining_by_perimeter,
         residence_declared=context.residence_declared,
+        computed_from_movements=len(computed_rows) > 0,
+        excluded_events=_excluded_events_out(summary),
+    )
+
+
+@router.get("/taxable-gains", response_model=TaxableGainsOut)
+async def get_taxable_gains(
+    on: date = Query(),
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> TaxableGainsOut:
+    context = await resolve_tax_context(db, workspace_id, on)
+    summary = await compute_tax_summary(db, workspace_id, context.jurisdiction, on)
+    return TaxableGainsOut(
+        rows=[TaxableGainRowOut(**vars(r)) for r in summary.taxable_gains.rows],
+        tax_due_by_perimeter=summary.taxable_gains.tax_due_by_perimeter,
+        remaining_pocket_by_perimeter=summary.taxable_gains.remaining_pocket_by_perimeter,
+        excluded_events=_excluded_events_out(summary),
     )

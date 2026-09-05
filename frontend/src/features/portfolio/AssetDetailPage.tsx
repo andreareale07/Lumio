@@ -7,6 +7,7 @@ import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { RangeSelector } from "../../components/charts/RangeSelector";
 import { BackLink } from "../../components/ui/BackLink";
+import { Badge } from "../../components/ui/Badge";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
@@ -21,18 +22,18 @@ import {
   formatSignedMoney,
   formatTime,
 } from "../../lib/format";
-import type { AssetProfile, HistoryPreset } from "../../types/api";
+import type { AssetProfile, HistoryPreset, LotBreakdownRow } from "../../types/api";
 import { useMarketDataProfiles } from "../settings/market-data/api";
 import { AssetTaxCard } from "../tax/AssetTaxCard";
 import {
   useAssetProfile,
   useAssets,
   useAssetValuation,
-  useInvestmentTransactions,
+  useLotBreakdown,
   usePositions,
   usePriceHistory,
 } from "./api";
-import { distributionPolicyLabel, useAssetTypeLabel, useInvestmentTransactionTypeLabel } from "./labels";
+import { distributionPolicyLabel, useAssetTypeLabel } from "./labels";
 
 export function AssetDetailPage() {
   const { t } = useTranslation("portfolio");
@@ -61,7 +62,7 @@ export function AssetDetailPage() {
   const activeProfile = marketDataProfiles.data?.find((p) => p.is_active) ?? null;
   const detailRefetchMs = activeProfile ? activeProfile.detail_refresh_interval_seconds * 1000 : undefined;
   const history = usePriceHistory(assetId ?? null, preset, preset === "1G" ? detailRefetchMs : undefined);
-  const purchases = useInvestmentTransactions({ asset_id: assetId, type: "buy", limit: 100 });
+  const lotBreakdown = useLotBreakdown(assetId ?? null);
   const assetProfile = useAssetProfile(assetId ?? null);
   const valuation = useAssetValuation(assetId ?? null, undefined, detailRefetchMs);
   // Prezzo attuale nella STESSA valuta dei singoli acquisti (di norma quella
@@ -282,15 +283,16 @@ export function AssetDetailPage() {
         </p>
       )}
 
-      <PurchasesList
-        isLoading={purchases.isLoading}
-        isError={purchases.isError}
-        onRetry={() => void purchases.refetch()}
-        transactions={purchases.data ?? []}
+      <MovementsList
+        isLoading={lotBreakdown.isLoading}
+        isError={lotBreakdown.isError}
+        onRetry={() => void lotBreakdown.refetch()}
+        rows={lotBreakdown.data ?? []}
         currentPrice={nativeValuation.data?.price !== null && nativeValuation.data?.price !== undefined
           ? Number(nativeValuation.data.price)
           : null}
         currentPriceCurrency={nativeValuation.data?.currency ?? null}
+        assetCurrency={asset.currency}
         totals={
           openPositions.length > 0 && nativeValuation.data
             ? {
@@ -355,50 +357,211 @@ interface PurchasesTotals {
   unrealizedPlPct: number | null;
 }
 
-function PurchasesList({
+/** Riga di visualizzazione derivata da `LotBreakdownRow` (scomposizione
+ * aperto/chiuso) o da un raggruppamento di vendite — mai la riga grezza
+ * dell'acquisto: un acquisto gia' venduto (in tutto o in parte) mostra il
+ * rendimento REALIZZATO (contro il prezzo vero di vendita), mai quello non
+ * realizzato contro il prezzo di oggi (bug reale segnalato dall'utente). */
+interface MovementLine {
+  key: string;
+  kind: "buy-parent" | "buy-open-child" | "buy-closed-child" | "sell";
+  indent: boolean;
+  date: string;
+  // Chiave di ordinamento — per le righe figlie e' la data del PADRE, mai
+  // la propria: altrimenti, con piu' acquisti parzialmente chiusi in tempi
+  // diversi, un ordinamento globale per data separerebbe una riga figlia
+  // dal suo genitore (l'ordinamento e' stabile in JS, l'adiacenza si
+  // ottiene solo mantenendo la stessa chiave per l'intero gruppo).
+  sortKey: string;
+  quantity: number;
+  priceLabel: string;
+  status: "open" | "closed" | "partial" | null;
+  gain: number | null;
+  gainPct: number | null;
+}
+
+/** Trasforma la scomposizione lotto-per-lotto in righe pronte per la UI +
+ * i totali realizzato/non realizzato/complessivo (richiesta esplicita
+ * dell'utente: "capire se alla fine la posizione e' in gain o in loss"). */
+function buildMovementLines(
+  rows: LotBreakdownRow[],
+  currentPrice: number | null,
+  currentPriceCurrency: string | null,
+  assetCurrency: string,
+): { lines: MovementLine[]; totalRealized: number; totalUnrealized: number | null } {
+  const canValueOpen = currentPrice !== null && currentPriceCurrency === assetCurrency;
+  const lines: MovementLine[] = [];
+  let totalRealized = 0;
+  let hasAnyOpenWithoutPrice = false;
+  let totalUnrealized = 0;
+
+  // Raggruppa le vendite per transazione: una vendita puo' aver chiuso PIU'
+  // acquisti diversi (LIFO/FIFO attraversa piu' lotti) — una riga sola per
+  // vendita reale, non una per lotto toccato.
+  const sellAgg = new Map<string, { date: string; quantity: number; proceeds: number; gain: number }>();
+  for (const row of rows) {
+    for (const portion of row.closed_portions) {
+      const existing = sellAgg.get(portion.sell_transaction_id) ?? {
+        date: portion.sell_trade_date,
+        quantity: 0,
+        proceeds: 0,
+        gain: 0,
+      };
+      existing.quantity += Number(portion.quantity);
+      existing.proceeds += Number(portion.proceeds);
+      existing.gain += Number(portion.gain_or_loss);
+      sellAgg.set(portion.sell_transaction_id, existing);
+      totalRealized += Number(portion.gain_or_loss);
+    }
+  }
+
+  for (const row of rows) {
+    const openQty = Number(row.open_quantity);
+    const hasClosed = row.closed_portions.length > 0;
+    const status: MovementLine["status"] = !hasClosed ? "open" : openQty > 0 ? "partial" : "closed";
+
+    if (openQty > 0) {
+      if (canValueOpen) totalUnrealized += (currentPrice! - Number(row.price)) * openQty;
+      else hasAnyOpenWithoutPrice = true;
+    }
+
+    lines.push({
+      key: row.transaction_id,
+      kind: "buy-parent",
+      indent: false,
+      date: row.trade_date,
+      sortKey: row.trade_date,
+      quantity: Number(row.quantity),
+      priceLabel: formatMoney(row.price, assetCurrency),
+      status,
+      // Nessun figlio da mostrare separatamente (mai toccato o interamente
+      // chiuso con un'unica vendita): il rendimento vive gia' qui, niente
+      // indentazione superflua.
+      gain: !hasClosed
+        ? openQty > 0 && canValueOpen
+          ? (currentPrice! - Number(row.price)) * openQty
+          : null
+        : openQty === 0 && row.closed_portions.length === 1
+          ? Number(row.closed_portions[0].gain_or_loss)
+          : null,
+      gainPct: !hasClosed
+        ? openQty > 0 && canValueOpen && Number(row.price) !== 0
+          ? (currentPrice! - Number(row.price)) / Number(row.price)
+          : null
+        : openQty === 0 && row.closed_portions.length === 1
+          ? Number(row.closed_portions[0].gain_or_loss) / Number(row.closed_portions[0].cost_basis)
+          : null,
+    });
+
+    const needsChildren = hasClosed && (openQty > 0 || row.closed_portions.length > 1);
+    if (needsChildren) {
+      for (const portion of row.closed_portions) {
+        const qty = Number(portion.quantity);
+        lines.push({
+          key: `${row.transaction_id}-closed-${portion.sell_transaction_id}`,
+          kind: "buy-closed-child",
+          indent: true,
+          date: portion.sell_trade_date,
+          sortKey: row.trade_date,
+          quantity: qty,
+          priceLabel: formatMoney(Number(portion.proceeds) / qty, assetCurrency),
+          status: null,
+          gain: Number(portion.gain_or_loss),
+          gainPct: Number(portion.gain_or_loss) / Number(portion.cost_basis),
+        });
+      }
+      if (openQty > 0) {
+        lines.push({
+          key: `${row.transaction_id}-open`,
+          kind: "buy-open-child",
+          indent: true,
+          date: row.trade_date,
+          sortKey: row.trade_date,
+          quantity: openQty,
+          priceLabel: canValueOpen ? formatMoney(currentPrice!, assetCurrency) : "—",
+          status: null,
+          gain: canValueOpen ? (currentPrice! - Number(row.price)) * openQty : null,
+          gainPct: canValueOpen && Number(row.price) !== 0 ? (currentPrice! - Number(row.price)) / Number(row.price) : null,
+        });
+      }
+    }
+  }
+
+  for (const [sellId, agg] of sellAgg) {
+    lines.push({
+      key: `sell-${sellId}`,
+      kind: "sell",
+      indent: false,
+      date: agg.date,
+      sortKey: agg.date,
+      quantity: agg.quantity,
+      priceLabel: formatMoney(agg.proceeds / agg.quantity, assetCurrency),
+      status: null,
+      gain: agg.gain,
+      gainPct: null,
+    });
+  }
+
+  lines.sort((a, b) => a.sortKey.localeCompare(b.sortKey) || (a.indent ? 1 : 0) - (b.indent ? 1 : 0));
+
+  return {
+    lines,
+    totalRealized,
+    totalUnrealized: hasAnyOpenWithoutPrice ? null : totalUnrealized,
+  };
+}
+
+function StatusBadge({ status }: { status: NonNullable<MovementLine["status"]> }) {
+  const { t } = useTranslation("portfolio");
+  const tone = status === "open" ? "success" : status === "partial" ? "warning" : "neutral";
+  return <Badge tone={tone}>{t(`assetDetail.movements.status.${status}`)}</Badge>;
+}
+
+function MovementsList({
   isLoading,
   isError,
   onRetry,
-  transactions,
+  rows,
   currentPrice,
   currentPriceCurrency,
+  assetCurrency,
   totals,
 }: {
   isLoading: boolean;
   isError: boolean;
   onRetry: () => void;
-  transactions: ReturnType<typeof useInvestmentTransactions>["data"];
+  rows: LotBreakdownRow[];
   currentPrice: number | null;
   currentPriceCurrency: string | null;
+  assetCurrency: string;
   totals: PurchasesTotals | null;
 }) {
   const { t } = useTranslation("portfolio");
-  const investmentTransactionTypeLabel = useInvestmentTransactionTypeLabel();
-  const rows = transactions ?? [];
+  const { lines, totalRealized, totalUnrealized } = buildMovementLines(
+    rows,
+    currentPrice,
+    currentPriceCurrency,
+    assetCurrency,
+  );
+  const overallTotal = totalUnrealized !== null ? totalRealized + totalUnrealized : null;
 
-  // Rendimento per singolo acquisto: confronta il prezzo pagato (in
-  // `t.currency`) con il prezzo attuale nella STESSA valuta — mai calcolato
-  // se le due valute non coincidono (es. un acquisto storico registrato in
-  // una valuta diversa, caso raro ma possibile), stesso principio onesto
-  // usato per "Valore di mercato"/"Rendimento" in cima alla pagina.
-  function computeGain(t: NonNullable<typeof rows>[number]) {
-    const canCompute =
-      currentPrice !== null && currentPriceCurrency === t.currency && t.price !== null && Number(t.price) !== 0;
-    if (!canCompute) return { gain: null, gainPct: null };
-    const gain = (currentPrice! - Number(t.price)) * Number(t.quantity);
-    const gainPct = (currentPrice! - Number(t.price)) / Number(t.price);
-    return { gain, gainPct };
+  // Chiamata solo per righe indentate (figlie di un acquisto scomposto):
+  // le uniche due varianti sono la porzione chiusa e quella ancora aperta.
+  function childLineLabel(line: MovementLine): string {
+    return line.kind === "buy-closed-child"
+      ? t("assetDetail.movements.closedOn", { date: formatDate(line.date) })
+      : t("assetDetail.movements.stillHeld");
   }
 
   return (
     <Card className="flex flex-col gap-3">
-      <h3 className="text-sm font-semibold text-text">{t("assetDetail.purchases.title")}</h3>
+      <h3 className="text-sm font-semibold text-text">{t("assetDetail.movements.title")}</h3>
       {isLoading && <SkeletonRows rows={3} />}
-      {isError && <ErrorState message={t("assetDetail.purchases.loadError")} onRetry={onRetry} />}
-      {!isLoading && !isError && rows.length === 0 && (
-        <p className="text-sm text-text-muted">{t("assetDetail.purchases.empty")}</p>
+      {isError && <ErrorState message={t("assetDetail.movements.loadError")} onRetry={onRetry} />}
+      {!isLoading && !isError && lines.length === 0 && (
+        <p className="text-sm text-text-muted">{t("assetDetail.movements.empty")}</p>
       )}
-      {rows.length > 0 && (
+      {lines.length > 0 && (
         <>
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
@@ -407,130 +570,118 @@ function PurchasesList({
                   <th className="px-3 py-2 font-medium">{t("assetDetail.purchases.table.date")}</th>
                   <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.quantity")}</th>
                   <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.price")}</th>
-                  <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.amount")}</th>
+                  <th className="px-3 py-2 font-medium">{t("assetDetail.movements.statusHeader")}</th>
                   <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.gain")}</th>
                   <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.gainPct")}</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((t) => {
-                  const { gain, gainPct } = computeGain(t);
-                  return (
-                    <tr key={t.id} className="border-t border-border">
-                      <td className="px-3 py-2 text-text">{formatDate(t.trade_date)}</td>
-                      <td className="font-numeric px-3 py-2 text-right text-text-muted">{t.quantity ?? "—"}</td>
-                      <td className="font-numeric px-3 py-2 text-right text-text-muted">
-                        {t.price ? formatMoney(t.price, t.currency) : "—"}
-                      </td>
-                      <td className="font-numeric px-3 py-2 text-right text-text">
-                        {formatSignedMoney(t.amount, t.currency)}
-                      </td>
-                      <td
-                        className={`font-numeric px-3 py-2 text-right ${
-                          gain === null ? "text-text-muted" : gain >= 0 ? "text-success" : "text-danger"
-                        }`}
-                      >
-                        {gain !== null ? formatSignedMoney(gain, t.currency) : "—"}
-                      </td>
-                      <td
-                        className={`font-numeric px-3 py-2 text-right ${
-                          gainPct === null ? "text-text-muted" : gainPct >= 0 ? "text-success" : "text-danger"
-                        }`}
-                      >
-                        {gainPct !== null ? formatPercent(gainPct, { signed: true }) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              {totals && (
-                <tfoot>
-                  <tr className="border-t-2 border-border font-bold">
-                    <td className="px-3 py-2 text-text">
-                      <span className="block text-xs font-medium text-text-muted">{t("assetDetail.kpi.position")}</span>
-                      {formatMoney(totals.positionValue, totals.currency)}
-                      {!totals.hasMarketData && t("assetDetail.purchases.atCostSuffix")}
+                {lines.map((line) => (
+                  <tr key={line.key} className="border-t border-border">
+                    <td className={`px-3 py-2 text-text ${line.indent ? "pl-6 text-text-muted" : ""}`}>
+                      {line.indent ? childLineLabel(line) : formatDate(line.date)}
                     </td>
-                    <td className="font-numeric px-3 py-2 text-right text-text">{totals.quantity}</td>
-                    <td className="font-numeric px-3 py-2 text-right text-text">
-                      {formatMoney(totals.averageCost, totals.currency)}
-                    </td>
-                    <td className="px-3 py-2" />
-                    <td
-                      className={`font-numeric px-3 py-2 text-right ${
-                        totals.unrealizedPl >= 0 ? "text-success" : "text-danger"
-                      }`}
-                    >
-                      {formatSignedMoney(totals.unrealizedPl, totals.currency)}
+                    <td className="font-numeric px-3 py-2 text-right text-text-muted">{line.quantity}</td>
+                    <td className="font-numeric px-3 py-2 text-right text-text-muted">{line.priceLabel}</td>
+                    <td className="px-3 py-2">
+                      {line.kind === "sell" && <Badge tone="neutral">{t("assetDetail.movements.sellRow")}</Badge>}
+                      {line.status && <StatusBadge status={line.status} />}
+                      {line.kind === "buy-parent" && line.status === "partial" && (
+                        <span className="ml-2 text-xs text-text-muted">{t("assetDetail.movements.seeBelow")}</span>
+                      )}
                     </td>
                     <td
                       className={`font-numeric px-3 py-2 text-right ${
-                        totals.unrealizedPlPct === null
-                          ? "text-text-muted"
-                          : totals.unrealizedPlPct >= 0
-                            ? "text-success"
-                            : "text-danger"
+                        line.gain === null ? "text-text-muted" : line.gain >= 0 ? "text-success" : "text-danger"
                       }`}
                     >
-                      {totals.unrealizedPlPct !== null ? formatPercent(totals.unrealizedPlPct, { signed: true }) : "—"}
+                      {line.gain !== null ? formatSignedMoney(line.gain, assetCurrency) : "—"}
+                    </td>
+                    <td
+                      className={`font-numeric px-3 py-2 text-right ${
+                        line.gainPct === null ? "text-text-muted" : line.gainPct >= 0 ? "text-success" : "text-danger"
+                      }`}
+                    >
+                      {line.gainPct !== null ? formatPercent(line.gainPct, { signed: true }) : "—"}
                     </td>
                   </tr>
-                </tfoot>
-              )}
+                ))}
+              </tbody>
             </table>
           </div>
 
           <ul className="flex flex-col gap-2 md:hidden">
-            {rows.map((txn) => {
-              const { gain, gainPct } = computeGain(txn);
-              return (
-                <li key={txn.id} className="flex flex-col gap-1 rounded-xl border border-border p-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-text">{formatDate(txn.trade_date)}</span>
-                    <span className="font-numeric text-text">{formatSignedMoney(txn.amount, txn.currency)}</span>
-                  </div>
-                  <span className="text-text-muted">
-                    {investmentTransactionTypeLabel(txn.type)}
-                    {txn.quantity && ` · ${txn.quantity}`}
-                    {txn.price && ` @ ${formatMoney(txn.price, txn.currency)}`}
-                  </span>
+            {lines.map((line) => (
+              <li
+                key={line.key}
+                className={`flex flex-col gap-1 rounded-xl border border-border p-3 text-sm ${line.indent ? "ml-4" : ""}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-text">{line.indent ? childLineLabel(line) : formatDate(line.date)}</span>
+                  {line.kind === "sell" && <Badge tone="neutral">{t("assetDetail.movements.sellRow")}</Badge>}
+                  {line.status && <StatusBadge status={line.status} />}
+                </div>
+                <span className="text-text-muted">
+                  {line.quantity} @ {line.priceLabel}
+                </span>
+                {(line.gain !== null || line.gainPct !== null) && (
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-text-muted">{t("assetDetail.purchases.table.gain")}</span>
-                    <span className={gain === null ? "font-numeric text-text-muted" : `font-numeric ${gain >= 0 ? "text-success" : "text-danger"}`}>
-                      {gain !== null ? formatSignedMoney(gain, txn.currency) : "—"}
+                    <span className={line.gain === null ? "font-numeric text-text-muted" : `font-numeric ${line.gain >= 0 ? "text-success" : "text-danger"}`}>
+                      {line.gain !== null ? formatSignedMoney(line.gain, assetCurrency) : "—"}
+                    </span>
+                    <span className={line.gainPct === null ? "font-numeric text-text-muted" : `font-numeric ${line.gainPct >= 0 ? "text-success" : "text-danger"}`}>
+                      {line.gainPct !== null ? formatPercent(line.gainPct, { signed: true }) : "—"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-text-muted">{t("assetDetail.purchases.table.gainPct")}</span>
-                    <span className={gainPct === null ? "font-numeric text-text-muted" : `font-numeric ${gainPct >= 0 ? "text-success" : "text-danger"}`}>
-                      {gainPct !== null ? formatPercent(gainPct, { signed: true }) : "—"}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
+                )}
+              </li>
+            ))}
           </ul>
 
+          <div className="grid grid-cols-3 gap-3 border-t-2 border-border pt-3 text-sm font-bold">
+            <div>
+              <span className="block text-xs font-medium text-text-muted">{t("assetDetail.movements.totals.realized")}</span>
+              <span className={totalRealized >= 0 ? "text-success" : "text-danger"}>
+                {formatSignedMoney(totalRealized, assetCurrency)}
+              </span>
+            </div>
+            <div>
+              <span className="block text-xs font-medium text-text-muted">{t("assetDetail.movements.totals.unrealized")}</span>
+              <span className={totalUnrealized === null ? "text-text-muted" : totalUnrealized >= 0 ? "text-success" : "text-danger"}>
+                {totalUnrealized !== null ? formatSignedMoney(totalUnrealized, assetCurrency) : "—"}
+              </span>
+            </div>
+            <div>
+              <span className="block text-xs font-medium text-text-muted">{t("assetDetail.movements.totals.overall")}</span>
+              <span className={overallTotal === null ? "text-text-muted" : overallTotal >= 0 ? "text-success" : "text-danger"}>
+                {overallTotal !== null ? formatSignedMoney(overallTotal, assetCurrency) : "—"}
+              </span>
+            </div>
+          </div>
+
           {totals && (
-            <div className="grid grid-cols-2 gap-3 border-t-2 border-border pt-3 text-sm font-bold md:hidden">
+            <div className="grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm text-text-muted md:grid-cols-4">
               <div>
-                <span className="block text-xs font-medium text-text-muted">{t("assetDetail.kpi.position")}</span>
-                {formatMoney(totals.positionValue, totals.currency)}
-                {!totals.hasMarketData && t("assetDetail.purchases.atCostSuffix")}
-              </div>
-              <div className="text-right">
-                <span className="block text-xs font-medium text-text-muted">{t("assetDetail.kpi.quantity")}</span>
-                {totals.quantity}
+                <span className="block text-xs font-medium">{t("assetDetail.kpi.position")}</span>
+                <span className="text-text">
+                  {formatMoney(totals.positionValue, totals.currency)}
+                  {!totals.hasMarketData && t("assetDetail.purchases.atCostSuffix")}
+                </span>
               </div>
               <div>
-                <span className="block text-xs font-medium text-text-muted">{t("assetDetail.kpi.averagePrice")}</span>
-                {formatMoney(totals.averageCost, totals.currency)}
+                <span className="block text-xs font-medium">{t("assetDetail.kpi.quantity")}</span>
+                <span className="text-text">{totals.quantity}</span>
               </div>
-              <div className={`text-right ${totals.unrealizedPl >= 0 ? "text-success" : "text-danger"}`}>
-                <span className="block text-xs font-medium text-text-muted">{t("assetDetail.kpi.returnLabel")}</span>
-                {formatSignedMoney(totals.unrealizedPl, totals.currency)}
-                {totals.unrealizedPlPct !== null &&
-                  ` (${formatPercent(totals.unrealizedPlPct, { signed: true })})`}
+              <div>
+                <span className="block text-xs font-medium">{t("assetDetail.kpi.averagePrice")}</span>
+                <span className="text-text">{formatMoney(totals.averageCost, totals.currency)}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-medium">{t("assetDetail.kpi.returnLabel")}</span>
+                <span className={totals.unrealizedPl >= 0 ? "text-success" : "text-danger"}>
+                  {formatSignedMoney(totals.unrealizedPl, totals.currency)}
+                  {totals.unrealizedPlPct !== null && ` (${formatPercent(totals.unrealizedPlPct, { signed: true })})`}
+                </span>
               </div>
             </div>
           )}

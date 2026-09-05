@@ -235,6 +235,27 @@
         "gainPct": "Return %"
       },
       "atCostSuffix": " (at cost)"
+    },
+    "movements": {
+      "title": "Purchases",
+      "loadError": "Movements unavailable.",
+      "empty": "No purchases recorded for this asset.",
+      "statusHeader": "Status",
+      "status": {
+        "open": "Open",
+        "closed": "Closed",
+        "partial": "Partially closed"
+      },
+      "sellRow": "Sale",
+      "closedOn": "closed on {{date}}",
+      "stillHeld": "still held",
+      "seeBelow": "see rows below",
+      "totals": {
+        "title": "Realized + unrealized total",
+        "realized": "Total realized",
+        "unrealized": "Total unrealized",
+        "overall": "Overall total"
+      }
     }
   },
   "detail": {

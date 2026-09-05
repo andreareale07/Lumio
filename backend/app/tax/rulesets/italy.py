@@ -148,6 +148,7 @@ _IT_2011_01 = TaxRuleset(
     treatments=_treatments(rate=Decimal("0.125"), legal_reference="D.Lgs. 461/1997 art. 5"),
     offset_rules=_OFFSET_RULES,
     carry_forward=_CARRY_FORWARD,
+    lot_consumption_order="lifo",
 )
 
 _IT_2012_01 = TaxRuleset(
@@ -185,6 +186,7 @@ _IT_2012_01 = TaxRuleset(
     ),
     offset_rules=_OFFSET_RULES,
     carry_forward=_CARRY_FORWARD,
+    lot_consumption_order="lifo",
 )
 
 _IT_2014_07 = TaxRuleset(
@@ -217,6 +219,7 @@ _IT_2014_07 = TaxRuleset(
             legal_reference="DL 66/2014 art. 3 co. 3 (minusvalenze formate dal 1/1/2012 al 30/6/2014)",
         ),
     ),
+    lot_consumption_order="lifo",
 )
 
 IT_RULESETS: tuple[TaxRuleset, ...] = (_IT_2011_01, _IT_2012_01, _IT_2014_07)

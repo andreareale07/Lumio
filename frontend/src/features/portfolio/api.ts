@@ -12,6 +12,7 @@ import type {
   InvestmentTransaction,
   InvestmentTransactionType,
   JobRun,
+  LotBreakdownRow,
   Portfolio,
   PortfolioAccountLink,
   PortfolioAllocation,
@@ -128,6 +129,17 @@ export function useAssetValuation(assetId: string | null, currency?: string, ref
     },
     enabled: !!assetId,
     refetchInterval: refetchIntervalMs ?? false,
+  });
+}
+
+/** Scomposizione aperto/chiuso per il dettaglio asset — riusa il motore a
+ * lotti fiscale (bug reale: il rendimento contro il prezzo attuale non ha
+ * senso per una posizione gia' venduta). */
+export function useLotBreakdown(assetId: string | null) {
+  return useQuery({
+    queryKey: ["portfolio", "assets", assetId ?? "", "lot-breakdown"] as const,
+    queryFn: () => api.get<LotBreakdownRow[]>(`/assets/${assetId}/lot-breakdown`),
+    enabled: !!assetId,
   });
 }
 

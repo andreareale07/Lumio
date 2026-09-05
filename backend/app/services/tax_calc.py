@@ -17,6 +17,7 @@ Unica eccezione futura (FETTA 2, non costruire ora): la chiusura d'anno
 (`tax_year_closures`) congelera' il numero dichiarato una volta presentato
 il quadro RT — questa funzione non deve mai congelare nulla da sola.
 """
+import uuid
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -32,6 +33,11 @@ class LossPocketEntry:
     perimeter: str  # codice regime (per_account: id conto; aggregate: "dichiarativo")
     source: str  # "user_opening" in FETTA 1 — FETTA 2 aggiungera' altri valori
     formed_under_ruleset_code: str
+    # None per le aperture manuali (un saldo aggregato, non legato a un
+    # titolo specifico) — valorizzato per le righe "computed" (FETTA 2):
+    # senza questo l'utente non puo' capire QUALE vendita ha generato la
+    # minusvalenza (bug di chiarezza segnalato dall'utente in QA).
+    asset_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -48,6 +54,7 @@ class LossPocketRow:
     conversion_reference: str | None
     expires_on: date
     is_expired: bool
+    asset_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -81,6 +88,7 @@ def build_loss_pocket(entries: list[LossPocketEntry], ruleset: TaxRuleset, on: d
                 conversion_reference=conversion.legal_reference if conversion is not None else None,
                 expires_on=expires_on,
                 is_expired=on > expires_on,
+                asset_id=entry.asset_id,
             )
         )
 
@@ -91,3 +99,132 @@ def build_loss_pocket(entries: list[LossPocketEntry], ruleset: TaxRuleset, on: d
         totals_by_perimeter[row.perimeter] = totals_by_perimeter.get(row.perimeter, Decimal("0")) + row.usable_amount
 
     return LossPocketResult(rows=tuple(rows), totals_by_perimeter=totals_by_perimeter)
+
+
+@dataclass(frozen=True)
+class TaxableGainEntry:
+    """Una plusvalenza realizzata (FETTA 2, `tax_realized_service.py`) da
+    compensare contro lo zainetto PRIMA di considerarla imponibile."""
+
+    trade_date: date  # data di realizzo — usata per l'ordine cronologico di compensazione
+    perimeter: str
+    gain_category: str
+    nominal: Decimal  # plusvalenza lorda, sempre positiva
+    rate: Decimal
+    taxable_coefficient: Decimal
+    asset_id: uuid.UUID  # sempre presente: un gain viene sempre da una vendita reale
+
+
+@dataclass(frozen=True)
+class TaxableGainRow:
+    trade_date: date
+    perimeter: str
+    gain_category: str
+    nominal: Decimal
+    offset_amount: Decimal  # quanto e' stato compensato con lo zainetto
+    taxable_amount: Decimal  # nominal - offset_amount, mai negativo
+    tax_due: Decimal  # taxable_amount * rate * taxable_coefficient
+    asset_id: uuid.UUID
+
+
+@dataclass(frozen=True)
+class TaxableGainsResult:
+    rows: tuple[TaxableGainRow, ...]
+    tax_due_by_perimeter: dict[str, Decimal]
+    # Capacita' residua dello zainetto DOPO questa compensazione — per la UI,
+    # mai scritta indietro su `LossPocketResult` (quella resta la vista
+    # "prima della compensazione", auditabile separatamente).
+    remaining_pocket_by_perimeter: dict[str, Decimal]
+    # Stesso ordine/indice di `pocket.rows` passato in input — permette al
+    # chiamante di mostrare, riga per riga, quanto di QUELLA specifica
+    # minusvalenza e' gia' stato consumato da una compensazione (mai
+    # scritto dentro `LossPocketRow` stesso: quella resta immutabile).
+    remaining_per_row: tuple[Decimal, ...]
+
+
+def compute_taxable_gains(
+    gains: list[TaxableGainEntry], pocket: LossPocketResult, ruleset: TaxRuleset, on: date
+) -> TaxableGainsResult:
+    """Compensazione progressiva evento-per-evento (SPEC_TAX_REGIME.md
+    FETTA 2): per ogni plusvalenza, PRIMA di considerarla imponibile, cerca
+    capacita' disponibile nello zainetto dello STESSO perimetro con
+    `can_offset` vero, consumando FIFO per anno di formazione (stessa
+    `CarryForwardRule` di FETTA 1). Gli eventi si processano in ordine
+    CRONOLOGICO per perimetro, mai ricalcolati "a ritroso" col senno di poi
+    — una compensazione decisa oggi deve rispecchiare l'ordine reale in cui
+    gli eventi sono accaduti nel tempo.
+
+    Funzione NUOVA, non modifica `build_loss_pocket`: quella resta la vista
+    onesta "quanto ho disponibile prima di consumarlo", questa la vista
+    "quanto resta da tassare dopo averlo consumato" — due domande diverse,
+    mai fuse in una sola funzione."""
+    # Capacita' residua per riga — di default ogni riga NON scaduta parte
+    # dal proprio `usable_amount` (nessuna consumata ancora); indicizzata
+    # per posizione, stesso ordine di `pocket.rows`, mai il
+    # `LossPocketResult` originale mutato.
+    remaining_per_row: list[Decimal] = [row.usable_amount for row in pocket.rows]
+    # Pool per perimetro, FIFO per anno di formazione — un
+    # `[row_index, formation_date, loss_category]` per riga NON scaduta.
+    pool_by_perimeter: dict[str, list[tuple[int, date, str]]] = {}
+    for idx, row in enumerate(pocket.rows):
+        if row.is_expired:
+            continue
+        pool_by_perimeter.setdefault(row.perimeter, []).append((idx, row.formation_date, row.income_category))
+    for entries in pool_by_perimeter.values():
+        entries.sort(key=lambda e: e[1])
+
+    rows: list[TaxableGainRow] = []
+    tax_due_by_perimeter: dict[str, Decimal] = {}
+
+    for gain in sorted(gains, key=lambda g: (g.perimeter, g.trade_date)):
+        remaining_needed = gain.nominal
+        offset_amount = Decimal("0")
+        for row_index, formation_date, loss_category in pool_by_perimeter.get(gain.perimeter, []):
+            if remaining_needed <= 0:
+                break
+            available = remaining_per_row[row_index]
+            if available <= 0:
+                continue
+            # Causalita' temporale: una minusvalenza puo' compensare solo
+            # una plusvalenza REALIZZATA DOPO (o lo stesso giorno) la sua
+            # formazione — mai una gia' avvenuta prima che la perdita
+            # esistesse. Senza questo controllo il solo ordinamento FIFO
+            # per anno di formazione lascerebbe passare una minusvalenza
+            # futura a compensare una plusvalenza passata (bug reale
+            # trovato dall'utente su dati di QA).
+            if formation_date > gain.trade_date:
+                continue
+            if not ruleset.can_offset(loss_category, gain.gain_category):
+                continue
+            take = min(remaining_needed, available)
+            remaining_per_row[row_index] -= take
+            offset_amount += take
+            remaining_needed -= take
+
+        taxable_amount = gain.nominal - offset_amount
+        tax_due = quantize_money(taxable_amount * gain.rate * gain.taxable_coefficient)
+        rows.append(
+            TaxableGainRow(
+                trade_date=gain.trade_date,
+                perimeter=gain.perimeter,
+                gain_category=gain.gain_category,
+                nominal=gain.nominal,
+                offset_amount=quantize_money(offset_amount),
+                taxable_amount=quantize_money(taxable_amount),
+                tax_due=tax_due,
+                asset_id=gain.asset_id,
+            )
+        )
+        tax_due_by_perimeter[gain.perimeter] = tax_due_by_perimeter.get(gain.perimeter, Decimal("0")) + tax_due
+
+    remaining_pocket_by_perimeter: dict[str, Decimal] = {
+        perimeter: sum((remaining_per_row[idx] for idx, _fd, _cat in entries), Decimal("0"))
+        for perimeter, entries in pool_by_perimeter.items()
+    }
+
+    return TaxableGainsResult(
+        rows=tuple(rows),
+        tax_due_by_perimeter=tax_due_by_perimeter,
+        remaining_pocket_by_perimeter=remaining_pocket_by_perimeter,
+        remaining_per_row=tuple(remaining_per_row),
+    )

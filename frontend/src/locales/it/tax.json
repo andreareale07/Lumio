@@ -105,12 +105,16 @@
         "action": "Vai ai conti"
       },
       "noData": {
-        "title": "Lumio non calcola ancora le minusvalenze dai movimenti",
-        "description": "Questo è un limite di Lumio in questa fase, non significa che tu non abbia minusvalenze pregresse: se ne hai, inseriscile come saldo di apertura.",
+        "title": "Nessuna minusvalenza al momento",
+        "description": "Lumio calcola automaticamente le minusvalenze dai tuoi acquisti/vendite registrati, ma non ne risultano — se hai perdite da prima di usare Lumio (o che Lumio non può ricostruire), inseriscile come saldo di apertura.",
         "action": "Inserisci un saldo di apertura"
       }
     },
+    "coverageNotice_one": "{{count}} vendita esclusa dal calcolo (asset non codificato o conto senza regime a quella data) — il totale è parziale.",
+    "coverageNotice_other": "{{count}} vendite escluse dal calcolo (asset non codificato o conto senza regime a quella data) — il totale è parziale.",
     "table": {
+      "asset": "Titolo",
+      "manualEntry": "Saldo manuale",
       "formationDate": "Formata il",
       "nominal": "Nominale",
       "coefficient": "Coefficiente",
@@ -118,7 +122,17 @@
       "expiresOn": "Scade il",
       "expired": "Scaduta",
       "source": "Fonte",
-      "sourceUserOpening": "Inserita da te"
+      "sourceUserOpening": "Inserita da te",
+      "sourceComputed": "Calcolato",
+      "consumed": "di cui {{value}} già compensati"
+    },
+    "taxableGains": {
+      "title": "Plusvalenze e imposta dovuta",
+      "taxDue": "Imposta stimata",
+      "remainingPocket": "Zainetto residuo",
+      "nominal": "Plusvalenza",
+      "offset": "Compensato",
+      "taxableAmount": "Imponibile"
     },
     "openingDialog": {
       "title": "Nuovo saldo di apertura",

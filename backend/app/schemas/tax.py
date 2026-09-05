@@ -191,13 +191,57 @@ class LossPocketRowOut(BaseModel):
     conversion_reference: str | None
     expires_on: date
     is_expired: bool
+    # None per le aperture manuali (saldo aggregato, non legato a un
+    # titolo) — valorizzato per le righe "computed" (FETTA 2).
+    asset_id: uuid.UUID | None = None
+    # Capacita' REALE rimasta DOPO la compensazione progressiva delle
+    # plusvalenze (FETTA 2) — `usable_amount` sopra resta il valore grezzo
+    # mai mutato (audit); questo e' "quanto ne resta da usare davvero",
+    # <= usable_amount sempre, 0 se completamente consumata.
+    remaining_amount: Decimal
+
+
+class ExcludedRealizedEventOut(BaseModel):
+    """Un evento realizzativo (vendita reale) che NON entra nello zainetto
+    — mai un numero inventato per un asset non codificato o un conto senza
+    regime a quella data (SPEC_TAX_REGIME.md FETTA 2, "copertura parziale")."""
+
+    financial_account_id: uuid.UUID
+    asset_id: uuid.UUID
+    trade_date: date
+    gain_or_loss: Decimal
+    excluded_reason: str
 
 
 class LossPocketOut(BaseModel):
     rows: list[LossPocketRowOut]
+    # Totale GREZZO per perimetro, mai toccato dalla compensazione (audit).
     totals_by_perimeter: dict[str, Decimal]
+    # Capacita' REALE rimasta per perimetro DOPO la compensazione delle
+    # plusvalenze — questo e' il numero da mostrare come "capienza
+    # disponibile" in UI (scelta dell'utente in QA: il totale grezzo da
+    # solo confondeva, sembrava capienza libera quando non lo era piu').
+    remaining_by_perimeter: dict[str, Decimal]
     residence_declared: bool
-    # FETTA 1: alimentato solo da saldi di apertura manuali, nessun motore a
-    # lotti — sempre False finche' FETTA 2 non introduce gli eventi
-    # realizzativi.
+    # FETTA 2: True quando almeno una riga viene dal motore a lotti
+    # (source="computed"), non solo da aperture manuali.
     computed_from_movements: bool = False
+    excluded_events: list[ExcludedRealizedEventOut] = Field(default_factory=list)
+
+
+class TaxableGainRowOut(BaseModel):
+    trade_date: date
+    perimeter: str
+    gain_category: str
+    nominal: Decimal
+    offset_amount: Decimal
+    taxable_amount: Decimal
+    tax_due: Decimal
+    asset_id: uuid.UUID
+
+
+class TaxableGainsOut(BaseModel):
+    rows: list[TaxableGainRowOut]
+    tax_due_by_perimeter: dict[str, Decimal]
+    remaining_pocket_by_perimeter: dict[str, Decimal]
+    excluded_events: list[ExcludedRealizedEventOut] = Field(default_factory=list)

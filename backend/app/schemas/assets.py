@@ -1,5 +1,6 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
@@ -45,3 +46,27 @@ class AssetOut(BaseModel):
     display_name: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class ClosedPortionOut(BaseModel):
+    quantity: Decimal
+    sell_transaction_id: uuid.UUID
+    sell_trade_date: date
+    proceeds: Decimal
+    cost_basis: Decimal
+    gain_or_loss: Decimal
+
+
+class LotBreakdownRowOut(BaseModel):
+    """Scomposizione aperto/chiuso di un acquisto (feature portfolio — quale
+    porzione e' stata venduta, contro quale prezzo, e quanta ne resta
+    ancora posseduta). Il criterio di abbinamento acquisto/vendita e'
+    quello della giurisdizione fiscale corrente, non un valore fisso."""
+
+    transaction_id: uuid.UUID
+    financial_account_id: uuid.UUID
+    trade_date: date
+    quantity: Decimal
+    price: Decimal
+    open_quantity: Decimal
+    closed_portions: list[ClosedPortionOut]

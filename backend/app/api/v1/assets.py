@@ -14,7 +14,7 @@ from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
 from app.models.asset_price_quote import AssetPriceQuote
 from app.models.asset_profile import AssetProfile
-from app.schemas.assets import AssetCreate, AssetOut, AssetUpdate
+from app.schemas.assets import AssetCreate, AssetOut, AssetUpdate, ClosedPortionOut, LotBreakdownRowOut
 from app.schemas.market_data import (
     AssetPriceCreate,
     AssetPriceOut,
@@ -25,6 +25,7 @@ from app.schemas.market_data import (
 from app.schemas.portfolio_analytics import AssetValuationOut
 from app.services import analytics as analytics_service
 from app.services import live_quote_service, portfolio_analytics
+from app.services.asset_lot_breakdown_service import compute_lot_breakdown
 from app.services.asset_profile_service import get_or_refresh_profile
 from app.services.currency_service import currency_exists
 from app.services.market_data_profile_service import get_active_profile
@@ -511,6 +512,33 @@ async def get_asset_valuation(
         price_is_live=valuation.price_is_live,
         price_is_stale=valuation.price_is_stale,
     )
+
+
+@router.get("/{asset_id}/lot-breakdown", response_model=list[LotBreakdownRowOut])
+async def get_asset_lot_breakdown(
+    asset_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> list[LotBreakdownRowOut]:
+    """Scomposizione aperto/chiuso per il dettaglio asset (bug reale
+    segnalato dall'utente: la tabella acquisti calcolava il rendimento di
+    OGNI riga contro il prezzo attuale, anche per posizioni gia' vendute).
+    Riusa il motore a lotti di FETTA 2 — stesso criterio di abbinamento
+    (LIFO/FIFO) della giurisdizione fiscale corrente, mai un valore fisso."""
+    await _get_asset_or_404(db, workspace_id, asset_id)
+    rows = await compute_lot_breakdown(db, workspace_id, asset_id, date.today())
+    return [
+        LotBreakdownRowOut(
+            transaction_id=row.transaction_id,
+            financial_account_id=row.financial_account_id,
+            trade_date=row.trade_date,
+            quantity=row.quantity,
+            price=row.price,
+            open_quantity=row.open_quantity,
+            closed_portions=[ClosedPortionOut(**vars(p)) for p in row.closed_portions],
+        )
+        for row in rows
+    ]
 
 
 @router.get("/{asset_id}/profile", response_model=AssetProfileOut)

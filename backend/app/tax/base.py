@@ -164,6 +164,15 @@ class TaxRuleset:
     offset_rules: tuple[OffsetRule, ...]
     carry_forward: CarryForwardRule
     loss_conversions: tuple[LossConversion, ...] = field(default_factory=tuple)
+    # Criterio di consumo dei lotti per i titoli fungibili (FETTA 2,
+    # app/services/tax_lot_calc.py) — prassi amministrativa specifica della
+    # giurisdizione (Agenzia delle Entrate per l'Italia: LIFO), MAI cablata
+    # nel motore generico: un domani una giurisdizione diversa (es. FIFO)
+    # e' un dato nuovo, non una riscrittura del motore. Default "lifo" per
+    # non rompere silenziosamente i ruleset esistenti se il campo viene
+    # dimenticato in un futuro nuovo ruleset — ma ogni ruleset IT lo
+    # valorizza esplicitamente sotto.
+    lot_consumption_order: str = "lifo"  # "lifo" | "fifo"
 
     def treatment_for(self, asset_class: str, event_kind: str) -> TaxTreatment | None:
         for t in self.treatments:
