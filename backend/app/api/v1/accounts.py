@@ -16,6 +16,7 @@ from app.schemas.accounts import (
     IbanHistoryCreate,
     IbanHistoryOut,
 )
+from app.services.account_service import create_financial_account
 from app.services.currency_service import currency_exists
 from app.services.transfer_recognition import archive_previous_iban, reapply_internal_transfer_detection
 
@@ -41,24 +42,12 @@ async def create_account(
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
 ) -> FinancialAccount:
-    if not await currency_exists(db, workspace_id, payload.currency):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown currency code")
-    account = FinancialAccount(workspace_id=workspace_id, **payload.model_dump())
-    db.add(account)
-    try:
-        await db.flush()
-    except IntegrityError as exc:
-        await db.rollback()
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid bank reference") from exc
-
-    # Milestone 09.5b: un conto creato con l'IBAN gia' compilato puo' far
-    # riconoscere trasferimenti interni gia' importati su ALTRI conti (SPEC
-    # §37) — es. il conto corrente si registra dopo l'estratto TR che
-    # riporta gia' un bonifico verso di esso. UN SOLO commit a fine
-    # richiesta (mai commit-poi-altre-query sulla stessa sessione: SET
-    # LOCAL app.current_user_id scade al commit, vedi app/db/rls.py).
-    if account.iban:
-        await reapply_internal_transfer_detection(db, workspace_id)
+    # Logica riusata anche da POST /imports/{id}/resolve-account (creazione
+    # "al volo" di un conto durante l'import) — vedi app/services/account_service.py.
+    # UN SOLO commit a fine richiesta (mai commit-poi-altre-query sulla
+    # stessa sessione: SET LOCAL app.current_user_id scade al commit, vedi
+    # app/db/rls.py).
+    account = await create_financial_account(db, workspace_id, payload)
     await db.commit()
     return account
 

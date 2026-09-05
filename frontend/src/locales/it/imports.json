@@ -76,6 +76,19 @@
     "duplicateFileError": "Questo file risulta già importato in questo workspace.",
     "uploadError": "Non è stato possibile caricare il file.",
     "upload": "Carica",
+    "account": {
+      "extractedInfoIban": "Il documento riporta l'IBAN {{iban}}.",
+      "extractedInfoIbanAndHolder": "Il documento riporta l'IBAN {{iban}}, intestato a {{holder}}.",
+      "candidatesTitle": "Conto suggerito",
+      "matchReason": {
+        "iban": "IBAN corrispondente",
+        "iban_history": "Corrisponde a un IBAN storico di questo conto"
+      },
+      "manualLabel": "Oppure scegli un conto esistente",
+      "createNew": "Crea nuovo conto",
+      "confirm": "Conferma conto",
+      "error": "Non è stato possibile assegnare il conto a questo import."
+    },
     "confirm": {
       "pdfValid": "PDF valido, documento leggibile",
       "detectedBank": "Banca riconosciuta: <strong>{{bank}}</strong>",

@@ -4,16 +4,25 @@ import { useNavigate } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
 
 import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
 import { Dialog } from "../../components/ui/Dialog";
 import { Select } from "../../components/ui/Select";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
+import { AccountFormDialog } from "../accounts/AccountFormDialog";
 import { useAccounts } from "../accounts/api";
 import { useTransactions } from "../transactions/api";
 import { ApiError } from "../../lib/apiClient";
-import { useConfirmImport, useImport, useUploadImport, streamImportEvents, type ImportProgressEvent } from "./api";
+import {
+  useConfirmImport,
+  useImport,
+  useResolveImportAccount,
+  useUploadImport,
+  streamImportEvents,
+  type ImportProgressEvent,
+} from "./api";
 import type { ImportUploadResponse } from "../../types/api";
 
-type Step = "upload" | "confirm" | "progress" | "done";
+type Step = "upload" | "account" | "confirm" | "progress" | "done";
 type StageKey = "preparazione" | "estrazione" | "salvataggio";
 
 const MAX_SIZE_MB = 10;
@@ -23,10 +32,13 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
   const navigate = useNavigate();
   const { data: accounts } = useAccounts();
   const uploadImport = useUploadImport();
+  const resolveAccount = useResolveImportAccount();
   const confirmImport = useConfirmImport();
 
   const [step, setStep] = useState<Step>("upload");
   const [accountId, setAccountId] = useState("");
+  const [createAccountOpen, setCreateAccountOpen] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<ImportUploadResponse | null>(null);
@@ -46,7 +58,7 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
   const canLoadSummary = step === "done" && !!importRecord?.period_start;
   const { data: importedTransactions } = useTransactions(
     {
-      financial_account_id: importRecord?.financial_account_id,
+      financial_account_id: importRecord?.financial_account_id ?? undefined,
       date_from: importRecord?.period_start ?? undefined,
       date_to: importRecord?.period_end ?? importRecord?.period_start ?? undefined,
       limit: 500,
@@ -58,6 +70,8 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
     abortRef.current?.abort();
     setStep("upload");
     setAccountId("");
+    setCreateAccountOpen(false);
+    setAccountError(null);
     setFile(null);
     setUploadError(null);
     setUploadResult(null);
@@ -73,18 +87,34 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
   };
 
   const onUpload = async () => {
-    if (!accountId || !file) return;
+    if (!file) return;
     setUploadError(null);
     try {
-      const result = await uploadImport.mutateAsync({ accountId, file });
+      const result = await uploadImport.mutateAsync({ file });
       setUploadResult(result);
-      setStep("confirm");
+      // Il candidato migliore e' pre-selezionato ma MAI applicato da solo:
+      // l'utente deve comunque premere "Conferma conto" nello step
+      // successivo, anche sul candidato con match_reason='iban'.
+      const bestCandidate = result.preview.account_candidates[0];
+      if (bestCandidate) setAccountId(bestCandidate.account_id);
+      setStep("account");
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         setUploadError(t("wizard.duplicateFileError"));
       } else {
         setUploadError(friendlyErrorMessage(error, t("wizard.uploadError")));
       }
+    }
+  };
+
+  const onResolveAccount = async () => {
+    if (!uploadResult || !accountId) return;
+    setAccountError(null);
+    try {
+      await resolveAccount.mutateAsync({ importId: uploadResult.import.id, financialAccountId: accountId });
+      setStep("confirm");
+    } catch (error) {
+      setAccountError(friendlyErrorMessage(error, t("wizard.account.error")));
     }
   };
 
@@ -162,14 +192,6 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
     <Dialog open={open} onClose={close} title={t("wizard.title")}>
       {step === "upload" && (
         <div className="flex flex-col gap-4">
-          <Select label={t("wizard.accountLabel")} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            <option value="">{t("wizard.selectAccount")}</option>
-            {(accounts ?? []).map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name}
-              </option>
-            ))}
-          </Select>
           <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border p-8 text-center hover:border-primary">
             <UploadCloud className="h-8 w-8 text-text-muted" />
             <span className="text-sm text-text">{file ? file.name : t("wizard.dropzone.prompt")}</span>
@@ -191,10 +213,89 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
             <Button variant="secondary" onClick={close}>
               {t("common:actions.cancel")}
             </Button>
-            <Button onClick={onUpload} loading={uploadImport.isPending} disabled={!accountId || !file}>
+            <Button onClick={onUpload} loading={uploadImport.isPending} disabled={!file}>
               {t("wizard.upload")}
             </Button>
           </div>
+        </div>
+      )}
+
+      {step === "account" && uploadResult && (
+        <div className="flex flex-col gap-4">
+          {uploadResult.preview.extracted_account_info?.iban &&
+            (uploadResult.preview.extracted_account_info.holder_name ? (
+              <p className="text-sm text-text-muted">
+                {t("wizard.account.extractedInfoIbanAndHolder", {
+                  iban: uploadResult.preview.extracted_account_info.iban,
+                  holder: uploadResult.preview.extracted_account_info.holder_name,
+                })}
+              </p>
+            ) : (
+              <p className="text-sm text-text-muted">
+                {t("wizard.account.extractedInfoIban", { iban: uploadResult.preview.extracted_account_info.iban })}
+              </p>
+            ))}
+
+          {uploadResult.preview.account_candidates.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium text-text">{t("wizard.account.candidatesTitle")}</p>
+              {uploadResult.preview.account_candidates.map((candidate) => (
+                <Card
+                  key={candidate.account_id}
+                  className={`flex cursor-pointer items-center gap-3 p-3 ${
+                    accountId === candidate.account_id ? "ring-2 ring-primary" : ""
+                  }`}
+                  onClick={() => setAccountId(candidate.account_id)}
+                >
+                  <input
+                    type="radio"
+                    checked={accountId === candidate.account_id}
+                    onChange={() => setAccountId(candidate.account_id)}
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-text">{candidate.account_name}</span>
+                    <span className="text-xs text-text-muted">{t(`wizard.account.matchReason.${candidate.match_reason}`)}</span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <Select label={t("wizard.account.manualLabel")} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            <option value="">{t("wizard.selectAccount")}</option>
+            {(accounts ?? []).map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </Select>
+          <Button variant="secondary" onClick={() => setCreateAccountOpen(true)}>
+            {t("wizard.account.createNew")}
+          </Button>
+
+          {accountError && (
+            <p role="alert" className="text-sm text-danger">
+              {accountError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={close}>
+              {t("common:actions.cancel")}
+            </Button>
+            <Button onClick={onResolveAccount} loading={resolveAccount.isPending} disabled={!accountId}>
+              {t("wizard.account.confirm")}
+            </Button>
+          </div>
+
+          <AccountFormDialog
+            open={createAccountOpen}
+            onClose={() => setCreateAccountOpen(false)}
+            onSaved={(account) => setAccountId(account.id)}
+            initialValues={{
+              name: uploadResult.preview.extracted_account_info?.holder_name ?? undefined,
+              iban: uploadResult.preview.extracted_account_info?.iban ?? undefined,
+            }}
+          />
         </div>
       )}
 

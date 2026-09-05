@@ -112,7 +112,8 @@ export function ImportsPage() {
               <Card key={importRecord.id} className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-medium text-text">
-                    {accountsById.get(importRecord.financial_account_id)?.name ?? importRecord.filename}
+                    {(importRecord.financial_account_id && accountsById.get(importRecord.financial_account_id)?.name) ||
+                      importRecord.filename}
                   </p>
                   {isLive ? (
                     <ImportRowProgress

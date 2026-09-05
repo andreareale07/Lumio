@@ -48,15 +48,36 @@ export function useImports() {
   });
 }
 
+/** Il conto NON si sceglie piu' prima dell'upload — vedi `useResolveImportAccount`
+ * sotto: si carica solo il file, il conto si conferma/crea in uno step
+ * successivo del wizard (eventualmente informato da `account_candidates`
+ * nella risposta, se il documento riporta un IBAN riconoscibile). */
 export function useUploadImport() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ accountId, file }: { accountId: string; file: File }) => {
+    mutationFn: async ({ file }: { file: File }) => {
       const form = new FormData();
-      form.set("financial_account_id", accountId);
       form.set("file", file);
       return api.postForm<ImportUploadResponse>("/imports", form);
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: importsKey }),
+  });
+}
+
+export interface ResolveImportAccountInput {
+  importId: string;
+  financialAccountId: string;
+}
+
+/** Passo tra upload e conferma: assegna il conto all'import (uno gia'
+ * esistente — proposto tra i candidati o scelto a mano, oppure appena
+ * creato tramite `AccountFormDialog`). Ripetibile finche' l'import resta
+ * 'uploaded'. */
+export function useResolveImportAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ importId, financialAccountId }: ResolveImportAccountInput) =>
+      api.post<ImportRecord>(`/imports/${importId}/resolve-account`, { financial_account_id: financialAccountId }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: importsKey }),
   });
 }

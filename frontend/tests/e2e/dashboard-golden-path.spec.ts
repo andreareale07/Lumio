@@ -36,15 +36,17 @@ test("import reale e KPI dashboard coerenti su piu' pagine", async ({ page }) =>
   await page.getByRole("button", { name: "Crea conto" }).click();
   await expect(page.getByText("Conto E2E Dashboard")).toBeVisible();
 
+  // Il conto si sceglie DOPO l'upload (non piu' prima) — vedi import-golden-path.spec.ts.
   await page.goto("/imports");
   await page.getByRole("button", { name: "Importa documento" }).first().click();
-  await page.getByLabel("Conto").selectOption({ label: "Conto E2E Dashboard" });
   await page.locator('input[type="file"]').setInputFiles({
     name: "estratto.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(CSV_CONTENT),
   });
   await page.getByRole("button", { name: "Carica" }).click();
+  await page.getByLabel("Oppure scegli un conto esistente").selectOption({ label: "Conto E2E Dashboard" });
+  await page.getByRole("button", { name: "Conferma conto" }).click();
   await expect(page.getByRole("button", { name: "Conferma e importa" })).toBeVisible();
   await page.getByRole("button", { name: "Conferma e importa" }).click();
   await expect(page.getByText("Import completato")).toBeVisible({ timeout: 20_000 });

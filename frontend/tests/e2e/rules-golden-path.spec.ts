@@ -53,15 +53,17 @@ test("registrazione, regola, import CSV reale e suggerimento dopo correzioni rip
   await expect(page.getByText(/Descrizione contiene "netflix"/)).toBeVisible();
 
   // --- Import CSV ---
+  // Il conto si sceglie DOPO l'upload (non piu' prima) — vedi import-golden-path.spec.ts.
   await page.goto("/imports");
   await page.getByRole("button", { name: "Importa documento" }).first().click();
-  await page.getByLabel("Conto").selectOption({ label: "Conto E2E" });
   await page.locator('input[type="file"]').setInputFiles({
     name: "estratto.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(CSV_CONTENT),
   });
   await page.getByRole("button", { name: "Carica" }).click();
+  await page.getByLabel("Oppure scegli un conto esistente").selectOption({ label: "Conto E2E" });
+  await page.getByRole("button", { name: "Conferma conto" }).click();
 
   await expect(page.getByRole("button", { name: "Conferma e importa" })).toBeVisible();
   await page.getByRole("button", { name: "Conferma e importa" }).click();

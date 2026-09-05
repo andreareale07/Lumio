@@ -96,8 +96,12 @@ class Import(Base):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    financial_account_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
+    # Nullable: il conto si sceglie/conferma DOPO l'upload (vedi migration
+    # 0038 e `POST /imports/{id}/resolve-account`), non piu' prima di
+    # caricare il file. Una riga in stato 'uploaded' puo' quindi esistere
+    # per un breve periodo senza conto ancora assegnato.
+    financial_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
     )
     # Identita' con cui il worker imposta app.current_user_id (nessuna
     # richiesta HTTP/JWT disponibile nel job) — vedi app/db/rls.py e

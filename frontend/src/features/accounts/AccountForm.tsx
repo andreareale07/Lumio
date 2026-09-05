@@ -42,7 +42,11 @@ function buildSchema(t: TFunction) {
 }
 type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 
-function valuesFrom(account: FinancialAccount | null | undefined, defaultCurrency: string): FormValues {
+function valuesFrom(
+  account: FinancialAccount | null | undefined,
+  defaultCurrency: string,
+  initialValues?: { name?: string; iban?: string },
+): FormValues {
   if (account) {
     return {
       name: account.name,
@@ -52,12 +56,23 @@ function valuesFrom(account: FinancialAccount | null | undefined, defaultCurrenc
       classification_language: account.classification_language,
     };
   }
-  return { name: "", account_type: "checking", currency: defaultCurrency, iban: "", classification_language: null };
+  return {
+    name: initialValues?.name ?? "",
+    account_type: "checking",
+    currency: defaultCurrency,
+    iban: initialValues?.iban ?? "",
+    classification_language: null,
+  };
 }
 
 interface AccountFormProps {
   /** Se presente, il form modifica questo conto invece di crearne uno nuovo. */
   account?: FinancialAccount | null;
+  /** Solo in creazione (ignorato se `account` e' presente): precompila
+   * nome/IBAN, es. dal wizard di import quando il documento caricato ne
+   * riporta gia' uno riconoscibile — l'utente resta libero di correggerli
+   * prima di salvare, non e' mai un dato bloccato. */
+  initialValues?: { name?: string; iban?: string };
   onSaved: (account: FinancialAccount) => void;
   onCancel: () => void;
 }
@@ -73,7 +88,7 @@ interface AccountFormProps {
  * normale, non "Conto titoli": il tracciamento delle posizioni (M09,
  * `investment_transactions`/`positions`) si lega all'id del conto, non al
  * suo `account_type`. */
-export function AccountForm({ account, onSaved, onCancel }: AccountFormProps) {
+export function AccountForm({ account, initialValues, onSaved, onCancel }: AccountFormProps) {
   const { t } = useTranslation(["accounts", "common"]);
   const accountTypeLabel = useAccountTypeLabel();
   const createAccount = useCreateAccount();
@@ -90,13 +105,13 @@ export function AccountForm({ account, onSaved, onCancel }: AccountFormProps) {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(buildSchema(t)),
-    defaultValues: valuesFrom(account, defaultCurrency),
+    defaultValues: valuesFrom(account, defaultCurrency, initialValues),
   });
 
   useEffect(() => {
-    reset(valuesFrom(account, defaultCurrency));
+    reset(valuesFrom(account, defaultCurrency, initialValues));
     setFormError(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset intenzionale solo su cambio account
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset intenzionale solo su cambio account, mai su initialValues (si applica solo al mount iniziale)
   }, [account]);
 
   const onSubmit = async (values: FormValues) => {

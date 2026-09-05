@@ -34,10 +34,7 @@ from app.models.user import User
 from app.models.workspace_member import WorkspaceMember
 from app.parsers import get_parser
 from app.parsers.base import TransferCounterparty
-
-
-def _normalize_iban(iban: str) -> str:
-    return iban.strip().upper().replace(" ", "")
+from app.services.iban_utils import normalize_iban
 
 
 def _normalize_name(name: str) -> frozenset[str]:
@@ -57,14 +54,14 @@ async def _matches_known_account_iban(db: AsyncSession, workspace_id: uuid.UUID,
     IBAN come controparte. Si controlla quindi sia l'IBAN ATTUALE di ogni
     conto sia tutti quelli storici (`financial_account_iban_history`,
     popolata automaticamente da `app/api/v1/accounts.py`)."""
-    target = _normalize_iban(iban)
+    target = normalize_iban(iban)
     current_result = await db.execute(
         select(FinancialAccount.iban).where(
             FinancialAccount.workspace_id == workspace_id,
             FinancialAccount.iban.is_not(None),
         )
     )
-    if any(_normalize_iban(row[0]) == target for row in current_result.all()):
+    if any(normalize_iban(row[0]) == target for row in current_result.all()):
         return True
 
     history_result = await db.execute(
@@ -72,7 +69,7 @@ async def _matches_known_account_iban(db: AsyncSession, workspace_id: uuid.UUID,
             FinancialAccountIbanHistory.workspace_id == workspace_id,
         )
     )
-    return any(_normalize_iban(row[0]) == target for row in history_result.all())
+    return any(normalize_iban(row[0]) == target for row in history_result.all())
 
 
 async def _matches_workspace_member_name(db: AsyncSession, workspace_id: uuid.UUID, name: str) -> bool:

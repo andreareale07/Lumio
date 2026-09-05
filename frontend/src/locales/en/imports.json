@@ -76,6 +76,19 @@
     "duplicateFileError": "This file has already been imported into this workspace.",
     "uploadError": "We couldn't upload the file.",
     "upload": "Upload",
+    "account": {
+      "extractedInfoIban": "The document shows IBAN {{iban}}.",
+      "extractedInfoIbanAndHolder": "The document shows IBAN {{iban}}, held by {{holder}}.",
+      "candidatesTitle": "Suggested account",
+      "matchReason": {
+        "iban": "Matching IBAN",
+        "iban_history": "Matches a historical IBAN of this account"
+      },
+      "manualLabel": "Or choose an existing account",
+      "createNew": "Create new account",
+      "confirm": "Confirm account",
+      "error": "We couldn't assign an account to this import."
+    },
     "confirm": {
       "pdfValid": "Valid PDF, readable document",
       "detectedBank": "Detected bank: <strong>{{bank}}</strong>",

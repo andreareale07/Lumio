@@ -43,15 +43,19 @@ test("login, empty state di conti/movimenti, import CSV reale e movimenti aggior
   await expect(page.getByText("Nessun movimento")).toBeVisible();
 
   // --- Import CSV reale, con progress ---
+  // Il conto si sceglie DOPO l'upload (non piu' prima): upload solo il
+  // file, poi lo step "account" propone la selezione manuale (nessun
+  // candidato per un CSV, che non estrae mai IBAN dall'intestazione).
   await page.goto("/imports");
   await page.getByRole("button", { name: "Importa documento" }).first().click();
-  await page.getByLabel("Conto").selectOption({ label: "Conto E2E Import" });
   await page.locator('input[type="file"]').setInputFiles({
     name: "estratto.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(CSV_CONTENT),
   });
   await page.getByRole("button", { name: "Carica" }).click();
+  await page.getByLabel("Oppure scegli un conto esistente").selectOption({ label: "Conto E2E Import" });
+  await page.getByRole("button", { name: "Conferma conto" }).click();
   await expect(page.getByRole("button", { name: "Conferma e importa" })).toBeVisible();
   await page.getByRole("button", { name: "Conferma e importa" }).click();
 

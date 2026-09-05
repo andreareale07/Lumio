@@ -50,7 +50,7 @@ from decimal import Decimal
 import pdfplumber
 
 from app.classification.transaction_type_labels import classify_label
-from app.parsers.base import ParsedStatement, TransferCounterparty
+from app.parsers.base import AccountHeaderInfo, ParsedStatement, TransferCounterparty
 from app.services.csv_import import ParsedRow
 
 _ITALIAN_MONTHS = {
@@ -213,6 +213,20 @@ class TradeRepublicParser:
         if match is None:
             return None
         return TransferCounterparty(name=match.group("name"), iban=match.group("iban"))
+
+    def extract_account_info(self, raw_bytes: bytes) -> AccountHeaderInfo | None:
+        """Sempre `None` per ora: il formato dell'intestazione Trade
+        Republic su IBAN personale/nominativo del titolare NON e' stato
+        ancora verificato su un estratto conto reale (a differenza di
+        `_TRANSFER_COUNTERPARTY_RE` sopra, verificato su dati reali in
+        M09.5b). L'unico IBAN oggi noto nell'header (vedi `_DETECT_MARKERS`)
+        e' quello della FILIALE della banca, non del titolare — usarlo
+        produrrebbe un match falso su ogni singolo estratto Trade Republic
+        di qualunque utente. Da implementare con un regex dedicato solo
+        dopo aver confermato formato/etichetta su un PDF reale; nel
+        frattempo il comportamento e' identico a un parser che non supporta
+        questa capability (fallback: selezione manuale del conto)."""
+        return None
 
     def detect(self, raw_bytes: bytes) -> bool:
         try:

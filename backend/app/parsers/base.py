@@ -38,6 +38,19 @@ class TransferCounterparty:
     iban: str | None
 
 
+@dataclass
+class AccountHeaderInfo:
+    """IBAN e nominativo del TITOLARE del conto (non di una controparte),
+    estratti dall'intestazione del documento stesso — usati da
+    `app/services/account_matching.py` per proporre a quale conto del
+    workspace appartiene l'estratto conto appena caricato, invece di
+    chiederlo sempre a mano. Entrambi opzionali per lo stesso motivo di
+    `TransferCounterparty`: un parser puo' trovare solo uno dei due."""
+
+    iban: str | None
+    holder_name: str | None
+
+
 class BankParser(Protocol):
     # Deve combaciare con `banks.code` (vedi app/db/seed_data.py) — collega
     # il parser alla banca durante la detection.
@@ -88,4 +101,14 @@ class BankParser(Protocol):
         (es. BancoPosta) puo' legittimamente non implementarla e ritornare
         sempre `None`, se il suo estratto conto non riporta questa
         informazione."""
+        ...
+
+    def extract_account_info(self, raw_bytes: bytes) -> AccountHeaderInfo | None:
+        """IBAN/nominativo del titolare del conto, se l'intestazione del
+        documento li riporta in un formato che questo parser sa
+        interpretare. `None` se non trovati, O se questo parser non
+        supporta l'estrazione — capability OPZIONALE, stesso principio di
+        `extract_transfer_counterparty`: un parser che non la implementa
+        degrada al fallback di selezione manuale del conto, mai un errore
+        ne' un dato indovinato."""
         ...

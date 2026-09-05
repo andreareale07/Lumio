@@ -25,8 +25,10 @@ from app.models.transaction import Transaction
 from app.models.transaction_dedup_decision import TransactionDedupDecision
 from app.models.transaction_review_item import TransactionReviewItem
 from app.models.user import User
-from app.parsers import detect_parser
+from app.parsers import BankParser, detect_parser
 from app.schemas.imports import (
+    AccountCandidateOut,
+    ExtractedAccountInfoOut,
     ImportConfirmRequest,
     ImportDeleteResult,
     ImportFileContent,
@@ -35,6 +37,7 @@ from app.schemas.imports import (
     ImportPreview,
     ImportTransactionsCountOut,
     ImportUploadResponse,
+    ResolveImportAccountRequest,
 )
 from app.schemas.transaction_review import (
     DuplicateReviewCandidateOut,
@@ -43,6 +46,8 @@ from app.schemas.transaction_review import (
     DuplicateReviewSummaryOut,
 )
 from app.services import job_events, upload_validation
+from app.services.account_matching import find_account_candidates
+from app.services.account_service import create_financial_account
 from app.services.ai_classification_trigger import prepare_ai_classification_trigger
 from app.services.audit_log_service import log_event
 from app.services.classification_loader import load_pipeline_context
@@ -136,32 +141,36 @@ def _referenced_columns(mapping: MappingConfig) -> list[str]:
 
 
 async def _resolve_suggested_mapping(
-    db: AsyncSession, workspace_id: uuid.UUID, account_id: uuid.UUID, text_sample: str
+    db: AsyncSession, workspace_id: uuid.UUID, account_id: uuid.UUID | None, text_sample: str
 ) -> MappingConfig:
     # Decisione presa con l'utente: all'upload si propone la mappatura
     # dell'ultimo import RIUSCITO sullo stesso conto, se esiste; altrimenti
-    # si ricade sull'euristica.
-    result = await db.execute(
-        select(Import.import_mapping_id)
-        .where(
-            Import.workspace_id == workspace_id,
-            Import.financial_account_id == account_id,
-            Import.status == "completed",
-            Import.import_mapping_id.is_not(None),
+    # si ricade sull'euristica. Il conto puo' non essere ancora noto
+    # (upload avviene prima della scelta/conferma del conto, vedi
+    # POST /imports/{id}/resolve-account): in quel caso si salta direttamente
+    # all'euristica, che non dipende dal conto.
+    if account_id is not None:
+        result = await db.execute(
+            select(Import.import_mapping_id)
+            .where(
+                Import.workspace_id == workspace_id,
+                Import.financial_account_id == account_id,
+                Import.status == "completed",
+                Import.import_mapping_id.is_not(None),
+            )
+            .order_by(Import.completed_at.desc())
+            .limit(1)
         )
-        .order_by(Import.completed_at.desc())
-        .limit(1)
-    )
-    mapping_id = result.scalars().first()
-    if mapping_id is not None:
-        mapping_row = await db.get(ImportMapping, mapping_id)
-        if mapping_row is not None:
-            return MappingConfig(**mapping_row.config)
+        mapping_id = result.scalars().first()
+        if mapping_id is not None:
+            mapping_row = await db.get(ImportMapping, mapping_id)
+            if mapping_row is not None:
+                return MappingConfig(**mapping_row.config)
     return detect_mapping(text_sample)
 
 
 async def _build_preview(
-    db: AsyncSession, workspace_id: uuid.UUID, account_id: uuid.UUID, raw_bytes: bytes
+    db: AsyncSession, workspace_id: uuid.UUID, account_id: uuid.UUID | None, raw_bytes: bytes
 ) -> ImportPreview:
     text_sample = raw_bytes.decode("utf-8-sig", errors="replace")
     suggested = await _resolve_suggested_mapping(db, workspace_id, account_id, text_sample)
@@ -182,12 +191,14 @@ async def _build_preview(
     )
 
 
-async def _detect_bank_parser(db: AsyncSession, raw_bytes: bytes) -> tuple[Bank, BankParserRow]:
+async def _detect_bank_parser(db: AsyncSession, raw_bytes: bytes) -> tuple[Bank, BankParserRow, BankParser]:
     """Rilevazione banca per il canale PDF (SPEC §42: stage "banca
     riconosciuta"). `banks`/`bank_parsers` non hanno RLS (entita' globali,
     vedi migration 0003/0005): nessun vincolo di ordine rispetto al commit
     della riga import qui, a differenza delle query su tabelle tenant-scoped.
-    """
+    Ritorna anche l'istanza del parser (non solo le righe DB): serve al
+    chiamante per `extract_account_info` (proposta di conto, vedi
+    app/services/account_matching.py)."""
     parser = detect_parser(raw_bytes)
     if parser is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Banca non riconosciuta per questo PDF")
@@ -212,18 +223,23 @@ async def _detect_bank_parser(db: AsyncSession, raw_bytes: bytes) -> tuple[Bank,
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "Parser riconosciuto ma non configurato (bank_parsers mancante)",
         )
-    return bank, bank_parser_row
+    return bank, bank_parser_row, parser
 
 
 @router.post("", response_model=ImportUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_import(
-    financial_account_id: uuid.UUID = Form(...),
+    # Opzionale: il conto si sceglie/conferma DOPO l'upload
+    # (POST /imports/{id}/resolve-account), non piu' prima di caricare il
+    # file. Resta accettato se passato (compatibilita'), ma il wizard non lo
+    # invia piu'.
+    financial_account_id: uuid.UUID | None = Form(default=None),
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
 ) -> ImportUploadResponse:
-    await _assert_account_in_workspace(db, workspace_id, financial_account_id)
+    if financial_account_id is not None:
+        await _assert_account_in_workspace(db, workspace_id, financial_account_id)
 
     settings = get_settings()
     raw_bytes, file_type = await upload_validation.read_and_validate_import_upload(
@@ -272,10 +288,37 @@ async def upload_import(
             ) from exc
         preview = await _build_preview(db, workspace_id, financial_account_id, raw_bytes)
     else:
-        bank, bank_parser_row = await _detect_bank_parser(db, raw_bytes)
+        bank, bank_parser_row, parser = await _detect_bank_parser(db, raw_bytes)
         bank_id = bank.id
         bank_parser_id = bank_parser_row.id
-        preview = ImportPreview(detected_bank_code=bank.code, detected_bank_name=bank.name)
+
+        # Proposta di conto (SPEC: match IBAN/storico IBAN, mai applicato da
+        # solo — vedi app/services/account_matching.py). Capability
+        # opzionale del parser: `None`/candidati vuoti per un parser che non
+        # la supporta ancora (oggi Trade Republic) o se nessun conto
+        # combacia — degrada al fallback di selezione manuale, identico al
+        # comportamento di prima di questa feature.
+        account_info = parser.extract_account_info(raw_bytes)
+        candidates: list[AccountCandidateOut] = []
+        if account_info is not None and account_info.iban:
+            matches = await find_account_candidates(db, workspace_id, account_info.iban)
+            candidates = [
+                AccountCandidateOut(
+                    account_id=match.account_id, account_name=match.account_name, match_reason=match.match_reason
+                )
+                for match in matches
+            ]
+
+        preview = ImportPreview(
+            detected_bank_code=bank.code,
+            detected_bank_name=bank.name,
+            extracted_account_info=(
+                ExtractedAccountInfoOut(iban=account_info.iban, holder_name=account_info.holder_name)
+                if account_info is not None
+                else None
+            ),
+            account_candidates=candidates,
+        )
 
     import_row = Import(
         workspace_id=workspace_id,
@@ -360,6 +403,36 @@ async def get_import_preview(
     return await _build_preview(db, workspace_id, import_row.financial_account_id, raw_bytes)
 
 
+@router.post("/{import_id}/resolve-account", response_model=ImportOut)
+async def resolve_import_account(
+    import_id: uuid.UUID,
+    payload: ResolveImportAccountRequest,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> Import:
+    """Passo intermedio tra upload e conferma: assegna il conto
+    all'import — un conto esistente (proposto tra `account_candidates` o
+    scelto a mano) oppure uno nuovo, creato al volo con gli stessi campi di
+    `POST /accounts` (tipicamente con IBAN/nominativo precompilati lato
+    client da `extracted_account_info`). Ripetibile finche' l'import resta
+    'uploaded' (l'utente puo' cambiare idea prima di confermare)."""
+    import_row = await _get_import_or_404(db, workspace_id, import_id)
+    if import_row.status != "uploaded":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"Import in stato '{import_row.status}', conto non modificabile"
+        )
+
+    if payload.new_account is not None:
+        account = await create_financial_account(db, workspace_id, payload.new_account)
+        import_row.financial_account_id = account.id
+    else:
+        await _assert_account_in_workspace(db, workspace_id, payload.financial_account_id)
+        import_row.financial_account_id = payload.financial_account_id
+
+    await db.commit()
+    return import_row
+
+
 @router.post("/{import_id}/confirm", response_model=ImportOut)
 async def confirm_import(
     import_id: uuid.UUID,
@@ -371,6 +444,10 @@ async def confirm_import(
     if import_row.status != "uploaded":
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"Import in stato '{import_row.status}', non confermabile"
+        )
+    if import_row.financial_account_id is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Conto non ancora assegnato: chiamare prima resolve-account"
         )
 
     if import_row.file_type == "csv":
