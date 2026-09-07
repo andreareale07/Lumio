@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -193,24 +193,46 @@ async def get_portfolio_positions(
     as_of: date | None = None,
     currency: str | None = None,
     include_closed: bool = False,
+    realized_only: bool = Query(default=False),
+    asset_id: uuid.UUID | None = Query(default=None),
+    financial_account_id: uuid.UUID | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
 ) -> PortfolioPositionsOut:
     """Valore attuale e rendimento PER SINGOLA posizione (redesign
     Investimenti, tabella Posizioni) — a differenza del calcolo client-side
     precedente (mai possibile senza `fx_rate_service`), qui la conversione
     valuta e' sempre corretta anche quando prezzo e posizione sono in
     valute diverse. Riusa `list_position_valuations`, gia' scritta e
-    testata per l'export Google Sheets."""
+    testata per l'export Google Sheets.
+
+    `realized_only`/`asset_id`/`financial_account_id`/`limit`/`offset` sono
+    tutti opzionali e filtrano/paginano SOPRA il risultato (vista "Utile
+    realizzato", FETTA successiva a FETTA 2 fiscale) — quando `limit` e'
+    assente il comportamento resta identico a prima (nessuna paginazione,
+    `PortfolioDetailPage` non passa questi parametri). `realized_only`
+    forza `include_closed=True` internamente: una posizione chiusa con
+    P&L realizzato residuo non deve sparire dalla lista."""
     resolved_currency = await analytics_service.resolve_currency(db, workspace_id, currency)
     resolved_as_of = as_of or date.today()
     account_ids = await resolve_account_ids(db, workspace_id, portfolio_id, unassigned)
     result = await portfolio_analytics.list_position_valuations(
-        db, workspace_id, account_ids, resolved_as_of, resolved_currency, include_closed
+        db, workspace_id, account_ids, resolved_as_of, resolved_currency, include_closed or realized_only
+    )
+    page, total = portfolio_analytics.paginate_position_valuations(
+        result.items,
+        asset_id=asset_id,
+        financial_account_id=financial_account_id,
+        realized_only=realized_only,
+        limit=limit,
+        offset=offset,
     )
     return PortfolioPositionsOut(
         currency=resolved_currency,
         as_of=resolved_as_of,
         has_market_data=result.has_market_data,
         has_missing_fx_rate=result.has_missing_fx_rate,
+        total=total,
         positions=[
             PositionValuationOut(
                 position_id=p.position_id,
@@ -228,7 +250,7 @@ async def get_portfolio_positions(
                 realized_pl=p.realized_pl,
                 has_market_data=p.has_market_data,
             )
-            for p in result.items
+            for p in page
         ],
     )
 

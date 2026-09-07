@@ -447,6 +447,42 @@ export function usePortfolioPositions(filters: PortfolioPositionsFilters = {}) {
   });
 }
 
+export interface RealizedPositionsFilters extends PortfolioScope {
+  assetId?: string;
+  accountId?: string;
+  limit: number;
+  offset: number;
+}
+
+/** Vista "Utile realizzato": ogni posizione con `realized_pl != 0`, aperta
+ * o chiusa che sia (mai solo "posizioni chiuse" — una posizione ancora
+ * aperta puo' avere un residuo di P&L realizzato da vendite parziali
+ * passate, la somma della lista deve coincidere col numero mostrato sulla
+ * card KPI). Riusa lo stesso endpoint di `usePortfolioPositions`, solo con
+ * `realized_only`/paginazione — mai un endpoint nuovo. */
+export function useRealizedPositions(filters: RealizedPositionsFilters) {
+  const params = scopeParams(filters);
+  params.set("realized_only", "true");
+  if (filters.assetId) params.set("asset_id", filters.assetId);
+  if (filters.accountId) params.set("financial_account_id", filters.accountId);
+  params.set("limit", String(filters.limit));
+  params.set("offset", String(filters.offset));
+  return useQuery({
+    queryKey: [
+      "portfolio",
+      "analytics",
+      "positions",
+      "realized",
+      scopeKeyPart(filters),
+      filters.assetId ?? "",
+      filters.accountId ?? "",
+      filters.limit,
+      filters.offset,
+    ] as const,
+    queryFn: () => api.get<PortfolioPositions>(`/portfolios/analytics/positions?${params.toString()}`),
+  });
+}
+
 /** docs/SPEC_STOCK_PRICE.md: mentre una vista portfolio-wide (Panoramica
  * Investimenti, dettaglio Portfolio) resta montata, ritrigger automatico in
  * background dello STESSO job del bottone "Aggiorna ora" quando l'ultimo

@@ -7,7 +7,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
 import { SkeletonRows } from "../../components/ui/Skeleton";
-import { formatMoney, formatPercent, formatSignedMoney } from "../../lib/format";
+import { formatMoney, formatPercent, formatQuantity, formatSignedMoney } from "../../lib/format";
 import { PortfolioSummaryBlock } from "./PortfolioSummaryBlock";
 import { usePortfolio, usePortfolioMarketDataAutoRefresh, usePortfolioPositions } from "./api";
 
@@ -110,7 +110,7 @@ export function PortfolioDetailPage() {
                           </Link>
                         </td>
                         <td className="px-3 py-2 text-text-muted">{p.account_label}</td>
-                        <td className="font-numeric px-3 py-2 text-right text-text-muted">{p.quantity}</td>
+                        <td className="font-numeric px-3 py-2 text-right text-text-muted">{formatQuantity(p.quantity)}</td>
                         <td className="font-numeric px-3 py-2 text-right text-text">
                           {formatMoney(p.market_value, p.currency)}
                         </td>

@@ -19,6 +19,7 @@ import {
   formatLargeMoney,
   formatMoney,
   formatPercent,
+  formatQuantity,
   formatSignedMoney,
   formatTime,
 } from "../../lib/format";
@@ -256,7 +257,7 @@ export function AssetDetailPage() {
           </Card>
           <Card className="flex flex-col gap-1">
             <h3 className="text-sm font-semibold text-text">{t("assetDetail.kpi.quantity")}</h3>
-            <span className="font-numeric text-lg font-semibold text-text">{totalQuantity}</span>
+            <span className="font-numeric text-lg font-semibold text-text">{formatQuantity(totalQuantity)}</span>
           </Card>
           <Card className="flex flex-col gap-1">
             <h3 className="text-sm font-semibold text-text">{t("assetDetail.kpi.averagePrice")}</h3>
@@ -716,7 +717,7 @@ function MovementsList({
                     <td className={`px-3 py-2 text-text ${line.indent ? "pl-6 text-text-muted" : ""}`}>
                       {line.indent ? childLineLabel(line) : formatDate(line.date)}
                     </td>
-                    <td className="font-numeric px-3 py-2 text-right text-text-muted">{line.quantity}</td>
+                    <td className="font-numeric px-3 py-2 text-right text-text-muted">{formatQuantity(line.quantity)}</td>
                     <td className="font-numeric px-3 py-2 text-right text-text-muted">{line.priceLabel}</td>
                     <td className="px-3 py-2">
                       {line.kind === "sell" && <Badge tone="neutral">{t("assetDetail.movements.sellRow")}</Badge>}
@@ -759,7 +760,7 @@ function MovementsList({
                   {line.status && <StatusBadge status={line.status} />}
                 </div>
                 <span className="text-text-muted">
-                  {line.quantity} @ {line.priceLabel}
+                  {formatQuantity(line.quantity)} @ {line.priceLabel}
                 </span>
                 {(line.gain !== null || line.gainPct !== null) && (
                   <div className="flex items-center justify-between text-xs">
@@ -825,7 +826,7 @@ function MovementsList({
               </div>
               <div>
                 <span className="block text-xs font-medium">{t("assetDetail.kpi.quantity")}</span>
-                <span className="text-text">{totals.quantity}</span>
+                <span className="text-text">{formatQuantity(totals.quantity)}</span>
               </div>
               <div>
                 <span className="block text-xs font-medium">{t("assetDetail.kpi.averagePrice")}</span>

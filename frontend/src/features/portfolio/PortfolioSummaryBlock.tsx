@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { PiggyBank } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { AreaTrendChart } from "../../components/charts/AreaTrendChart";
@@ -135,6 +136,12 @@ const PORTFOLIO_PRESET_LOOKBACK_DAYS: Record<PortfolioHistoryPreset, number> = {
  * convenzione di naming). Stesso ordine di informazione della pagina
  * elogiata dall'utente (`AssetDetailPage`): quanto vale/rende in cima,
  * come si e' mosso nel tempo, di cosa e' fatto. */
+function realizedPositionsHref(scope: PortfolioScope): string {
+  if (scope.unassigned) return "/investments/realized-pl?portfolio=unassigned";
+  if (scope.portfolioId) return `/investments/realized-pl?portfolio=${scope.portfolioId}`;
+  return "/investments/realized-pl";
+}
+
 export function PortfolioSummaryBlock({ scope, belowCards }: { scope: PortfolioScope; belowCards?: ReactNode }) {
   const { t } = useTranslation("portfolio");
   const portfolioId = scope.portfolioId ?? null;
@@ -303,7 +310,12 @@ export function PortfolioSummaryBlock({ scope, belowCards }: { scope: PortfolioS
         <Card className="flex flex-col gap-1">
           <h3 className="text-sm font-semibold text-text">{t("summaryBlock.kpi.realizedPl")}</h3>
           <span className="font-numeric text-lg font-semibold text-text">{formatSignedMoney(realizedPl, v.currency)}</span>
-          <span className="text-xs text-text-muted">{t("summaryBlock.kpi.realizedPlHint")}</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-text-muted">{t("summaryBlock.kpi.realizedPlHint")}</span>
+            <Link to={realizedPositionsHref(scope)} className="text-xs text-primary hover:underline">
+              {t("summaryBlock.kpi.realizedPlSeeDetail")}
+            </Link>
+          </div>
         </Card>
         {yearDietz.isLoading ? (
           <Skeleton className="h-24 w-full" />

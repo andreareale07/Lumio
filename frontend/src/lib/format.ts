@@ -24,6 +24,18 @@ export function formatSignedMoney(amount: string | number, currency: string): st
   return value < 0 ? `-${formatted}` : `+${formatted}`;
 }
 
+/** Quantità di un asset (azioni/quote, MAI una valuta) — il backend
+ * conserva sempre `Numeric(28, 10)` (10 decimali fissi, es. "8.0000000000",
+ * "4.3918130000"), un `Number()` nudo mostrerebbe zeri residui per valori
+ * con precisione scomoda o tanti decimali per una frazione di azione senza
+ * separatore delle migliaia. Arrotonda a un massimo leggibile (6 decimali:
+ * sufficiente per le frazioni di azione che i broker mostrano davvero, mai
+ * usato per un calcolo — solo per la UI) e applica il locale corrente. */
+export function formatQuantity(quantity: string | number): string {
+  const value = typeof quantity === "string" ? Number(quantity) : quantity;
+  return new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 6 }).format(value);
+}
+
 export function formatDate(isoDate: string): string {
   return new Intl.DateTimeFormat(intlLocale(), { day: "2-digit", month: "short", year: "numeric" }).format(
     new Date(isoDate),

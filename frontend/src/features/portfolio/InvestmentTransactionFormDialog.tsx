@@ -12,8 +12,9 @@ import { Select } from "../../components/ui/Select";
 import { useAccounts } from "../accounts/api";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import { INVESTMENT_TRANSACTION_TYPES } from "../../types/api";
-import { useAssets, useCreateInvestmentTransaction } from "./api";
-import { ASSET_REQUIRED_TYPES, useAssetTypeLabel, useInvestmentTransactionTypeLabel } from "./labels";
+import { AssetPicker } from "./AssetPicker";
+import { useCreateInvestmentTransaction } from "./api";
+import { ASSET_REQUIRED_TYPES, useInvestmentTransactionTypeLabel } from "./labels";
 
 const DECIMAL_RE = /^-?\d+(\.\d+)?$/;
 
@@ -84,10 +85,8 @@ export function InvestmentTransactionFormDialog({
   defaultAssetId,
 }: InvestmentTransactionFormDialogProps) {
   const { t } = useTranslation(["portfolio", "common"]);
-  const assetTypeLabel = useAssetTypeLabel();
   const investmentTransactionTypeLabel = useInvestmentTransactionTypeLabel();
   const { data: accounts } = useAccounts();
-  const { data: assets } = useAssets();
   const createTransaction = useCreateInvestmentTransaction();
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -165,20 +164,15 @@ export function InvestmentTransactionFormDialog({
           ))}
         </Select>
 
-        <Select
+        <AssetPicker
           label={assetRequired ? t("transactionFormDialog.fields.asset") : t("transactionFormDialog.fields.assetOptional")}
           error={errors.asset_id?.message}
+          includeEmptyOption
+          emptyOptionLabel={
+            assetRequired ? t("transactionFormDialog.selectAssetRequired") : t("transactionFormDialog.selectAssetOptional")
+          }
           {...register("asset_id")}
-        >
-          <option value="">
-            {assetRequired ? t("transactionFormDialog.selectAssetRequired") : t("transactionFormDialog.selectAssetOptional")}
-          </option>
-          {(assets ?? []).map((asset) => (
-            <option key={asset.id} value={asset.id}>
-              {asset.symbol ? `${asset.symbol} — ${asset.name}` : asset.name} ({assetTypeLabel(asset.asset_type)})
-            </option>
-          ))}
-        </Select>
+        />
 
         <Input
           label={t("transactionFormDialog.fields.date")}

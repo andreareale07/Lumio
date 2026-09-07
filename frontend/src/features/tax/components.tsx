@@ -17,7 +17,11 @@ export function AssetCell({ assetId, assetById }: { assetId: string | null; asse
     return <span className="text-text-muted">{t("lossPocket.table.manualEntry")}</span>;
   }
   const asset = assetById.get(assetId);
-  const label = asset ? (asset.symbol ?? asset.name) : assetId;
+  // Stessa precedenza di AssetPicker.tsx/AssetDetailPage.tsx: il nome
+  // ripulito dal provider prima del symbol/nome grezzo del parser — una
+  // tabella con un nome tecnico sopra un filtro con nomi umani sarebbe
+  // un'incoerenza nella stessa pagina.
+  const label = asset ? (asset.display_name ?? asset.symbol ?? asset.name) : assetId;
   return (
     <Link to={`/investments/assets/${assetId}`} className="font-medium text-primary hover:underline">
       {label}

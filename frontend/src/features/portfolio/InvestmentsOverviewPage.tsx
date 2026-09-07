@@ -152,13 +152,18 @@ function PortfolioRow({ item }: { item: PortfolioSummaryItem }) {
  * (mai un `Portfolio` vero, nessuna riga nella tabella `portfolios`), ma
  * mostrata con la STESSA forma delle righe reali: cliccandola si apre lo
  * stesso template di dettaglio (`PortfolioDetailPage`) scoped a quei
- * conti. Sempre presente, anche a zero — mai nascosta, altrimenti un
- * conto appena rimosso da un portfolio sparirebbe dalla vista finche' non
- * lo si raggruppa di nuovo da qualche parte. */
+ * conti. Decisione invertita dall'utente (2026-09-07): prima restava
+ * sempre visibile anche a zero per non far sparire un conto appena
+ * rimosso da un portfolio; ora si nasconde quando non c'è nulla da
+ * mostrare. `has_holdings` (già calcolato da `compute_valuation`) è vero
+ * solo con almeno una posizione a quantità diversa da zero — un conto
+ * scollegato con SOLO posizioni chiuse (nessuna aperta) nasconde comunque
+ * la riga anche se ha storia di realizzato: tradeoff accettato per non
+ * introdurre una query dedicata solo per questo edge case. */
 function UnassignedRow() {
   const { t } = useTranslation("portfolio");
   const valuation = usePortfolioValuation(null, true);
-  if (valuation.isLoading || valuation.isError || !valuation.data) {
+  if (valuation.isLoading || valuation.isError || !valuation.data || !valuation.data.has_holdings) {
     return null; // riga secondaria: nessun errore bloccante se questa sola chiamata fallisce
   }
   const v = valuation.data;

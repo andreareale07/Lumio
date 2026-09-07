@@ -1,4 +1,27 @@
 {
+  "assetPicker": {
+    "defaultLabel": "Titolo",
+    "placeholder": "Seleziona un titolo…",
+    "searchPlaceholder": "Cerca per nome o simbolo…",
+    "emptyOption": "Tutti i titoli"
+  },
+  "realizedPositionsPage": {
+    "intro": "Ogni posizione con un utile o una perdita realizzati — inclusa una posizione ancora aperta che ha già venduto in parte. La somma qui coincide sempre col numero della card \"Utile realizzato\".",
+    "filters": { "asset": "Titolo", "account": "Conto", "allAccounts": "Tutti i conti" },
+    "table": {
+      "asset": "Titolo",
+      "account": "Conto",
+      "quantity": "Quantità attuale",
+      "status": "Stato",
+      "realizedPl": "Utile realizzato"
+    },
+    "status": { "open": "Aperta", "closed": "Chiusa" },
+    "empty": {
+      "title": "Nessun utile realizzato",
+      "description": "Nessuna posizione ha ancora un utile o una perdita realizzati — o nessuna corrisponde ai filtri scelti."
+    },
+    "pagination": { "showing": "{{from}}–{{to}} di {{total}}", "previous": "Precedente", "next": "Successivo" }
+  },
   "summaryBlock": {
     "loadError": "Non siamo riusciti a caricare il riepilogo.",
     "empty": {
@@ -13,7 +36,8 @@
       "gainToggleHint": "Clic per vedere l'importo in valuta",
       "invested": "Investito",
       "realizedPl": "Utile realizzato",
-      "realizedPlHint": "da posizioni chiuse",
+      "realizedPlHint": "da vendite passate",
+      "realizedPlSeeDetail": "Vedi dettaglio",
       "yearGain": "Guadagno nel {{year}}",
       "yearGainVsPreviousYear": "Anno precedente: {{value}}",
       "yearGainHint": "Include acquisti e vendite; non include ancora i dividendi (approssimazione, non un rendimento certificato)."

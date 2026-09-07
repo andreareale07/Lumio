@@ -981,6 +981,38 @@ async def list_position_valuations(
     )
 
 
+def paginate_position_valuations(
+    items: list[PositionValuation],
+    *,
+    asset_id: uuid.UUID | None = None,
+    financial_account_id: uuid.UUID | None = None,
+    realized_only: bool = False,
+    limit: int | None,
+    offset: int,
+) -> tuple[list[PositionValuation], int]:
+    """Filtra/pagina sopra `list_position_valuations` (gia' calcolato per
+    intero) — puro, nessun accesso DB. Usato dalla vista "Utile realizzato"
+    (elenca OGNI posizione con `realized_pl != 0`, aperta o chiusa: il nome
+    "posizioni chiuse" sarebbe impreciso, una posizione ancora aperta puo'
+    avere un residuo di P&L realizzato da vendite parziali passate — la
+    somma della lista deve sempre coincidere col totale mostrato altrove,
+    mai un sottoinsieme che non torna). `limit=None` non pagina affatto,
+    per restare compatibile con l'unico altro chiamante di
+    `list_position_valuations` (`PortfolioDetailPage`, che non pagina)."""
+    filtered = [
+        p
+        for p in items
+        if (asset_id is None or p.asset_id == asset_id)
+        and (financial_account_id is None or p.financial_account_id == financial_account_id)
+        and (not realized_only or p.realized_pl != 0)
+    ]
+    filtered.sort(key=lambda p: abs(p.realized_pl), reverse=True)
+    total = len(filtered)
+    if limit is None:
+        return filtered, total
+    return filtered[offset : offset + limit], total
+
+
 @dataclass
 class AssetValuation:
     currency: str

@@ -48,6 +48,10 @@ class PortfolioPositionsOut(BaseModel):
     has_market_data: bool
     has_missing_fx_rate: bool = False
     positions: list[PositionValuationOut]
+    # Conteggio dopo il filtro (`realized_only`/`asset_id`/`financial_account_id`),
+    # PRIMA della paginazione — additivo, il consumer esistente
+    # (`PortfolioDetailPage`, senza paginazione) lo ignora senza rompersi.
+    total: int = 0
 
 
 class PortfolioValuationOut(BaseModel):

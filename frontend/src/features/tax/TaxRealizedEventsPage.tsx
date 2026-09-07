@@ -12,6 +12,7 @@ import { Select } from "../../components/ui/Select";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { formatDate, formatMoney } from "../../lib/format";
 import { useAccounts } from "../accounts/api";
+import { AssetPicker } from "../portfolio/AssetPicker";
 import { useAssets } from "../portfolio/api";
 import type { ClassifiedRealizedEvent } from "../../types/api";
 import { useRealizedEvents } from "./api";
@@ -77,20 +78,15 @@ export function TaxRealizedEventsPage() {
         <p className="text-sm text-text-muted">{t("realizedEventsPage.intro")}</p>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <Select
-          aria-label={t("realizedEventsPage.filters.asset")}
-          value={assetId}
-          onChange={(e) => updateFilter("asset", e.target.value)}
-          className="w-auto"
-        >
-          <option value="">{t("realizedEventsPage.filters.allAssets")}</option>
-          {(assets ?? []).map((asset) => (
-            <option key={asset.id} value={asset.id}>
-              {asset.symbol ?? asset.name}
-            </option>
-          ))}
-        </Select>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-56">
+          <AssetPicker
+            label={t("realizedEventsPage.filters.asset")}
+            value={assetId}
+            includeEmptyOption
+            onChange={(e) => updateFilter("asset", e.target.value)}
+          />
+        </div>
         <Select
           aria-label={t("realizedEventsPage.filters.account")}
           value={accountId}

@@ -1,4 +1,27 @@
 {
+  "assetPicker": {
+    "defaultLabel": "Asset",
+    "placeholder": "Select an asset…",
+    "searchPlaceholder": "Search by name or symbol…",
+    "emptyOption": "All assets"
+  },
+  "realizedPositionsPage": {
+    "intro": "Every position with a realized gain or loss — including a still-open position that has already partially sold. The sum here always matches the \"Realized profit\" card figure.",
+    "filters": { "asset": "Asset", "account": "Account", "allAccounts": "All accounts" },
+    "table": {
+      "asset": "Asset",
+      "account": "Account",
+      "quantity": "Current quantity",
+      "status": "Status",
+      "realizedPl": "Realized profit"
+    },
+    "status": { "open": "Open", "closed": "Closed" },
+    "empty": {
+      "title": "No realized profit",
+      "description": "No position has a realized gain or loss yet — or none match the chosen filters."
+    },
+    "pagination": { "showing": "{{from}}–{{to}} of {{total}}", "previous": "Previous", "next": "Next" }
+  },
   "summaryBlock": {
     "loadError": "We couldn't load the summary.",
     "empty": {
@@ -13,7 +36,8 @@
       "gainToggleHint": "Click to see the amount in currency",
       "invested": "Invested",
       "realizedPl": "Realized profit",
-      "realizedPlHint": "from closed positions",
+      "realizedPlHint": "from past sales",
+      "realizedPlSeeDetail": "See detail",
       "yearGain": "Gain in {{year}}",
       "yearGainVsPreviousYear": "Previous year: {{value}}",
       "yearGainHint": "Includes buys and sells; doesn't include dividends yet (an approximation, not a certified return)."

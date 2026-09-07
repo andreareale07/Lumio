@@ -871,6 +871,7 @@ export interface PortfolioPositions {
   has_market_data: boolean;
   has_missing_fx_rate: boolean;
   positions: PositionValuation[];
+  total: number;
 }
 
 export interface NetWorthSnapshotPoint {

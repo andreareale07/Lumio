@@ -18,6 +18,7 @@ import { ImportsPage } from "../../features/imports/ImportsPage";
 import { AssetDetailPage } from "../../features/portfolio/AssetDetailPage";
 import { InvestmentsOverviewPage } from "../../features/portfolio/InvestmentsOverviewPage";
 import { PortfolioDetailPage } from "../../features/portfolio/PortfolioDetailPage";
+import { RealizedPositionsPage } from "../../features/portfolio/RealizedPositionsPage";
 import { RulesPage } from "../../features/rules/RulesPage";
 import { AISettingsPage } from "../../features/settings/ai/AISettingsPage";
 import { CurrencySettingsPage } from "../../features/settings/currency/CurrencySettingsPage";
@@ -62,6 +63,7 @@ export function AppRouter() {
       <Route path="/net-worth" element={<Protected><NetWorthPage /></Protected>} />
       <Route path="/investments" element={<Protected><InvestmentsOverviewPage /></Protected>} />
       <Route path="/investments/portfolios/:portfolioId" element={<Protected><PortfolioDetailPage /></Protected>} />
+      <Route path="/investments/realized-pl" element={<Protected><RealizedPositionsPage /></Protected>} />
       <Route path="/investments/assets/:assetId" element={<Protected><AssetDetailPage /></Protected>} />
       <Route path="/investments/tax" element={<Protected><TaxLossPocketPage /></Protected>} />
       <Route path="/investments/tax/realized-events" element={<Protected><TaxRealizedEventsPage /></Protected>} />
