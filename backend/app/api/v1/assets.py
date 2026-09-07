@@ -1,7 +1,8 @@
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +15,16 @@ from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
 from app.models.asset_price_quote import AssetPriceQuote
 from app.models.asset_profile import AssetProfile
-from app.schemas.assets import AssetCreate, AssetOut, AssetUpdate, ClosedPortionOut, LotBreakdownRowOut
+from app.schemas.assets import (
+    AssetCreate,
+    AssetOut,
+    AssetTaxPreviewOut,
+    AssetUpdate,
+    ClosedPortionOut,
+    LotBreakdownRowOut,
+    OpenLotTaxPreviewOut,
+    RealizedPortionTaxOut,
+)
 from app.schemas.market_data import (
     AssetPriceCreate,
     AssetPriceOut,
@@ -27,8 +37,10 @@ from app.services import analytics as analytics_service
 from app.services import live_quote_service, portfolio_analytics
 from app.services.asset_lot_breakdown_service import compute_lot_breakdown
 from app.services.asset_profile_service import get_or_refresh_profile
+from app.services.asset_tax_preview_service import compute_asset_tax_preview
 from app.services.currency_service import currency_exists
 from app.services.market_data_profile_service import get_active_profile
+from app.services.tax_context import resolve_tax_context
 
 router = APIRouter(prefix="/assets", tags=["portfolio"])
 
@@ -539,6 +551,29 @@ async def get_asset_lot_breakdown(
         )
         for row in rows
     ]
+
+
+@router.get("/{asset_id}/tax-preview", response_model=AssetTaxPreviewOut)
+async def get_asset_tax_preview(
+    asset_id: uuid.UUID,
+    current_price: Decimal | None = Query(default=None),
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> AssetTaxPreviewOut:
+    """Colonna "Tasse" della tabella movimenti (seguito di FETTA 2): riusa
+    l'imposta REALE gia' calcolata per le porzioni gia' vendute, e simula
+    "se vendessi oggi" (cumulativo, in ordine di consumo fiscale) per i
+    lotti ancora aperti — richiede `current_price` (nella valuta
+    dell'asset, stessa convenzione gia' usata dal frontend per il
+    rendimento non realizzato); senza prezzo, solo la parte `realized`."""
+    await _get_asset_or_404(db, workspace_id, asset_id)
+    on = date.today()
+    context = await resolve_tax_context(db, workspace_id, on)
+    preview = await compute_asset_tax_preview(db, workspace_id, context.jurisdiction, asset_id, current_price, on)
+    return AssetTaxPreviewOut(
+        realized=[RealizedPortionTaxOut(**vars(r)) for r in preview.realized],
+        open_cumulative=[OpenLotTaxPreviewOut(**vars(o)) for o in preview.open_cumulative],
+    )
 
 
 @router.get("/{asset_id}/profile", response_model=AssetProfileOut)

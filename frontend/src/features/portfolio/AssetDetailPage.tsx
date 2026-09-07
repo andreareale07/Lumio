@@ -22,12 +22,13 @@ import {
   formatSignedMoney,
   formatTime,
 } from "../../lib/format";
-import type { AssetProfile, HistoryPreset, LotBreakdownRow } from "../../types/api";
+import type { AssetProfile, AssetTaxPreview, HistoryPreset, LotBreakdownRow } from "../../types/api";
 import { useMarketDataProfiles } from "../settings/market-data/api";
 import { AssetTaxCard } from "../tax/AssetTaxCard";
 import {
   useAssetProfile,
   useAssets,
+  useAssetTaxPreview,
   useAssetValuation,
   useLotBreakdown,
   usePositions,
@@ -70,6 +71,17 @@ export function AssetDetailPage() {
   // quotato dal provider in JPY/USD) — serve alle colonne "Rendimento" della
   // lista Acquisti sotto, un confronto in valute diverse sarebbe scorretto.
   const nativeValuation = useAssetValuation(assetId ?? null, asset?.currency, detailRefetchMs);
+  // Prezzo per la colonna "Tasse" (seguito FETTA 2): solo se e' davvero
+  // nella valuta dell'asset (stessa condizione di `canValueOpen` dentro
+  // `buildMovementLines`) — un prezzo in un'altra valuta non valorizzerebbe
+  // correttamente i lotti aperti, meglio nessun prezzo che uno sbagliato.
+  const currentPriceForTax =
+    nativeValuation.data?.price !== null &&
+    nativeValuation.data?.price !== undefined &&
+    nativeValuation.data?.currency === asset?.currency
+      ? Number(nativeValuation.data.price)
+      : null;
+  const taxPreview = useAssetTaxPreview(assetId ?? null, currentPriceForTax);
 
   if (isLoading) return <SkeletonRows rows={4} />;
   if (isError) {
@@ -293,6 +305,7 @@ export function AssetDetailPage() {
           : null}
         currentPriceCurrency={nativeValuation.data?.currency ?? null}
         assetCurrency={asset.currency}
+        taxPreview={taxPreview.data ?? null}
         totals={
           openPositions.length > 0 && nativeValuation.data
             ? {
@@ -378,6 +391,20 @@ interface MovementLine {
   status: "open" | "closed" | "partial" | null;
   gain: number | null;
   gainPct: number | null;
+  // Colonna "Tasse" (seguito FETTA 2): imposta REALE per le righe chiuse,
+  // simulazione cumulativa "se vendo oggi" per le righe aperte — `null`
+  // significa "non ancora calcolabile" (dati mancanti), mai confuso con
+  // `taxExcludedReason` (calcolo impossibile per costruzione: asset non
+  // codificato, conto senza regime).
+  tax: number | null;
+  taxExcludedReason: string | null;
+  // Solo righe aperte: posizione (1-based) nell'ordine di consumo fiscale
+  // REALE del proprio conto — il valore cumulativo NON segue l'ordine
+  // cronologico di acquisto mostrato in tabella quando la giurisdizione usa
+  // LIFO (il lotto piu' recente esce per primo), quindi la sequenza si
+  // mostra esplicitamente invece di riordinare le righe (che romperebbe il
+  // raggruppamento padre/figli di una posizione parzialmente chiusa).
+  taxSequence: number | null;
 }
 
 /** Trasforma la scomposizione lotto-per-lotto in righe pronte per la UI +
@@ -388,17 +415,34 @@ function buildMovementLines(
   currentPrice: number | null,
   currentPriceCurrency: string | null,
   assetCurrency: string,
-): { lines: MovementLine[]; totalRealized: number; totalUnrealized: number | null } {
+  taxPreview: AssetTaxPreview | null,
+): {
+  lines: MovementLine[];
+  totalRealized: number;
+  totalUnrealized: number | null;
+  totalTaxRealized: number | null;
+  totalTaxOpen: number | null;
+} {
   const canValueOpen = currentPrice !== null && currentPriceCurrency === assetCurrency;
   const lines: MovementLine[] = [];
   let totalRealized = 0;
   let hasAnyOpenWithoutPrice = false;
   let totalUnrealized = 0;
 
+  const realizedTaxByKey = new Map(
+    (taxPreview?.realized ?? []).map((r) => [`${r.lot_transaction_id}:${r.sell_transaction_id}`, r]),
+  );
+  const openTaxByLot = new Map((taxPreview?.open_cumulative ?? []).map((o) => [o.transaction_id, o]));
+  let hasAnyRealizedTaxExcluded = false;
+  let totalTaxRealized = 0;
+
   // Raggruppa le vendite per transazione: una vendita puo' aver chiuso PIU'
   // acquisti diversi (LIFO/FIFO attraversa piu' lotti) — una riga sola per
   // vendita reale, non una per lotto toccato.
-  const sellAgg = new Map<string, { date: string; quantity: number; proceeds: number; gain: number }>();
+  const sellAgg = new Map<
+    string,
+    { date: string; quantity: number; proceeds: number; gain: number; tax: number; taxExcludedReason: string | null }
+  >();
   for (const row of rows) {
     for (const portion of row.closed_portions) {
       const existing = sellAgg.get(portion.sell_transaction_id) ?? {
@@ -406,12 +450,19 @@ function buildMovementLines(
         quantity: 0,
         proceeds: 0,
         gain: 0,
+        tax: 0,
+        taxExcludedReason: null,
       };
       existing.quantity += Number(portion.quantity);
       existing.proceeds += Number(portion.proceeds);
       existing.gain += Number(portion.gain_or_loss);
+      const portionTax = realizedTaxByKey.get(`${row.transaction_id}:${portion.sell_transaction_id}`);
+      if (portionTax?.excluded_reason) existing.taxExcludedReason = portionTax.excluded_reason;
+      else if (portionTax) existing.tax += Number(portionTax.tax_due);
       sellAgg.set(portion.sell_transaction_id, existing);
       totalRealized += Number(portion.gain_or_loss);
+      if (portionTax?.excluded_reason) hasAnyRealizedTaxExcluded = true;
+      else if (portionTax) totalTaxRealized += Number(portionTax.tax_due);
     }
   }
 
@@ -424,6 +475,12 @@ function buildMovementLines(
       if (canValueOpen) totalUnrealized += (currentPrice! - Number(row.price)) * openQty;
       else hasAnyOpenWithoutPrice = true;
     }
+
+    const openTax = !hasClosed ? openTaxByLot.get(row.transaction_id) : undefined;
+    const singlePortionTax =
+      hasClosed && openQty === 0 && row.closed_portions.length === 1
+        ? realizedTaxByKey.get(`${row.transaction_id}:${row.closed_portions[0].sell_transaction_id}`)
+        : undefined;
 
     lines.push({
       key: row.transaction_id,
@@ -451,12 +508,22 @@ function buildMovementLines(
         : openQty === 0 && row.closed_portions.length === 1
           ? Number(row.closed_portions[0].gain_or_loss) / Number(row.closed_portions[0].cost_basis)
           : null,
+      tax: openTax
+        ? openTax.excluded_reason === null
+          ? Number(openTax.tax_due)
+          : null
+        : singlePortionTax && singlePortionTax.excluded_reason === null
+          ? Number(singlePortionTax.tax_due)
+          : null,
+      taxExcludedReason: openTax?.excluded_reason ?? singlePortionTax?.excluded_reason ?? null,
+      taxSequence: openTax ? openTax.sequence + 1 : null,
     });
 
     const needsChildren = hasClosed && (openQty > 0 || row.closed_portions.length > 1);
     if (needsChildren) {
       for (const portion of row.closed_portions) {
         const qty = Number(portion.quantity);
+        const portionTax = realizedTaxByKey.get(`${row.transaction_id}:${portion.sell_transaction_id}`);
         lines.push({
           key: `${row.transaction_id}-closed-${portion.sell_transaction_id}`,
           kind: "buy-closed-child",
@@ -468,9 +535,13 @@ function buildMovementLines(
           status: null,
           gain: Number(portion.gain_or_loss),
           gainPct: Number(portion.gain_or_loss) / Number(portion.cost_basis),
+          tax: portionTax && portionTax.excluded_reason === null ? Number(portionTax.tax_due) : null,
+          taxExcludedReason: portionTax?.excluded_reason ?? null,
+          taxSequence: null,
         });
       }
       if (openQty > 0) {
+        const childOpenTax = openTaxByLot.get(row.transaction_id);
         lines.push({
           key: `${row.transaction_id}-open`,
           kind: "buy-open-child",
@@ -482,6 +553,9 @@ function buildMovementLines(
           status: null,
           gain: canValueOpen ? (currentPrice! - Number(row.price)) * openQty : null,
           gainPct: canValueOpen && Number(row.price) !== 0 ? (currentPrice! - Number(row.price)) / Number(row.price) : null,
+          tax: childOpenTax && childOpenTax.excluded_reason === null ? Number(childOpenTax.tax_due) : null,
+          taxExcludedReason: childOpenTax?.excluded_reason ?? null,
+          taxSequence: childOpenTax ? childOpenTax.sequence + 1 : null,
         });
       }
     }
@@ -499,15 +573,37 @@ function buildMovementLines(
       status: null,
       gain: agg.gain,
       gainPct: null,
+      tax: agg.taxExcludedReason === null ? agg.tax : null,
+      taxExcludedReason: agg.taxExcludedReason,
+      taxSequence: null,
     });
   }
 
   lines.sort((a, b) => a.sortKey.localeCompare(b.sortKey) || (a.indent ? 1 : 0) - (b.indent ? 1 : 0));
 
+  // C'e' posizione aperta ma nessun prezzo per valorizzarla (`open_cumulative`
+  // arriva sempre vuoto in questo caso, mai per assenza di lotti aperti) —
+  // il totale deve restare "non calcolabile", mai un falso "0,00 €" che
+  // suggerirebbe una simulazione riuscita con risultato zero.
+  const hasOpenQuantityWithoutPrice = !canValueOpen && rows.some((r) => Number(r.open_quantity) > 0);
+  let totalTaxOpen: number | null = null;
+  if (taxPreview && !hasOpenQuantityWithoutPrice) {
+    const lastByAccount = new Map<string, (typeof taxPreview.open_cumulative)[number]>();
+    for (const o of taxPreview.open_cumulative) {
+      const current = lastByAccount.get(o.financial_account_id);
+      if (!current || o.sequence > current.sequence) lastByAccount.set(o.financial_account_id, o);
+    }
+    const lastEntries = [...lastByAccount.values()];
+    const hasExcluded = lastEntries.some((o) => o.excluded_reason !== null || o.tax_due === null);
+    totalTaxOpen = hasExcluded ? null : lastEntries.reduce((sum, o) => sum + Number(o.tax_due), 0);
+  }
+
   return {
     lines,
     totalRealized,
     totalUnrealized: hasAnyOpenWithoutPrice ? null : totalUnrealized,
+    totalTaxRealized: hasAnyRealizedTaxExcluded ? null : totalTaxRealized,
+    totalTaxOpen,
   };
 }
 
@@ -526,6 +622,7 @@ function MovementsList({
   currentPriceCurrency,
   assetCurrency,
   totals,
+  taxPreview,
 }: {
   isLoading: boolean;
   isError: boolean;
@@ -535,15 +632,19 @@ function MovementsList({
   currentPriceCurrency: string | null;
   assetCurrency: string;
   totals: PurchasesTotals | null;
+  taxPreview: AssetTaxPreview | null;
 }) {
   const { t } = useTranslation("portfolio");
-  const { lines, totalRealized, totalUnrealized } = buildMovementLines(
+  const { t: tTax } = useTranslation("tax");
+  const { lines, totalRealized, totalUnrealized, totalTaxRealized, totalTaxOpen } = buildMovementLines(
     rows,
     currentPrice,
     currentPriceCurrency,
     assetCurrency,
+    taxPreview,
   );
   const overallTotal = totalUnrealized !== null ? totalRealized + totalUnrealized : null;
+  const hasAnyOpenLine = lines.some((l) => l.taxSequence !== null);
 
   // Chiamata solo per righe indentate (figlie di un acquisto scomposto):
   // le uniche due varianti sono la porzione chiusa e quella ancora aperta.
@@ -551,6 +652,37 @@ function MovementsList({
     return line.kind === "buy-closed-child"
       ? t("assetDetail.movements.closedOn", { date: formatDate(line.date) })
       : t("assetDetail.movements.stillHeld");
+  }
+
+  // Contenuto della colonna "Tasse": un numero (reale per le righe chiuse,
+  // simulato per le aperte), un badge "escluso" (asset non codificato/conto
+  // senza regime — mai un numero inventato), o un trattino se non ancora
+  // calcolabile (dati fiscali non caricati). Le righe aperte aggiungono la
+  // posizione nell'ordine di consumo fiscale, perche' il valore cumulativo
+  // non segue l'ordine di acquisto mostrato in tabella quando la
+  // giurisdizione usa LIFO.
+  function taxCell(line: MovementLine) {
+    if (line.taxExcludedReason) {
+      return (
+        <span className="text-xs text-text-muted">
+          {tTax(`lossPocket.excludedReason.${line.taxExcludedReason}`, { defaultValue: line.taxExcludedReason })}
+        </span>
+      );
+    }
+    if (line.tax === null) return <span className="text-text-muted">—</span>;
+    return (
+      <span>
+        {formatMoney(line.tax, assetCurrency)}
+        {line.taxSequence !== null && (
+          <span
+            className="ml-1 text-xs text-text-muted"
+            title={t("assetDetail.movements.taxSequenceTooltip", { n: line.taxSequence })}
+          >
+            ({t("assetDetail.movements.taxSequenceShort", { n: line.taxSequence })})
+          </span>
+        )}
+      </span>
+    );
   }
 
   return (
@@ -573,6 +705,9 @@ function MovementsList({
                   <th className="px-3 py-2 font-medium">{t("assetDetail.movements.statusHeader")}</th>
                   <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.gain")}</th>
                   <th className="px-3 py-2 text-right font-medium">{t("assetDetail.purchases.table.gainPct")}</th>
+                  <th className="px-3 py-2 text-right font-medium" title={hasAnyOpenLine ? t("assetDetail.movements.taxLifoNote") : undefined}>
+                    {t("assetDetail.movements.taxHeader")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -604,11 +739,13 @@ function MovementsList({
                     >
                       {line.gainPct !== null ? formatPercent(line.gainPct, { signed: true }) : "—"}
                     </td>
+                    <td className="font-numeric px-3 py-2 text-right text-text">{taxCell(line)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {hasAnyOpenLine && <p className="text-xs text-text-muted">{t("assetDetail.movements.taxLifoNote")}</p>}
 
           <ul className="flex flex-col gap-2 md:hidden">
             {lines.map((line) => (
@@ -634,9 +771,14 @@ function MovementsList({
                     </span>
                   </div>
                 )}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-text-muted">{t("assetDetail.movements.taxHeader")}</span>
+                  {taxCell(line)}
+                </div>
               </li>
             ))}
           </ul>
+          {hasAnyOpenLine && <p className="text-xs text-text-muted md:hidden">{t("assetDetail.movements.taxLifoNote")}</p>}
 
           <div className="grid grid-cols-3 gap-3 border-t-2 border-border pt-3 text-sm font-bold">
             <div>
@@ -656,6 +798,19 @@ function MovementsList({
               <span className={overallTotal === null ? "text-text-muted" : overallTotal >= 0 ? "text-success" : "text-danger"}>
                 {overallTotal !== null ? formatSignedMoney(overallTotal, assetCurrency) : "—"}
               </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm font-bold">
+            <div>
+              <span className="block text-xs font-medium text-text-muted">{t("assetDetail.movements.totals.taxRealized")}</span>
+              <span className="text-text">
+                {totalTaxRealized !== null ? formatMoney(totalTaxRealized, assetCurrency) : "—"}
+              </span>
+            </div>
+            <div>
+              <span className="block text-xs font-medium text-text-muted">{t("assetDetail.movements.totals.taxOpen")}</span>
+              <span className="text-text">{totalTaxOpen !== null ? formatMoney(totalTaxOpen, assetCurrency) : "—"}</span>
             </div>
           </div>
 

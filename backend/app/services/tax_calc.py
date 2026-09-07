@@ -113,6 +113,13 @@ class TaxableGainEntry:
     rate: Decimal
     taxable_coefficient: Decimal
     asset_id: uuid.UUID  # sempre presente: un gain viene sempre da una vendita reale
+    # Tracciabilita' verso l'evento di origine (sempre presente: un
+    # `TaxableGainEntry` nasce sempre da un `ClassifiedRealizedEvent`, mai da
+    # un'apertura manuale) — permette al chiamante di ricollegare l'imposta
+    # calcolata al lotto/vendita specifici (es. colonna "tasse" per riga in
+    # AssetDetailPage), invece di un numero per-asset senza provenienza.
+    lot_transaction_id: uuid.UUID
+    sell_transaction_id: uuid.UUID
 
 
 @dataclass(frozen=True)
@@ -125,6 +132,8 @@ class TaxableGainRow:
     taxable_amount: Decimal  # nominal - offset_amount, mai negativo
     tax_due: Decimal  # taxable_amount * rate * taxable_coefficient
     asset_id: uuid.UUID
+    lot_transaction_id: uuid.UUID
+    sell_transaction_id: uuid.UUID
 
 
 @dataclass(frozen=True)
@@ -213,6 +222,8 @@ def compute_taxable_gains(
                 taxable_amount=quantize_money(taxable_amount),
                 tax_due=tax_due,
                 asset_id=gain.asset_id,
+                lot_transaction_id=gain.lot_transaction_id,
+                sell_transaction_id=gain.sell_transaction_id,
             )
         )
         tax_due_by_perimeter[gain.perimeter] = tax_due_by_perimeter.get(gain.perimeter, Decimal("0")) + tax_due

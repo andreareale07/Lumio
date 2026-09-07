@@ -250,11 +250,17 @@
       "closedOn": "chiusa il {{date}}",
       "stillHeld": "ancora possedute",
       "seeBelow": "vedi righe sotto",
+      "taxHeader": "Tasse",
+      "taxLifoNote": "Le righe ancora aperte mostrano l'imposta cumulativa se vendessi oggi, nell'ordine di consumo fiscale reale (LIFO: i lotti più recenti escono per primi) — non necessariamente l'ordine di acquisto mostrato sopra.",
+      "taxSequenceShort": "{{n}}°",
+      "taxSequenceTooltip": "{{n}}° lotto nell'ordine di consumo fiscale (LIFO): se vendessi oggi, verrebbe consumato in questa posizione, non necessariamente nell'ordine di acquisto mostrato in tabella.",
       "totals": {
         "title": "Totale realizzato + non realizzato",
         "realized": "Realizzato totale",
         "unrealized": "Non realizzato totale",
-        "overall": "Totale complessivo"
+        "overall": "Totale complessivo",
+        "taxRealized": "Imposta realizzata",
+        "taxOpen": "Imposta stimata se vendo tutto oggi"
       }
     }
   },

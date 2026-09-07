@@ -250,11 +250,17 @@
       "closedOn": "closed on {{date}}",
       "stillHeld": "still held",
       "seeBelow": "see rows below",
+      "taxHeader": "Tax",
+      "taxLifoNote": "Still-open rows show the cumulative tax if you sold today, in the real fiscal consumption order (LIFO: the most recently bought lots go first) — not necessarily the purchase order shown above.",
+      "taxSequenceShort": "#{{n}}",
+      "taxSequenceTooltip": "Lot #{{n}} in the fiscal consumption order (LIFO): if you sold today, it would be consumed at this position, not necessarily in the purchase order shown in the table.",
       "totals": {
         "title": "Realized + unrealized total",
         "realized": "Total realized",
         "unrealized": "Total unrealized",
-        "overall": "Overall total"
+        "overall": "Overall total",
+        "taxRealized": "Realized tax",
+        "taxOpen": "Estimated tax if sold today"
       }
     }
   },

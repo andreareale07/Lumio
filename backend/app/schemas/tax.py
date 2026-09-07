@@ -238,6 +238,8 @@ class TaxableGainRowOut(BaseModel):
     taxable_amount: Decimal
     tax_due: Decimal
     asset_id: uuid.UUID
+    lot_transaction_id: uuid.UUID
+    sell_transaction_id: uuid.UUID
 
 
 class TaxableGainsOut(BaseModel):

@@ -557,6 +557,32 @@ export interface LotBreakdownRow {
   closed_portions: ClosedPortion[];
 }
 
+export interface RealizedPortionTax {
+  lot_transaction_id: Uuid;
+  sell_transaction_id: Uuid;
+  tax_due: string | null;
+  taxable_amount: string | null;
+  offset_amount: string | null;
+  excluded_reason: string | null;
+}
+
+export interface OpenLotTaxPreview {
+  transaction_id: Uuid;
+  financial_account_id: Uuid;
+  sequence: number;
+  cumulative_quantity: string;
+  cumulative_gain: string;
+  tax_due: string | null;
+  taxable_amount: string | null;
+  offset_amount: string | null;
+  excluded_reason: string | null;
+}
+
+export interface AssetTaxPreview {
+  realized: RealizedPortionTax[];
+  open_cumulative: OpenLotTaxPreview[];
+}
+
 export interface Portfolio {
   id: Uuid;
   workspace_id: Uuid;
@@ -1272,6 +1298,8 @@ export interface TaxableGainRow {
   taxable_amount: string;
   tax_due: string;
   asset_id: Uuid;
+  lot_transaction_id: Uuid;
+  sell_transaction_id: Uuid;
 }
 
 export interface TaxableGains {

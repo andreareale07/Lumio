@@ -160,7 +160,7 @@ export function TaxRealizedEventsPage() {
                     </td>
                     <td className="px-3 py-2 text-xs text-text-muted">
                       {event.excluded_reason &&
-                        t(`lossPocket.page.excludedReason.${event.excluded_reason}`, {
+                        t(`lossPocket.excludedReason.${event.excluded_reason}`, {
                           defaultValue: event.excluded_reason,
                         })}
                       {event.is_overridden && ` · ${t("eventOverride.overriddenBadge")}`}
@@ -194,7 +194,7 @@ export function TaxRealizedEventsPage() {
                 <div className="flex items-center justify-between text-sm text-text-muted">
                   <span>
                     {event.excluded_reason &&
-                      t(`lossPocket.page.excludedReason.${event.excluded_reason}`, {
+                      t(`lossPocket.excludedReason.${event.excluded_reason}`, {
                         defaultValue: event.excluded_reason,
                       })}
                     {event.is_overridden && ` · ${t("eventOverride.overriddenBadge")}`}

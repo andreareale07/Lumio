@@ -70,3 +70,35 @@ class LotBreakdownRowOut(BaseModel):
     price: Decimal
     open_quantity: Decimal
     closed_portions: list[ClosedPortionOut]
+
+
+class RealizedPortionTaxOut(BaseModel):
+    lot_transaction_id: uuid.UUID
+    sell_transaction_id: uuid.UUID
+    tax_due: Decimal | None
+    taxable_amount: Decimal | None
+    offset_amount: Decimal | None
+    excluded_reason: str | None
+
+
+class OpenLotTaxPreviewOut(BaseModel):
+    transaction_id: uuid.UUID
+    financial_account_id: uuid.UUID
+    sequence: int
+    cumulative_quantity: Decimal
+    cumulative_gain: Decimal
+    tax_due: Decimal | None
+    taxable_amount: Decimal | None
+    offset_amount: Decimal | None
+    excluded_reason: str | None
+
+
+class AssetTaxPreviewOut(BaseModel):
+    """Colonna "Tasse" di `AssetDetailPage`: `realized` riusa il numero
+    REALE gia' calcolato per gli eventi gia' venduti, `open_cumulative` e'
+    una simulazione "se vendessi oggi" cumulativa in ordine di consumo
+    fiscale (LIFO/FIFO) per i lotti ancora aperti — mai un numero per riga
+    scollegato dagli altri, la capienza dello zainetto e' condivisa."""
+
+    realized: list[RealizedPortionTaxOut]
+    open_cumulative: list[OpenLotTaxPreviewOut]

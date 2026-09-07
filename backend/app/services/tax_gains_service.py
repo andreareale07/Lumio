@@ -27,6 +27,12 @@ class TaxSummary:
     loss_pocket: LossPocketResult
     taxable_gains: TaxableGainsResult
     excluded_events: tuple[ClassifiedRealizedEvent, ...]
+    # Elenco grezzo completo (incluso ciò che ha generato `loss_pocket` e
+    # `taxable_gains`) — esposto per chi deve ricostruire uno scenario
+    # ipotetico sulla STESSA base dati senza una seconda query/derivazione
+    # indipendente (es. `asset_tax_preview_service.py`, colonna "tasse" per
+    # riga in AssetDetailPage).
+    realized_events: tuple[ClassifiedRealizedEvent, ...]
 
 
 async def compute_tax_summary(
@@ -71,6 +77,8 @@ async def compute_tax_summary(
             rate=e.rate,
             taxable_coefficient=e.taxable_coefficient,
             asset_id=e.asset_id,
+            lot_transaction_id=e.lot_transaction_id,
+            sell_transaction_id=e.sell_transaction_id,
         )
         for e in realized_events
         if e.excluded_reason is None and e.gain_or_loss > 0
@@ -78,4 +86,9 @@ async def compute_tax_summary(
     taxable_gains = compute_taxable_gains(gains, pocket, ruleset, on)
 
     excluded_events = tuple(e for e in realized_events if e.excluded_reason is not None)
-    return TaxSummary(loss_pocket=pocket, taxable_gains=taxable_gains, excluded_events=excluded_events)
+    return TaxSummary(
+        loss_pocket=pocket,
+        taxable_gains=taxable_gains,
+        excluded_events=excluded_events,
+        realized_events=tuple(realized_events),
+    )

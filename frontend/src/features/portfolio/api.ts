@@ -2,10 +2,12 @@ import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../lib/apiClient";
+import { buildQueryString } from "../../lib/queryString";
 import { useMarketDataProfiles, useMarketDataRefreshStatus, useTriggerMarketDataRefresh } from "../settings/market-data/api";
 import type {
   Asset,
   AssetProfile,
+  AssetTaxPreview,
   AssetType,
   AssetValuation,
   HistoryPreset,
@@ -139,6 +141,22 @@ export function useLotBreakdown(assetId: string | null) {
   return useQuery({
     queryKey: ["portfolio", "assets", assetId ?? "", "lot-breakdown"] as const,
     queryFn: () => api.get<LotBreakdownRow[]>(`/assets/${assetId}/lot-breakdown`),
+    enabled: !!assetId,
+  });
+}
+
+/** Colonna "Tasse" della tabella movimenti (seguito di FETTA 2): riusa
+ * l'imposta reale per le porzioni gia' vendute, simula "se vendessi oggi"
+ * (cumulativo, ordine di consumo fiscale) per i lotti ancora aperti.
+ * `currentPrice` nella valuta dell'asset — senza prezzo (posizione non
+ * valorizzabile) il backend calcola solo `realized`. */
+export function useAssetTaxPreview(assetId: string | null, currentPrice: number | null) {
+  return useQuery({
+    queryKey: ["portfolio", "assets", assetId ?? "", "tax-preview", currentPrice] as const,
+    queryFn: () =>
+      api.get<AssetTaxPreview>(
+        `/assets/${assetId}/tax-preview${buildQueryString({ current_price: currentPrice ?? undefined })}`,
+      ),
     enabled: !!assetId,
   });
 }
