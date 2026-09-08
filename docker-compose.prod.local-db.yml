@@ -1,0 +1,23 @@
+# Override di produzione — solo per il profilo STANDARD (Postgres nel compose).
+#
+# Va usato insieme a docker-compose.prod.yml, non da solo:
+#
+#   docker compose -f docker-compose.yml \
+#                  -f docker-compose.prod.yml \
+#                  -f docker-compose.prod.local-db.yml up -d --build
+#
+# NON usarlo con docker-compose.external-db.yml: la' il servizio `postgres`
+# non esiste, e questo file lo definirebbe senza immagine ne' build context,
+# facendo fallire il comando.
+
+services:
+  postgres:
+    # La porta 5432 pubblicata nel file base serve a pytest/psql/GUI in
+    # sviluppo. In produzione l'unico client e' l'app, sulla rete interna
+    # Docker: nessun motivo per esporla alla LAN.
+    ports: !reset []
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

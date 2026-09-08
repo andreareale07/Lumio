@@ -1,0 +1,63 @@
+# Override di produzione — hardening comune ai due profili di deploy.
+#
+# I file compose principali sono tarati sullo SVILUPPO locale: pubblicano i
+# datastore sull'host (comodo per pytest/psql/GUI) e non prevedono un reverse
+# proxy davanti. Questo override rimuove quelle scelte, senza modificare i
+# file base, che restano aggiornabili con `git pull`.
+#
+# Uso (profilo standard, Postgres nel compose) — servono ENTRAMBI gli
+# override, il secondo chiude la porta del Postgres containerizzato:
+#
+#   docker compose -f docker-compose.yml \
+#                  -f docker-compose.prod.yml \
+#                  -f docker-compose.prod.local-db.yml up -d --build
+#
+# Uso (profilo Postgres esterno) — nessun container Postgres da chiudere:
+#
+#   docker compose -f docker-compose.external-db.yml \
+#                  -f docker-compose.prod.yml up -d --build
+#
+# Per non ripetere i -f a ogni comando:
+#   export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml:docker-compose.prod.local-db.yml
+#
+# Richiede Docker Compose >= 2.24 per il tag `!reset` (senza di esso le liste
+# `ports` verrebbero unite a quelle dei file base, non sostituite).
+# Deploy completo, HTTPS e backup: docs/DEPLOY_PROXMOX.md
+
+services:
+  redis:
+    # Redis NON ha autenticazione in questo setup: esposto sulla LAN
+    # significa coda dei job leggibile e manipolabile da chiunque.
+    ports: !reset []
+    logging: &prod_logging
+      driver: json-file
+      options:
+        # Senza limiti il log di un container cresce fino a riempire il disco
+        # della VM: su un self-hosted senza log rotation esterna e' il modo
+        # piu' comune di far cadere il servizio dopo mesi di uptime.
+        max-size: "10m"
+        max-file: "5"
+
+  app:
+    # Il backend non va raggiunto direttamente: il traffico API passa
+    # dall'nginx del frontend, che proxa /api/ sulla rete interna Docker.
+    # E' cosi' che il cookie httpOnly di refresh resta same-site e non c'e'
+    # CORS da configurare.
+    ports: !reset []
+    logging: *prod_logging
+
+  worker:
+    logging: *prod_logging
+
+  frontend:
+    # `!override` e non una lista semplice: Compose CONCATENA le liste `ports`
+    # dei file sovrapposti invece di sostituirle, quindi senza il tag il
+    # binding del file base (0.0.0.0:${FRONTEND_PORT}) resterebbe attivo
+    # accanto a questo — la porta resterebbe aperta sulla LAN. Verificabile
+    # con `docker compose ... config`.
+    ports: !override
+      # 127.0.0.1 presuppone un reverse proxy sulla STESSA macchina. Se il
+      # proxy gira altrove togli il prefisso ("${FRONTEND_PORT:-8080}:80") e
+      # limita l'accesso alla porta via firewall.
+      - "127.0.0.1:${FRONTEND_PORT:-8080}:80"
+    logging: *prod_logging
