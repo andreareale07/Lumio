@@ -7,7 +7,6 @@ testare solo questo strato sarebbe sproporzionato.
 import uuid
 from datetime import date
 
-import pytest
 from sqlalchemy import text
 
 from app.db.base import async_session_factory

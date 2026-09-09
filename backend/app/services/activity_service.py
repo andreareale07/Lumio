@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.import_ import Import
-from app.models.job_run import JOB_KINDS, JobRun
+from app.models.job_run import JOB_KINDS
 from app.schemas.activity import ActivityItemOut
 from app.services.job_registry import JOB_DESCRIPTORS
 from app.services.job_run_tracker import get_latest_run

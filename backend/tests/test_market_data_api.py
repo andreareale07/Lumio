@@ -960,5 +960,7 @@ async def test_asset_profile_retries_when_display_name_missing_despite_fresh_cac
     assert third.json()["issuer"] == "Vanguard"
 
     # Adesso che il nome c'e', la cache torna a essere considerata fresca.
-    fourth = await client.get(f"/api/v1/assets/{asset_id}/profile", headers=_auth_headers(token))
+    # La chiamata serve per il suo effetto (non deve incrementare `calls`),
+    # la risposta non viene ispezionata.
+    await client.get(f"/api/v1/assets/{asset_id}/profile", headers=_auth_headers(token))
     assert len(calls) == 3

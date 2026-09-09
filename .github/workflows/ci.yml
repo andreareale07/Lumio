@@ -40,6 +40,17 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://lumio_app:lumio_app_password@localhost:5432/lumio
       REDIS_URL: redis://localhost:6379/0
       SECRET_KEY: ci-secret-key
+      # I test di tests/test_integrations_google_api.py richiedono che il
+      # router Google sia montato, e il montaggio avviene UNA SOLA VOLTA
+      # all'import di app.main (app/api/v1/router.py): senza GOOGLE_ENABLED
+      # qui, quegli endpoint rispondono 404 e i test falliscono. I valori
+      # sono fittizi di proposito: ogni chiamata verso Google e' mockata con
+      # httpx_mock, nessun traffico reale esce dalla CI.
+      GOOGLE_ENABLED: "true"
+      GOOGLE_CLIENT_ID: ci-client-id
+      GOOGLE_CLIENT_SECRET: ci-client-secret
+      GOOGLE_REDIRECT_URI: http://localhost:5173/api/v1/integrations/google/callback
+      GOOGLE_PICKER_API_KEY: ci-picker-key
 
     defaults:
       run:
