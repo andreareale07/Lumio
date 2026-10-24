@@ -13,5 +13,8 @@ class JobRunOut(BaseModel):
     started_at: datetime
     finished_at: datetime | None
     message: str | None
+    # Resoconto strutturato dell'ultima esecuzione (vedi JobRun.details), solo
+    # per i job che lo producono.
+    details: dict | None = None
 
     model_config = {"from_attributes": True}

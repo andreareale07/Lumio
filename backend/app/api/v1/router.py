@@ -16,6 +16,7 @@ from app.api.v1 import (
     integrations_google,
     investment_transactions,
     jobs,
+    maintenance,
     portfolios,
     positions,
     rules,
@@ -49,6 +50,7 @@ api_router.include_router(investment_transactions.router)
 api_router.include_router(positions.router)
 api_router.include_router(system_settings.router)
 api_router.include_router(jobs.router)
+api_router.include_router(maintenance.router)
 api_router.include_router(classification.router)
 api_router.include_router(activity.router)
 api_router.include_router(currencies.router)

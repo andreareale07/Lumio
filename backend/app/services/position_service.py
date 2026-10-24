@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.asset import Asset
+from app.models.financial_account import FinancialAccount
 from app.models.investment_transaction import InvestmentTransaction
 from app.models.position import Position
 from app.services.position_calc import compute_position
@@ -158,6 +159,8 @@ async def apply_manual_position_edit(
 @dataclass(frozen=True)
 class PositionChange:
     asset_name: str
+    account_name: str
+    currency: str
     financial_account_id: uuid.UUID
     old_quantity: Decimal | None
     new_quantity: Decimal
@@ -167,12 +170,18 @@ class PositionChange:
     new_realized_pl: Decimal
 
 
-async def recompute_all_positions(db: AsyncSession, workspace_id: uuid.UUID) -> list[PositionChange]:
+@dataclass(frozen=True)
+class RecomputeReport:
+    checked: int
+    changes: list[PositionChange]
+
+
+async def recompute_all_positions(db: AsyncSession, workspace_id: uuid.UUID) -> RecomputeReport:
     """Ricalcola dai movimenti TUTTE le posizioni del workspace (riparazione
-    una tantum dopo un fix al calcolo: `positions` e' un valore salvato, si
-    aggiorna solo quando un suo movimento cambia). Ritorna solo le posizioni
-    il cui valore salvato e' effettivamente cambiato. Nessun commit: lo fa il
-    chiamante (che puo' anche scartare tutto, per un dry-run)."""
+    dopo un fix al calcolo: `positions` e' un valore salvato, si aggiorna solo
+    quando un suo movimento cambia). Il report elenca solo le posizioni il cui
+    valore salvato e' effettivamente cambiato. Nessun commit: lo fa il
+    chiamante (che puo' anche scartare tutto, per un'anteprima)."""
     keys = (
         await db.execute(
             select(
@@ -184,9 +193,17 @@ async def recompute_all_positions(db: AsyncSession, workspace_id: uuid.UUID) -> 
             .distinct()
         )
     ).all()
-    names = {
+    asset_names = {
         a.id: a.name
         for a in (await db.execute(select(Asset).where(Asset.workspace_id == workspace_id))).scalars().all()
+    }
+    account_names = {
+        a.id: a.name
+        for a in (
+            await db.execute(select(FinancialAccount).where(FinancialAccount.workspace_id == workspace_id))
+        )
+        .scalars()
+        .all()
     }
 
     changes: list[PositionChange] = []
@@ -211,7 +228,9 @@ async def recompute_all_positions(db: AsyncSession, workspace_id: uuid.UUID) -> 
             continue
         changes.append(
             PositionChange(
-                asset_name=names.get(asset_id, str(asset_id)),
+                asset_name=asset_names.get(asset_id, str(asset_id)),
+                account_name=account_names.get(account_id, str(account_id)),
+                currency=currency,
                 financial_account_id=account_id,
                 old_quantity=before[0] if before else None,
                 new_quantity=after[0],
@@ -221,4 +240,4 @@ async def recompute_all_positions(db: AsyncSession, workspace_id: uuid.UUID) -> 
                 new_realized_pl=after[2],
             )
         )
-    return changes
+    return RecomputeReport(checked=len(keys), changes=changes)

@@ -278,6 +278,27 @@ JOB_DESCRIPTORS: list[JobDescriptor] = [
             ),
         ],
     ),
+    JobDescriptor(
+        kind="positions_recompute",
+        category="triggered",
+        name_key="positionsRecompute.name",
+        description_key="positionsRecompute.description",
+        parameters=[
+            JobParameterSpec(
+                label_key=_STALE_THRESHOLD_KEY,
+                unit_key=_SECONDS_UNIT_KEY,
+                editable=True,
+                setting_key="job_health.positions_recompute.stale_after_seconds",
+            ),
+            JobParameterSpec(
+                label_key=_MAX_EXECUTION_TIMEOUT_KEY,
+                unit_key=_SECONDS_UNIT_KEY,
+                editable=False,
+                settings_attr="positions_recompute_job_timeout_seconds",
+                readonly_reason_key=_READONLY_TIMEOUT_REASON_KEY,
+            ),
+        ],
+    ),
 ]
 
 

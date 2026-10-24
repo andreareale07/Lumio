@@ -344,6 +344,30 @@
         }
       }
     },
+    "maintenance": {
+      "label": "Manutenzione",
+      "description": "Ricalcoli e riparazioni da lanciare a mano, con anteprima e un resoconto di cosa è cambiato.",
+      "positions": {
+        "title": "Ricalcolo posizioni",
+        "description": "Quantità, costo medio e utile realizzato di ogni titolo sono valori salvati: si aggiornano solo quando cambia un suo movimento. Se il calcolo è stato corretto, i valori già salvati restano quelli vecchi finché non li ricalcoli qui.",
+        "preview": "Mostra anteprima",
+        "previewTitle": "Anteprima (nessuna modifica salvata)",
+        "run": "Ricalcola ora",
+        "running": "Ricalcolo in corso…",
+        "previousChanges": "Ultime modifiche effettive ({{date}})",
+    "lastRun": "Ultima esecuzione",
+        "summary": "{{changed}} posizioni cambiano su {{checked}} controllate.",
+        "truncated": "Elenco limitato alle prime {{shown}} posizioni: il conteggio sopra è completo.",
+        "previewError": "Non è stato possibile calcolare l'anteprima.",
+        "runError": "Non è stato possibile avviare il ricalcolo.",
+        "table": {
+          "asset": "Titolo",
+          "account": "Conto",
+          "realized": "Utile realizzato (prima → dopo)",
+          "quantity": "Quantità (prima → dopo)"
+        }
+      }
+    },
     "jobs": {
       "label": "Job di sistema",
       "description": "Configura i job automatici e quelli innescati dalle tue azioni.",

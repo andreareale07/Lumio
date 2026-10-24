@@ -54,18 +54,25 @@ async def start_run(
         run.started_at = datetime.now(UTC)
         run.finished_at = None
         run.message = None
+        run.details = None
         run.job_id = job_id
         await db.commit()
 
 
 async def finish_run(
-    workspace_id: uuid.UUID, user_id: uuid.UUID, job_kind: str, success: bool, message: str | None
+    workspace_id: uuid.UUID,
+    user_id: uuid.UUID,
+    job_kind: str,
+    success: bool,
+    message: str | None,
+    details: dict | None = None,
 ) -> None:
     async with rls_session(user_id) as db:
         run = await _get_or_create(db, workspace_id, job_kind)
         run.status = "success" if success else "failed"
         run.finished_at = datetime.now(UTC)
         run.message = message[:_MESSAGE_MAX_LENGTH] if message else None
+        run.details = details
         await db.commit()
 
 
@@ -85,6 +92,7 @@ class JobRunHandle:
     messaggio di risultato prima di uscire con successo."""
 
     message: str | None = None
+    details: dict | None = None
 
 
 @asynccontextmanager
@@ -104,4 +112,4 @@ async def tracked_job_run(
         await finish_run(workspace_id, user_id, job_kind, success=False, message=str(exc))
         raise
     else:
-        await finish_run(workspace_id, user_id, job_kind, success=True, message=handle.message)
+        await finish_run(workspace_id, user_id, job_kind, success=True, message=handle.message, details=handle.details)

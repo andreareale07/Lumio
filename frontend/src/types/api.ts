@@ -914,6 +914,40 @@ export interface JobRun {
   started_at: string;
   finished_at: string | null;
   message: string | null;
+  /** Resoconto strutturato dell'ultima esecuzione, solo per i job che lo
+   * producono (es. ricalcolo posizioni): cosa e' stato modificato. */
+  details?: Record<string, unknown> | null;
+}
+
+export interface PositionChange {
+  asset: string;
+  account: string;
+  currency: string;
+  old_quantity: string | null;
+  new_quantity: string;
+  old_average_cost: string | null;
+  new_average_cost: string;
+  old_realized_pl: string | null;
+  new_realized_pl: string;
+}
+
+export interface PositionsRecomputeReport {
+  checked: number;
+  changed: number;
+  truncated: boolean;
+  changes: PositionChange[];
+}
+
+export interface PositionsRecomputeDetails extends PositionsRecomputeReport {
+  /** Resoconto dell'ultima esecuzione che ha davvero modificato qualcosa,
+   * conservato quando l'esecuzione corrente non ha cambiato nulla. */
+  previous_changes?: (PositionsRecomputeReport & { at: string }) | null;
+}
+
+export interface PositionsRecomputePreview {
+  checked: number;
+  changed: number;
+  changes: PositionChange[];
 }
 
 /** Milestone 09.5: mappatura tipi transazione configurabile per parser

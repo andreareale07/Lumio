@@ -9,6 +9,7 @@ from app.worker.jobs.google_export_job import google_sheets_export_job
 from app.worker.jobs.import_job import import_job
 from app.worker.jobs.job_health_job import expire_stale_jobs_job
 from app.worker.jobs.market_data import refresh_market_data_for_workspace, refresh_market_data_job
+from app.worker.jobs.positions_recompute_job import positions_recompute_job
 from app.worker.jobs.reclassification_job import reclassify_workspace_job
 from app.worker.jobs.snapshot import snapshot_job, write_snapshot_for_workspace
 from app.worker.jobs.snapshot_backfill import snapshot_backfill_job
@@ -55,6 +56,10 @@ class WorkerSettings:
         arq_func(
             snapshot_backfill_job,
             timeout=_settings.snapshot_backfill_job_timeout_seconds,
+        ),
+        arq_func(
+            positions_recompute_job,
+            timeout=_settings.positions_recompute_job_timeout_seconds,
         ),
     ]
     # Cron giornaliero (SPEC §38, DoD M09 "storico patrimonio via snapshot,

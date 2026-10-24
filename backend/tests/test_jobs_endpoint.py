@@ -38,7 +38,7 @@ async def test_list_jobs_returns_eight_jobs_in_two_categories(client):
     response = await client.get("/api/v1/jobs", headers=_auth_headers(token))
     assert response.status_code == 200
     jobs = response.json()
-    assert len(jobs) == 8
+    assert len(jobs) == 9
 
     by_kind = {j["kind"]: j for j in jobs}
     scheduled = {"market_data_refresh", "snapshot_rebuild", "stale_job_reaper"}
@@ -49,6 +49,7 @@ async def test_list_jobs_returns_eight_jobs_in_two_categories(client):
     # aggiornato di conseguenza (da qui il conteggio 7 -> 8).
     triggered = {
         "import", "ai_classification", "google_sheets_export", "reclassification", "snapshot_backfill",
+        "positions_recompute",
     }
     assert {k for k, j in by_kind.items() if j["category"] == "scheduled"} == scheduled
     assert {k for k, j in by_kind.items() if j["category"] == "triggered"} == triggered

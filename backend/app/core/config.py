@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     # ai_classification_job_timeout_seconds, non quello piu' stretto di un
     # singolo import.
     reclassification_job_timeout_seconds: int = 10800
+    positions_recompute_job_timeout_seconds: int = 1800
 
     # --- Import Engine (milestone 04) ---
     max_import_file_size_bytes: int = 10 * 1024 * 1024

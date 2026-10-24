@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -17,6 +17,7 @@ JOB_KINDS = (
     "google_sheets_export",
     "reclassification",
     "snapshot_backfill",
+    "positions_recompute",
 )
 JOB_RUN_STATUSES = ("running", "success", "failed")
 
@@ -60,3 +61,9 @@ class JobRun(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     message: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Resoconto strutturato dell'ULTIMA esecuzione (cosa e' stato modificato),
+    # per i job che hanno qualcosa di piu' di una riga di messaggio da
+    # mostrare: senza questo il lavoro di un job sparisce nel log del worker,
+    # che l'utente non vede mai. Sovrascritto a ogni esecuzione, come il resto
+    # della riga; None per i job che non lo producono.
+    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

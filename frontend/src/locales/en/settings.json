@@ -344,6 +344,30 @@
         }
       }
     },
+    "maintenance": {
+      "label": "Maintenance",
+      "description": "Recomputes and repairs you can run by hand, with a preview and a report of what changed.",
+      "positions": {
+        "title": "Recompute positions",
+        "description": "Quantity, average cost and realized P/L of each security are stored values: they only update when one of its movements changes. If the calculation was fixed, the values already stored stay as they were until you recompute them here.",
+        "preview": "Show preview",
+        "previewTitle": "Preview (nothing saved)",
+        "run": "Recompute now",
+        "running": "Recomputing…",
+        "previousChanges": "Last changes actually made ({{date}})",
+    "lastRun": "Last run",
+        "summary": "{{changed}} positions change out of {{checked}} checked.",
+        "truncated": "List limited to the first {{shown}} positions: the count above is complete.",
+        "previewError": "The preview could not be calculated.",
+        "runError": "The recompute could not be started.",
+        "table": {
+          "asset": "Security",
+          "account": "Account",
+          "realized": "Realized P/L (before → after)",
+          "quantity": "Quantity (before → after)"
+        }
+      }
+    },
     "jobs": {
       "label": "System jobs",
       "description": "Configure automatic jobs and the ones triggered by your actions.",

@@ -23,6 +23,7 @@ SNAPSHOT_REBUILD_FUNCTION = "write_snapshot_for_workspace"
 GOOGLE_SHEETS_EXPORT_FUNCTION = "google_sheets_export_job"
 RECLASSIFICATION_FUNCTION = "reclassify_workspace_job"
 SNAPSHOT_BACKFILL_FUNCTION = "snapshot_backfill_job"
+POSITIONS_RECOMPUTE_FUNCTION = "positions_recompute_job"
 
 
 async def get_arq_pool() -> ArqRedis:
@@ -162,4 +163,14 @@ async def enqueue_google_sheets_export(workspace_id: uuid.UUID, user_id: uuid.UU
     router), non serve l'idempotenza di arq per quello."""
     pool = await get_arq_pool()
     job = await pool.enqueue_job(GOOGLE_SHEETS_EXPORT_FUNCTION, str(workspace_id), str(user_id), options)
+    return job.job_id if job is not None else ""
+
+
+async def enqueue_positions_recompute(workspace_id: uuid.UUID, user_id: uuid.UUID) -> str:
+    """Trigger manuale (`POST /maintenance/positions-recompute`). Nessun
+    `_job_id` fisso: stesso motivo di `enqueue_reclassification` (arq
+    ignorerebbe per un'ora ogni esecuzione dopo la prima); il doppio click
+    e' gestito controllando `job_runs` nel router."""
+    pool = await get_arq_pool()
+    job = await pool.enqueue_job(POSITIONS_RECOMPUTE_FUNCTION, str(workspace_id), str(user_id))
     return job.job_id if job is not None else ""

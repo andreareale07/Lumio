@@ -37,6 +37,10 @@
     "name": "Net worth history rebuild",
     "description": "Rebuilds the daily net worth/portfolio history for the requested range (historical prices and FX included) — triggered automatically after an import or manually from the Net Worth page."
   },
+  "positionsRecompute": {
+    "name": "Positions recompute",
+    "description": "Recomputes quantity, average cost and realized P/L of every position from the movements and leaves a report of what changed — started manually from Settings > Maintenance."
+  },
   "params": {
     "staleThreshold": "Stale threshold",
     "staleThresholdImport": "Stale threshold — Import",

@@ -7,8 +7,8 @@ restano quelli vecchi finche' non si ricalcolano: questo script lo fa per ogni
 workspace, con l'identita' RLS del suo proprietario (mai bypassando la RLS),
 e stampa solo le posizioni che cambiano.
 
-Uso: docker compose exec app python scripts/recompute_positions.py --dry-run
-     docker compose exec app python scripts/recompute_positions.py
+Uso: docker compose exec -e PYTHONPATH=/app app python scripts/recompute_positions.py --dry-run
+     docker compose exec -e PYTHONPATH=/app app python scripts/recompute_positions.py
 """
 import asyncio
 import sys
@@ -25,7 +25,7 @@ def _fmt(value: Decimal | None) -> str:
 
 async def _recompute_workspace(workspace_id, owner_user_id, dry_run: bool) -> int:
     async with rls_session(owner_user_id) as db:
-        changes = await recompute_all_positions(db, workspace_id)
+        changes = (await recompute_all_positions(db, workspace_id)).changes
         for c in changes:
             print(
                 f"  {c.asset_name}: utile realizzato {_fmt(c.old_realized_pl)} -> {_fmt(c.new_realized_pl)}, "

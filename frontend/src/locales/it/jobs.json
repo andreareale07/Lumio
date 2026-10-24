@@ -37,6 +37,10 @@
     "name": "Storico patrimonio ricostruito",
     "description": "Ricostruisce lo storico giornaliero di patrimonio/portfolio per l'intervallo richiesto (prezzi storici + cambio inclusi) — innescato automaticamente a fine import o manualmente dalla pagina Patrimonio."
   },
+  "positionsRecompute": {
+    "name": "Ricalcolo posizioni",
+    "description": "Ricalcola dai movimenti quantita', costo medio e utile realizzato di ogni posizione e lascia un resoconto di cosa e' cambiato — lanciato a mano da Impostazioni > Manutenzione."
+  },
   "params": {
     "staleThreshold": "Soglia di stallo",
     "staleThresholdImport": "Soglia di stallo — Import",

@@ -66,16 +66,18 @@ async def test_recompute_all_positions_repairs_a_stale_stored_value(client):
     await _corrupt_realized(user_id, "999999.99")
 
     async with rls_session(user_id) as db:
-        changes = await recompute_all_positions(db, workspace_id)
+        report = await recompute_all_positions(db, workspace_id)
         await db.commit()
 
+    changes = report.changes
+    assert report.checked == 1
     assert len(changes) == 1
     assert changes[0].old_realized_pl == Decimal("999999.99")
     assert changes[0].new_realized_pl == Decimal("100.00")
     assert await _stored_realized(user_id) == Decimal("100.00")
 
     async with rls_session(user_id) as db:
-        assert await recompute_all_positions(db, workspace_id) == []
+        assert (await recompute_all_positions(db, workspace_id)).changes == []
 
 
 async def test_script_dry_run_writes_nothing_and_real_run_repairs(client):
@@ -96,7 +98,7 @@ async def test_recompute_is_scoped_to_the_workspace_of_the_user(client):
     await _corrupt_realized(other_id, "555.00")
 
     async with rls_session(owner_id) as db:
-        assert await recompute_all_positions(db, owner_workspace) == []
+        assert (await recompute_all_positions(db, owner_workspace)).changes == []
         await db.commit()
 
     assert await _stored_realized(other_id) == Decimal("555.00")
