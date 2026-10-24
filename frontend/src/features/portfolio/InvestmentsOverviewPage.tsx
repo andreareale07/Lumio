@@ -11,6 +11,7 @@ import { LinkButton } from "../../components/ui/LinkButton";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { formatMoney, formatPercent, formatSignedMoney } from "../../lib/format";
 import { AssetFormDialog } from "./AssetFormDialog";
+import { CorporateActionSuggestions } from "./CorporateActionSuggestions";
 import { InvestmentTransactionFormDialog } from "./InvestmentTransactionFormDialog";
 import { PortfolioManageDialog } from "./PortfolioManageDialog";
 import { PortfolioSummaryBlock } from "./PortfolioSummaryBlock";
@@ -84,6 +85,8 @@ export function InvestmentsOverviewPage() {
         {recordTransactionButton}
         {taxButton}
       </div>
+
+      <CorporateActionSuggestions />
 
       <PortfolioSummaryBlock
         scope={{}}

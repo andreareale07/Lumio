@@ -337,5 +337,60 @@
         "confirm": "Elimina"
       }
     }
+  },
+  "corporateActions": {
+    "split": {
+      "title": "Possibile raggruppamento di azioni",
+      "description": "«{{source}}» ({{sourceQuantity}}) e «{{target}}» ({{targetQuantity}}) sembrano lo stesso titolo dopo un raggruppamento {{old}}:{{new}} con cambio di codice ISIN: finché restano separati, uno risulta aperto al costo non scalato e l'altro in vendita scoperta.",
+      "evidenceHigh": "Le quantità tornano esattamente con questo rapporto.",
+      "evidenceMedium": "Basato solo sul salto di prezzo: verifica il rapporto prima di confermare.",
+      "review": "Rivedi e applica",
+      "dismiss": "Non è un raggruppamento"
+    },
+    "expiry": {
+      "title": "Derivato forse scaduto",
+      "description": "«{{asset}}» ({{quantity}} pezzi, costo {{cost}}) non ha prezzi di mercato aggiornati: se è scaduto senza valore (knock-out), chiudilo a zero.",
+      "lastPrice": "Ultimo prezzo: {{date}}",
+      "neverPriced": "Nessun prezzo mai registrato",
+      "expire": "Scaduto a zero",
+      "stillActive": "È ancora attivo"
+    },
+    "mergeDialog": {
+      "title": "Unisci due titoli (raggruppamento)",
+      "hint": "Sposta tutti i movimenti del titolo vecchio su quello nuovo e applica il rapporto di raggruppamento (o frazionamento) alle quantità e al costo medio. Il valore investito non cambia.",
+      "fields": {
+        "source": "Titolo vecchio (da cui provengono i movimenti)",
+        "target": "Titolo nuovo (riceve i movimenti)",
+        "oldUnits": "Azioni vecchie",
+        "newUnits": "Azioni nuove",
+        "splitDate": "Data del raggruppamento (facoltativa)"
+      },
+      "ratioPreview": "{{old}} azioni vecchie diventano {{new}} nuove",
+      "selectAsset": "Seleziona un titolo",
+      "submit": "Unisci",
+      "validation": {
+        "source": "Seleziona il titolo vecchio",
+        "target": "Seleziona il titolo nuovo",
+        "different": "I due titoli devono essere diversi",
+        "units": "Numero non valido (> 0)"
+      },
+      "error": "Non è stato possibile unire i due titoli."
+    },
+    "expireDialog": {
+      "title": "Chiudi a zero un derivato scaduto",
+      "hint": "Registra la vendita dell'intera quantità di «{{asset}}» a prezzo 0 alla data indicata: la perdita realizzata è il costo sostenuto. Nessun incasso viene registrato.",
+      "fields": {
+        "date": "Data di scadenza / strike"
+      },
+      "submit": "Chiudi a zero",
+      "validation": {
+        "date": "Indica la data"
+      },
+      "error": "Non è stato possibile chiudere la posizione."
+    },
+    "assetActions": {
+      "merge": "Unisci con un altro titolo",
+      "expire": "Segna come scaduto a zero"
+    }
   }
 }

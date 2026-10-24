@@ -9,6 +9,7 @@ from app.api.v1 import (
     banks,
     categories,
     classification,
+    corporate_actions,
     currencies,
     import_mappings,
     imports,
@@ -42,6 +43,7 @@ api_router.include_router(settings_market_data.router)
 api_router.include_router(transaction_type_mappings.router)
 api_router.include_router(analytics.router)
 api_router.include_router(assets.router)
+api_router.include_router(corporate_actions.router)
 api_router.include_router(portfolios.router)
 api_router.include_router(investment_transactions.router)
 api_router.include_router(positions.router)

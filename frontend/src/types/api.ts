@@ -1357,3 +1357,31 @@ export interface TaxEventOverride {
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
+
+export interface SplitSuggestion {
+  source_asset_id: Uuid;
+  target_asset_id: Uuid;
+  source_label: string;
+  target_label: string;
+  source_quantity: string;
+  target_quantity: string;
+  /** Unita' del titolo nuovo per 1 del vecchio (0.0001 = raggruppamento 10.000:1). */
+  ratio: string;
+  split_date: IsoDate;
+  confidence: "high" | "medium";
+  quantity_matched: boolean;
+}
+
+export interface ExpirySuggestion {
+  asset_id: Uuid;
+  asset_label: string;
+  quantity: string;
+  cost_basis: string;
+  currency: string;
+  last_price_date: IsoDate | null;
+}
+
+export interface CorporateActionSuggestions {
+  splits: SplitSuggestion[];
+  expirations: ExpirySuggestion[];
+}

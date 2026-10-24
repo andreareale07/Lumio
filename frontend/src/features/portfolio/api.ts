@@ -10,6 +10,7 @@ import type {
   AssetTaxPreview,
   AssetType,
   AssetValuation,
+  CorporateActionSuggestions,
   HistoryPreset,
   InvestmentTransaction,
   InvestmentTransactionType,
@@ -563,5 +564,47 @@ export function useSnapshotBackfillStatus() {
     queryKey: ["portfolio", "snapshots", "backfill", "status"] as const,
     queryFn: () => api.get<JobRun | null>("/portfolios/snapshots/backfill/status"),
     refetchInterval: (query) => (query.state.data?.status === "running" ? 3000 : false),
+  });
+}
+
+// --- Operazioni societarie (raggruppamento con cambio ISIN, scadenza a zero) ---
+
+export const corporateActionsKey = ["portfolio", "corporate-actions"] as const;
+
+export function useCorporateActionSuggestions() {
+  return useQuery({
+    queryKey: corporateActionsKey,
+    queryFn: () => api.get<CorporateActionSuggestions>("/corporate-actions/suggestions"),
+  });
+}
+
+function invalidateAfterCorporateAction(queryClient: ReturnType<typeof useQueryClient>) {
+  invalidatePortfolioData(queryClient);
+  queryClient.invalidateQueries({ queryKey: corporateActionsKey });
+  queryClient.invalidateQueries({ queryKey: assetsKey });
+  queryClient.invalidateQueries({ queryKey: ["tax"] });
+}
+
+export interface MergeAssetsInput {
+  source_asset_id: string;
+  target_asset_id: string;
+  ratio: string;
+  split_date?: string | null;
+}
+
+export function useMergeAssets() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: MergeAssetsInput) => api.post<void>("/corporate-actions/merge-assets", input),
+    onSuccess: () => invalidateAfterCorporateAction(queryClient),
+  });
+}
+
+export function useExpireAsset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { asset_id: string; expiry_date: string }) =>
+      api.post<{ closed_positions: number }>("/corporate-actions/expire", input),
+    onSuccess: () => invalidateAfterCorporateAction(queryClient),
   });
 }

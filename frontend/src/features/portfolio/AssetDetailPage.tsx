@@ -8,6 +8,7 @@ import { ChartCard } from "../../components/charts/ChartCard";
 import { RangeSelector } from "../../components/charts/RangeSelector";
 import { BackLink } from "../../components/ui/BackLink";
 import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
@@ -35,6 +36,8 @@ import {
   usePositions,
   usePriceHistory,
 } from "./api";
+import { ExpireAssetDialog } from "./ExpireAssetDialog";
+import { MergeAssetsDialog } from "./MergeAssetsDialog";
 import { distributionPolicyLabel, useAssetTypeLabel } from "./labels";
 
 export function AssetDetailPage() {
@@ -51,6 +54,8 @@ export function AssetDetailPage() {
   const backTo = (location.state as { from?: string; label?: string } | null)?.from ?? "/investments";
   const backLabel = (location.state as { from?: string; label?: string } | null)?.label ?? t("assetDetail.backFallback");
   const [preset, setPreset] = useState<HistoryPreset>("3M");
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [expireOpen, setExpireOpen] = useState(false);
 
   const { data: assets, isLoading, isError, refetch } = useAssets();
   const asset = assets?.find((a) => a.id === assetId);
@@ -181,6 +186,16 @@ export function AssetDetailPage() {
               .filter(Boolean)
               .join(" · ")}
           </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setMergeOpen(true)}>
+              {t("corporateActions.assetActions.merge")}
+            </Button>
+            {openPositions.length > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => setExpireOpen(true)}>
+                {t("corporateActions.assetActions.expire")}
+              </Button>
+            )}
+          </div>
         </div>
         {displayPrice !== null && (
           <div className="text-right">
@@ -209,6 +224,14 @@ export function AssetDetailPage() {
           </div>
         )}
       </div>
+
+      <MergeAssetsDialog open={mergeOpen} onClose={() => setMergeOpen(false)} prefill={{ sourceAssetId: assetId }} />
+      <ExpireAssetDialog
+        open={expireOpen}
+        onClose={() => setExpireOpen(false)}
+        assetId={assetId}
+        assetLabel={asset.display_name ?? asset.name}
+      />
 
       <ChartCard
         title={t("assetDetail.priceChart.title")}

@@ -337,5 +337,60 @@
         "confirm": "Delete"
       }
     }
+  },
+  "corporateActions": {
+    "split": {
+      "title": "Possible reverse split",
+      "description": "\"{{source}}\" ({{sourceQuantity}}) and \"{{target}}\" ({{targetQuantity}}) look like the same security after a {{old}}:{{new}} share consolidation with an ISIN change: while they stay separate, one shows as open at the unscaled cost and the other as a short sale.",
+      "evidenceHigh": "The quantities match this ratio exactly.",
+      "evidenceMedium": "Based on the price jump only: check the ratio before confirming.",
+      "review": "Review and apply",
+      "dismiss": "Not a consolidation"
+    },
+    "expiry": {
+      "title": "Derivative possibly expired",
+      "description": "\"{{asset}}\" ({{quantity}} units, cost {{cost}}) has no up-to-date market price: if it expired worthless (knock-out), close it at zero.",
+      "lastPrice": "Last price: {{date}}",
+      "neverPriced": "No price ever recorded",
+      "expire": "Expired worthless",
+      "stillActive": "Still active"
+    },
+    "mergeDialog": {
+      "title": "Merge two securities (share consolidation)",
+      "hint": "Moves all movements of the old security to the new one and applies the consolidation (or split) ratio to quantities and average cost. The invested value does not change.",
+      "fields": {
+        "source": "Old security (movements come from here)",
+        "target": "New security (receives the movements)",
+        "oldUnits": "Old shares",
+        "newUnits": "New shares",
+        "splitDate": "Consolidation date (optional)"
+      },
+      "ratioPreview": "{{old}} old shares become {{new}} new",
+      "selectAsset": "Select a security",
+      "submit": "Merge",
+      "validation": {
+        "source": "Select the old security",
+        "target": "Select the new security",
+        "different": "The two securities must be different",
+        "units": "Invalid number (> 0)"
+      },
+      "error": "The two securities could not be merged."
+    },
+    "expireDialog": {
+      "title": "Close an expired derivative at zero",
+      "hint": "Records the sale of the whole quantity of \"{{asset}}\" at price 0 on the given date: the realized loss is the cost incurred. No proceeds are recorded.",
+      "fields": {
+        "date": "Expiry / strike date"
+      },
+      "submit": "Close at zero",
+      "validation": {
+        "date": "Enter the date"
+      },
+      "error": "The position could not be closed."
+    },
+    "assetActions": {
+      "merge": "Merge with another security",
+      "expire": "Mark as expired worthless"
+    }
   }
 }
