@@ -213,12 +213,15 @@ async def merge_assets(
     target_asset_id: uuid.UUID,
     ratio: Decimal,
     split_date: date | None,
-) -> None:
+) -> date:
     """Sposta TUTTI i movimenti di `source` su `target` e inserisce, per ogni
     conto coinvolto, un movimento `split` (moltiplicatore `ratio`, unita' del
     titolo nuovo per 1 del vecchio) tra i movimenti vecchi e quelli nuovi.
     Il chiamante fa commit/rollback. Al `source` non resta nessun movimento:
-    sparisce dalle posizioni (e il suggerimento non si ripresenta)."""
+    sparisce dalle posizioni (e il suggerimento non si ripresenta).
+
+    Ritorna la data del primo movimento spostato: da li' in poi il valore degli
+    investimenti cambia, quindi gli snapshot del patrimonio vanno ricostruiti."""
     if source_asset_id == target_asset_id:
         raise CorporateActionError("Gli asset da unire devono essere diversi")
     if ratio <= 0:
@@ -302,6 +305,7 @@ async def merge_assets(
     for account_id in accounts:
         await _recompute_or_raise(db, workspace_id, account_id, source_asset_id, source.currency)
         await _recompute_or_raise(db, workspace_id, account_id, target_asset_id, target.currency)
+    return min(m.trade_date for m in source_movements)
 
 
 async def expire_asset(

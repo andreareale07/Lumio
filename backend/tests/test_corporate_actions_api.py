@@ -1,6 +1,8 @@
 """Test API delle operazioni societarie: unione di due asset (caso reale Acme,
 raggruppamento 10.000:1 con cambio ISIN) e chiusura a zero di un derivato
 scaduto (turbo/knock-out)."""
+from datetime import date
+
 from httpx import AsyncClient
 
 from tests.test_portfolio_api import (
@@ -12,22 +14,34 @@ from tests.test_portfolio_api import (
 )
 
 
+def _capture_backfill(monkeypatch) -> list[dict]:
+    calls: list[dict] = []
+
+    async def fake_enqueue(workspace_id, user_id, date_from=None):
+        calls.append({"date_from": date_from})
+        return "fake-job"
+
+    monkeypatch.setattr("app.api.v1.corporate_actions.enqueue_snapshot_backfill", fake_enqueue)
+    return calls
+
+
 async def _prepare_atos(client: AsyncClient, token: str) -> tuple[str, str, str]:
     account_id = await _create_account(client, token)
     old_asset = await _create_asset(client, token, name="ACME SE NOM. EO 1", symbol=None, asset_type="stock")
     new_asset = await _create_asset(client, token, name="ACME SE NOM.EO 1", symbol=None, asset_type="stock")
-    for date, qty, price, amount in (
+    for trade_date, qty, price, amount in (
         ("2025-01-23", "100000", "0.002500", "-250.00"),
         ("2025-03-06", "100000", "0.004500", "-450.00"),
     ):
         response = await _create_investment_transaction(
-            client, token, account_id, asset_id=old_asset, trade_date=date, quantity=qty, price=price, amount=amount
+            client, token, account_id, asset_id=old_asset, trade_date=trade_date, quantity=qty, price=price, amount=amount
         )
         assert response.status_code == 201, response.text
     return account_id, old_asset, new_asset
 
 
-async def test_merge_assets_applies_split_and_lets_the_sale_close_the_position(client):
+async def test_merge_assets_applies_split_and_lets_the_sale_close_the_position(client, monkeypatch):
+    backfill_calls = _capture_backfill(monkeypatch)
     token = await _register(client, "merge-atos@example.com")
     account_id, old_asset, new_asset = await _prepare_atos(client, token)
 
@@ -45,6 +59,8 @@ async def test_merge_assets_applies_split_and_lets_the_sale_close_the_position(c
         headers=_auth_headers(token),
     )
     assert merge.status_code == 204, merge.text
+    # Gli snapshot del patrimonio vanno ricostruiti dal primo movimento spostato.
+    assert backfill_calls == [{"date_from": date(2025, 1, 23)}]
 
     positions = (await client.get("/api/v1/positions", headers=_auth_headers(token))).json()
     assert [p["asset_id"] for p in positions] == [new_asset]
@@ -105,7 +121,8 @@ async def test_merge_is_isolated_between_workspaces(client):
     assert [p["asset_id"] for p in owner_positions] == [first]
 
 
-async def test_expiry_suggestion_and_close_worthless_derivative(client):
+async def test_expiry_suggestion_and_close_worthless_derivative(client, monkeypatch):
+    backfill_calls = _capture_backfill(monkeypatch)
     token = await _register(client, "expire-turbo@example.com")
     account_id = await _create_account(client, token)
     turbo = await _create_asset(
@@ -128,6 +145,7 @@ async def test_expiry_suggestion_and_close_worthless_derivative(client):
     )
     assert expire.status_code == 200, expire.text
     assert expire.json() == {"closed_positions": 1}
+    assert backfill_calls == [{"date_from": date(2026, 3, 20)}]
 
     positions = (
         await client.get("/api/v1/positions", params={"only_open": "false"}, headers=_auth_headers(token))
