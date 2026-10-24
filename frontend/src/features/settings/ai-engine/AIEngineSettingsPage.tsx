@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { PAGE_WIDTH_WIDE } from "../../../components/layout/pageWidths";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
@@ -118,7 +119,7 @@ export function AIEngineSettingsPage() {
   const hasProfile = data?.active_profile != null;
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4">
+    <div className={PAGE_WIDTH_WIDE}>
       <div>
         <h1 className="text-lg font-semibold text-text">{t("items.aiEngine.label")}</h1>
         <p className="text-sm text-text-muted">{t("items.aiEngine.pageDescription")}</p>

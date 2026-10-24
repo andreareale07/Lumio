@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Search, Tags } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { PAGE_WIDTH_WIDE } from "../../../components/layout/pageWidths";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
@@ -35,7 +36,7 @@ export function TransactionTypeMappingsPage() {
   }, [parserTypes, selectedParser]);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4">
+    <div className={PAGE_WIDTH_WIDE}>
       <h1 className="text-lg font-semibold text-text">{t("items.transactionTypes.label")}</h1>
 
       <p className="text-sm text-text-muted">

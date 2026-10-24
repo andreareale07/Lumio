@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 
+import { PAGE_WIDTH_WIDE } from "../../../components/layout/pageWidths";
 import { PositionsRecomputePanel } from "./PositionsRecomputePanel";
 
 /** Pagina Impostazioni > Manutenzione — operazioni di riparazione/ricalcolo
@@ -10,7 +11,7 @@ export function MaintenanceSettingsPage() {
   const { t } = useTranslation("settings");
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
+    <div className={PAGE_WIDTH_WIDE}>
       <div>
         <h1 className="text-lg font-semibold text-text">{t("items.maintenance.label")}</h1>
         <p className="text-sm text-text-muted">{t("items.maintenance.description")}</p>
