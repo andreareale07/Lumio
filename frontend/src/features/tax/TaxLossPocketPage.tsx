@@ -12,8 +12,10 @@ import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
+import { Pagination } from "../../components/ui/Pagination";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { formatDate, formatMoney } from "../../lib/format";
+import { usePagedList } from "../../lib/usePagedList";
 import { useAccounts } from "../accounts/api";
 import { useAssets } from "../portfolio/api";
 import type { Asset, LossPocketRow, TaxableGains, TaxRegimePeriod } from "../../types/api";
@@ -132,93 +134,13 @@ export function TaxLossPocketPage() {
         return (
         <div className={groups.length > 1 ? "grid grid-cols-1 gap-3 xl:grid-cols-2" : "flex flex-col gap-3"}>
           {groups.map(([perimeter, group]) => (
-            <Card key={perimeter} className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-text">
-                  {perimeter === "dichiarativo"
-                    ? t("lossPocket.page.perimeterAggregate")
-                    : accountNameById.get(perimeter) ?? perimeter}
-                </h3>
-                <div className="text-right">
-                  <p className="text-xs text-text-muted">
-                    {t("lossPocket.page.atLeastPrefix")} · {t("lossPocket.page.capacityLabel")}
-                  </p>
-                  <p className="font-numeric text-lg font-semibold text-text">
-                    {formatMoney(group.total, currencyGuess())}
-                  </p>
-                  {group.total === 0 && (
-                    <p className="text-xs text-text-muted">{t("lossPocket.page.capacityExhausted")}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full text-sm">
-                  <thead className="text-left text-text-muted">
-                    <tr>
-                      <th className="px-2 py-1.5 font-medium">{t("lossPocket.table.asset")}</th>
-                      <th className="px-2 py-1.5 font-medium">{t("lossPocket.table.formationDate")}</th>
-                      <th className="px-2 py-1.5 text-right font-medium">{t("lossPocket.table.nominal")}</th>
-                      <th className="px-2 py-1.5 text-right font-medium">{t("lossPocket.table.coefficient")}</th>
-                      <th className="px-2 py-1.5 text-right font-medium">{t("lossPocket.table.usable")}</th>
-                      <th className="px-2 py-1.5 font-medium">{t("lossPocket.table.expiresOn")}</th>
-                      <th className="px-2 py-1.5 font-medium">{t("lossPocket.table.source")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.rows.map((row, i) => (
-                      <tr key={i} className="border-t border-border">
-                        <td className="px-2 py-1.5 text-text">
-                          <AssetCell assetId={row.asset_id} assetById={assetById} />
-                        </td>
-                        <td className="px-2 py-1.5 text-text">{formatDate(row.formation_date)}</td>
-                        <td className="font-numeric px-2 py-1.5 text-right text-text-muted">
-                          {formatMoney(row.nominal, "EUR")}
-                        </td>
-                        <td className="font-numeric px-2 py-1.5 text-right text-text-muted">
-                          {(Number(row.coefficient) * 100).toFixed(2)}%
-                        </td>
-                        <td className="px-2 py-1.5 text-right">
-                          <RemainingCell nominal={row.usable_amount} remaining={row.remaining_amount} />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <span className={row.is_expired ? "text-danger" : "text-text-muted"}>
-                            {formatDate(row.expires_on)}
-                            {row.is_expired && ` · ${t("lossPocket.table.expired")}`}
-                          </span>
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <SourceBadge source={row.source} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <ul className="flex flex-col gap-2 md:hidden">
-                {group.rows.map((row, i) => (
-                  <li key={i} className="rounded-lg border border-border p-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <AssetCell assetId={row.asset_id} assetById={assetById} />
-                      <RemainingCell nominal={row.usable_amount} remaining={row.remaining_amount} />
-                    </div>
-                    <div className="text-xs text-text-muted">{formatDate(row.formation_date)}</div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-text-muted">
-                        {t("lossPocket.table.nominal")}: {formatMoney(row.nominal, "EUR")} ·{" "}
-                        {t("lossPocket.table.coefficient")}: {(Number(row.coefficient) * 100).toFixed(2)}%
-                      </p>
-                      <SourceBadge source={row.source} />
-                    </div>
-                    <p className={row.is_expired ? "text-danger" : "text-text-muted"}>
-                      {t("lossPocket.table.expiresOn")}: {formatDate(row.expires_on)}
-                      {row.is_expired && ` · ${t("lossPocket.table.expired")}`}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </Card>
+            <LossPerimeterCard
+              key={perimeter}
+              perimeter={perimeter}
+              group={group}
+              accountNameById={accountNameById}
+              assetById={assetById}
+            />
           ))}
         </div>
         );
@@ -253,48 +175,195 @@ function TaxableGainsSection({
       {perimeters.map((perimeter) => {
         const rows = taxableGains.rows.filter((r) => r.perimeter === perimeter);
         return (
-          <Card key={perimeter} className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-text">
-                {perimeter === "dichiarativo"
-                  ? t("lossPocket.page.perimeterAggregate")
-                  : accountNameById.get(perimeter) ?? perimeter}
-              </h3>
-              <div className="text-right">
-                <p className="text-xs text-text-muted">{t("lossPocket.taxableGains.taxDue")}</p>
-                <p className="font-numeric text-lg font-semibold text-text">
-                  {formatMoney(taxableGains.tax_due_by_perimeter[perimeter] ?? "0", "EUR")}
-                </p>
-                <p className="text-xs text-text-muted">
-                  {t("lossPocket.taxableGains.remainingPocket")}:{" "}
-                  {formatMoney(taxableGains.remaining_pocket_by_perimeter[perimeter] ?? "0", "EUR")}
-                </p>
-              </div>
-            </div>
-            <ul className="flex flex-col gap-2">
-              {rows.map((row, i) => (
-                <li key={i} className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
-                  <div>
-                    <AssetCell assetId={row.asset_id} assetById={assetById} />
-                    <p className="text-xs text-text-muted">{formatDate(row.trade_date)}</p>
-                    <p className="text-xs text-text-muted">
-                      {t("lossPocket.taxableGains.nominal")}: {formatMoney(row.nominal, "EUR")} ·{" "}
-                      {t("lossPocket.taxableGains.offset")}: {formatMoney(row.offset_amount, "EUR")}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-numeric text-text">{formatMoney(row.tax_due, "EUR")}</span>
-                    <p className="text-xs text-text-muted">
-                      {t("lossPocket.taxableGains.taxableAmount")}: {formatMoney(row.taxable_amount, "EUR")}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
+          <TaxableGainsCard key={perimeter} perimeter={perimeter} rows={rows} taxableGains={taxableGains} accountNameById={accountNameById} assetById={assetById} />
         );
       })}
     </div>
+  );
+}
+
+const GAINS_ROWS_PAGE_SIZE = 15;
+
+function TaxableGainsCard({
+  perimeter,
+  rows,
+  taxableGains,
+  accountNameById,
+  assetById,
+}: {
+  perimeter: string;
+  rows: TaxableGains["rows"];
+  taxableGains: TaxableGains;
+  accountNameById: Map<string, string>;
+  assetById: Map<string, Asset>;
+}) {
+  const { t } = useTranslation("tax");
+  const paged = usePagedList(rows, GAINS_ROWS_PAGE_SIZE, perimeter);
+  return (
+    <Card className="flex flex-col gap-3">
+    <div className="flex items-center justify-between">
+      <h3 className="text-sm font-semibold text-text">
+        {perimeter === "dichiarativo"
+          ? t("lossPocket.page.perimeterAggregate")
+          : accountNameById.get(perimeter) ?? perimeter}
+      </h3>
+      <div className="text-right">
+        <p className="text-xs text-text-muted">{t("lossPocket.taxableGains.taxDue")}</p>
+        <p className="font-numeric text-lg font-semibold text-text">
+          {formatMoney(taxableGains.tax_due_by_perimeter[perimeter] ?? "0", "EUR")}
+        </p>
+        <p className="text-xs text-text-muted">
+          {t("lossPocket.taxableGains.remainingPocket")}:{" "}
+          {formatMoney(taxableGains.remaining_pocket_by_perimeter[perimeter] ?? "0", "EUR")}
+        </p>
+      </div>
+    </div>
+      <ul className="flex flex-col gap-2">
+        {paged.pageItems.map((row, i) => (
+          <li key={i} className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
+            <div>
+              <AssetCell assetId={row.asset_id} assetById={assetById} />
+              <p className="text-xs text-text-muted">{formatDate(row.trade_date)}</p>
+              <p className="text-xs text-text-muted">
+                {t("lossPocket.taxableGains.nominal")}: {formatMoney(row.nominal, "EUR")} ·{" "}
+                {t("lossPocket.taxableGains.offset")}: {formatMoney(row.offset_amount, "EUR")}
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="font-numeric text-text">{formatMoney(row.tax_due, "EUR")}</span>
+              <p className="text-xs text-text-muted">
+                {t("lossPocket.taxableGains.taxableAmount")}: {formatMoney(row.taxable_amount, "EUR")}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <Pagination
+        page={paged.page}
+        pageCount={paged.pageCount}
+        from={paged.from}
+        to={paged.to}
+        total={paged.total}
+        onPageChange={paged.setPage}
+      />
+    </Card>
+  );
+}
+
+const LOSS_ROWS_PAGE_SIZE = 15;
+
+/** Un perimetro (conto amministrato o dichiarativo aggregato): le righe di
+ * minusvalenza crescono nel tempo, quindi la tabella e' impaginata per
+ * perimetro. Il totale in testa resta quello dell'intero perimetro. */
+function LossPerimeterCard({
+  perimeter,
+  group,
+  accountNameById,
+  assetById,
+}: {
+  perimeter: string;
+  group: { rows: LossPocketRow[]; total: number };
+  accountNameById: Map<string, string>;
+  assetById: Map<string, Asset>;
+}) {
+  const { t } = useTranslation("tax");
+  const paged = usePagedList(group.rows, LOSS_ROWS_PAGE_SIZE, perimeter);
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-text">
+          {perimeter === "dichiarativo"
+            ? t("lossPocket.page.perimeterAggregate")
+            : accountNameById.get(perimeter) ?? perimeter}
+        </h3>
+        <div className="text-right">
+          <p className="text-xs text-text-muted">
+            {t("lossPocket.page.atLeastPrefix")} · {t("lossPocket.page.capacityLabel")}
+          </p>
+          <p className="font-numeric text-lg font-semibold text-text">
+            {formatMoney(group.total, currencyGuess())}
+          </p>
+          {group.total === 0 && (
+            <p className="text-xs text-text-muted">{t("lossPocket.page.capacityExhausted")}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full text-sm">
+          <thead className="text-left text-text-muted">
+            <tr>
+              <th className="px-2 py-1.5 font-medium">{t("lossPocket.table.asset")}</th>
+              <th className="px-2 py-1.5 font-medium">{t("lossPocket.table.formationDate")}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t("lossPocket.table.nominal")}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t("lossPocket.table.coefficient")}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t("lossPocket.table.usable")}</th>
+              <th className="px-2 py-1.5 font-medium">{t("lossPocket.table.expiresOn")}</th>
+              <th className="px-2 py-1.5 font-medium">{t("lossPocket.table.source")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paged.pageItems.map((row, i) => (
+              <tr key={i} className="border-t border-border">
+                <td className="px-2 py-1.5 text-text">
+                  <AssetCell assetId={row.asset_id} assetById={assetById} />
+                </td>
+                <td className="px-2 py-1.5 text-text">{formatDate(row.formation_date)}</td>
+                <td className="font-numeric px-2 py-1.5 text-right text-text-muted">
+                  {formatMoney(row.nominal, "EUR")}
+                </td>
+                <td className="font-numeric px-2 py-1.5 text-right text-text-muted">
+                  {(Number(row.coefficient) * 100).toFixed(2)}%
+                </td>
+                <td className="px-2 py-1.5 text-right">
+                  <RemainingCell nominal={row.usable_amount} remaining={row.remaining_amount} />
+                </td>
+                <td className="px-2 py-1.5">
+                  <span className={row.is_expired ? "text-danger" : "text-text-muted"}>
+                    {formatDate(row.expires_on)}
+                    {row.is_expired && ` · ${t("lossPocket.table.expired")}`}
+                  </span>
+                </td>
+                <td className="px-2 py-1.5">
+                  <SourceBadge source={row.source} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ul className="flex flex-col gap-2 md:hidden">
+        {paged.pageItems.map((row, i) => (
+          <li key={i} className="rounded-lg border border-border p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <AssetCell assetId={row.asset_id} assetById={assetById} />
+              <RemainingCell nominal={row.usable_amount} remaining={row.remaining_amount} />
+            </div>
+            <div className="text-xs text-text-muted">{formatDate(row.formation_date)}</div>
+            <div className="flex items-center justify-between">
+              <p className="text-text-muted">
+                {t("lossPocket.table.nominal")}: {formatMoney(row.nominal, "EUR")} ·{" "}
+                {t("lossPocket.table.coefficient")}: {(Number(row.coefficient) * 100).toFixed(2)}%
+              </p>
+              <SourceBadge source={row.source} />
+            </div>
+            <p className={row.is_expired ? "text-danger" : "text-text-muted"}>
+              {t("lossPocket.table.expiresOn")}: {formatDate(row.expires_on)}
+              {row.is_expired && ` · ${t("lossPocket.table.expired")}`}
+            </p>
+          </li>
+        ))}
+      </ul>
+  <Pagination
+        page={paged.page}
+        pageCount={paged.pageCount}
+        from={paged.from}
+        to={paged.to}
+        total={paged.total}
+        onPageChange={paged.setPage}
+      />
+    </Card>
   );
 }
 

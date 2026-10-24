@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Circle, Loader2 } from "lucide-react";
+import { Link, useInRouterContext } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../../../components/ui/Button";
@@ -39,6 +40,7 @@ export function ExportOptionsDialog({
   const triggerExport = useTriggerGoogleExport();
   const setFolder = useSetGoogleDriveFolder();
   const exportStatus = useGoogleExportStatus();
+  const inRouter = useInRouterContext();
 
   const [step, setStep] = useState<Step>("options");
   const [dateFrom, setDateFrom] = useState(() => isoDaysAgo(365));
@@ -207,6 +209,13 @@ export function ExportOptionsDialog({
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             {progressMessage}
           </div>
+          {/* Chiudendo la finestra l'export continua sul worker: Attivita' e'
+              il punto in cui seguirlo. */}
+          {inRouter && (
+            <Link to="/activity" onClick={close} className="text-sm font-medium text-primary hover:underline">
+              {t("common:jobRun.follow")}
+            </Link>
+          )}
         </div>
       )}
 

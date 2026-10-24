@@ -12,6 +12,7 @@ import { Button } from "../../components/ui/Button";
 import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { JobRunStatus } from "../../components/ui/JobRunStatus";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
 import { Skeleton } from "../../components/ui/Skeleton";
@@ -21,7 +22,12 @@ import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useTransactionReviewSummary, useTransactions } from "../transactions/api";
 import { useAnalyticsCashFlow, useAnalyticsNetWorthHistory, useAnalyticsSummary } from "../analytics/api";
 import { formatBucketLabel, greetingBucketForHour } from "../analytics/chartData";
-import { useTriggerSnapshotRebuild, usePortfolioAllocation, usePortfolioValuation } from "../portfolio/api";
+import {
+  useSnapshotRebuildStatus,
+  useTriggerSnapshotRebuild,
+  usePortfolioAllocation,
+  usePortfolioValuation,
+} from "../portfolio/api";
 import { isSignificantChange, median } from "../../lib/stats";
 
 export function DashboardPage() {
@@ -80,8 +86,11 @@ export function DashboardPage() {
   // stesso endpoint gia' esistente (`POST /portfolios/snapshots/rebuild`),
   // nessun nuovo endpoint.
   const rebuildSnapshot = useTriggerSnapshotRebuild();
+  const rebuildStatus = useSnapshotRebuildStatus();
+  const rebuildRunning = rebuildStatus.data?.status === "running";
   const onRebuildNetWorth = async () => {
     await rebuildSnapshot.mutateAsync();
+    void rebuildStatus.refetch();
     setTimeout(() => void netWorthHistory.refetch(), 1500);
   };
 
@@ -236,9 +245,18 @@ export function DashboardPage() {
             title={t("stock.empty.title")}
             description={t("stock.empty.description")}
             action={
-              <Button variant="secondary" size="sm" loading={rebuildSnapshot.isPending} onClick={() => void onRebuildNetWorth()}>
-                {t("analytics:netWorth.rebuildNow")}
-              </Button>
+              <div className="flex flex-col items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={rebuildSnapshot.isPending}
+                  disabled={rebuildRunning}
+                  onClick={() => void onRebuildNetWorth()}
+                >
+                  {t("analytics:netWorth.rebuildNow")}
+                </Button>
+                {rebuildRunning && <JobRunStatus run={rebuildStatus.data} />}
+              </div>
             }
           />
         )}
