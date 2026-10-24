@@ -11,12 +11,14 @@ UPDATE diretto su `positions`: e' un movimento `adjustment` che codifica il
 delta, cosi' resta un'unica sorgente di verita' auditabile.
 """
 import uuid
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.asset import Asset
 from app.models.investment_transaction import InvestmentTransaction
 from app.models.position import Position
 from app.services.position_calc import compute_position
@@ -151,3 +153,72 @@ async def apply_manual_position_edit(
     position, _ = await recompute_position(db, workspace_id, financial_account_id, asset_id, currency)
     assert position is not None  # l'adjustment appena aggiunto rende i movimenti non vuoti
     return position
+
+
+@dataclass(frozen=True)
+class PositionChange:
+    asset_name: str
+    financial_account_id: uuid.UUID
+    old_quantity: Decimal | None
+    new_quantity: Decimal
+    old_average_cost: Decimal | None
+    new_average_cost: Decimal
+    old_realized_pl: Decimal | None
+    new_realized_pl: Decimal
+
+
+async def recompute_all_positions(db: AsyncSession, workspace_id: uuid.UUID) -> list[PositionChange]:
+    """Ricalcola dai movimenti TUTTE le posizioni del workspace (riparazione
+    una tantum dopo un fix al calcolo: `positions` e' un valore salvato, si
+    aggiorna solo quando un suo movimento cambia). Ritorna solo le posizioni
+    il cui valore salvato e' effettivamente cambiato. Nessun commit: lo fa il
+    chiamante (che puo' anche scartare tutto, per un dry-run)."""
+    keys = (
+        await db.execute(
+            select(
+                InvestmentTransaction.financial_account_id,
+                InvestmentTransaction.asset_id,
+                InvestmentTransaction.currency,
+            )
+            .where(InvestmentTransaction.workspace_id == workspace_id, InvestmentTransaction.asset_id.is_not(None))
+            .distinct()
+        )
+    ).all()
+    names = {
+        a.id: a.name
+        for a in (await db.execute(select(Asset).where(Asset.workspace_id == workspace_id))).scalars().all()
+    }
+
+    changes: list[PositionChange] = []
+    for account_id, asset_id, currency in keys:
+        existing = (
+            await db.execute(
+                select(Position).where(
+                    Position.workspace_id == workspace_id,
+                    Position.financial_account_id == account_id,
+                    Position.asset_id == asset_id,
+                )
+            )
+        ).scalar_one_or_none()
+        before = (
+            (existing.quantity, existing.average_cost, existing.realized_pl) if existing is not None else None
+        )
+        position, _ = await recompute_position(db, workspace_id, account_id, asset_id, currency)
+        if position is None:
+            continue
+        after = (position.quantity, position.average_cost, position.realized_pl)
+        if before == after:
+            continue
+        changes.append(
+            PositionChange(
+                asset_name=names.get(asset_id, str(asset_id)),
+                financial_account_id=account_id,
+                old_quantity=before[0] if before else None,
+                new_quantity=after[0],
+                old_average_cost=before[1] if before else None,
+                new_average_cost=after[1],
+                old_realized_pl=before[2] if before else None,
+                new_realized_pl=after[2],
+            )
+        )
+    return changes
