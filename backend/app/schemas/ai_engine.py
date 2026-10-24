@@ -24,6 +24,8 @@ class AIEngineImportOut(BaseModel):
     # Il rilancio e' offerto solo se ha senso: import completato, AI non in
     # corso, e un profilo attivo con qualcosa da classificare.
     can_retry: bool
+    # In coda o in corso: si puo' chiedere di fermarla.
+    can_cancel: bool
 
 
 class AIEngineStatusOut(BaseModel):
@@ -53,3 +55,10 @@ class AIRunEventListOut(BaseModel):
 class AIRetryResultOut(BaseModel):
     ai_status: str | None
     ai_total: int
+
+
+class AICancelResultOut(BaseModel):
+    ai_status: str | None
+    # True se il job sta girando e si fermera' da solo tra un attimo; False se
+    # era ancora in coda ed e' stato annullato subito.
+    stopping: bool

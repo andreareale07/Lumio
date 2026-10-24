@@ -30,6 +30,10 @@ export function describeEvent(t: TFunction, event: Pick<AIRunEvent, "code" | "me
       });
     case "skipped_nothing_eligible":
       return t(`${prefix}.skipped_nothing_eligible`);
+    case "cancelled_by_user": {
+      const counts = parseDetail(event.message);
+      return t(`${prefix}.cancelled_by_user`, { classified: counts.classified ?? "0", total: counts.total ?? "0" });
+    }
     case "run_completed": {
       const counts = parseDetail(event.message);
       // La riclassificazione non conta le righe "senza categoria pertinente":

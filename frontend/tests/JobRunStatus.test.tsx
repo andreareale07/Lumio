@@ -68,4 +68,19 @@ describe("JobRunStatus", () => {
     );
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
+
+  it("mostra 'Interrotta' per un job fermato dall'utente, senza tono di errore", () => {
+    render(
+      <JobRunStatus
+        run={{
+          status: "cancelled",
+          started_at: "2026-08-11T10:00:00Z",
+          finished_at: "2026-08-11T10:00:05Z",
+          message: "Interrotta dall'utente: 3 merchant aggiornati.",
+        }}
+      />,
+    );
+    expect(screen.getByText("Interrotta")).toBeInTheDocument();
+    expect(screen.getByText(/Interrotta dall'utente: 3 merchant/)).toBeInTheDocument();
+  });
 });

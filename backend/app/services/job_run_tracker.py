@@ -66,10 +66,11 @@ async def finish_run(
     success: bool,
     message: str | None,
     details: dict | None = None,
+    cancelled: bool = False,
 ) -> None:
     async with rls_session(user_id) as db:
         run = await _get_or_create(db, workspace_id, job_kind)
-        run.status = "success" if success else "failed"
+        run.status = "cancelled" if cancelled else ("success" if success else "failed")
         run.finished_at = datetime.now(UTC)
         run.message = message[:_MESSAGE_MAX_LENGTH] if message else None
         run.details = details
@@ -93,6 +94,9 @@ class JobRunHandle:
 
     message: str | None = None
     details: dict | None = None
+    # Il job si e' fermato perche' l'utente lo ha chiesto: stato finale
+    # 'cancelled', non 'success' ne' 'failed'.
+    cancelled: bool = False
 
 
 @asynccontextmanager
@@ -112,4 +116,4 @@ async def tracked_job_run(
         await finish_run(workspace_id, user_id, job_kind, success=False, message=str(exc))
         raise
     else:
-        await finish_run(workspace_id, user_id, job_kind, success=True, message=handle.message, details=handle.details)
+        await finish_run(workspace_id, user_id, job_kind, success=True, message=handle.message, details=handle.details, cancelled=handle.cancelled)

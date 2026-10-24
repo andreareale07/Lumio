@@ -423,6 +423,7 @@
           "running": "In corso",
           "completed": "Completata",
           "failed": "Fallita",
+          "cancelled": "Interrotta",
           "skipped": "Non eseguita"
         }
       },
@@ -455,6 +456,7 @@
           "requested_without_profile": "Hai chiesto l'AI ma non c'è un profilo attivo: nessuna transazione classificata."
         },
         "skipped_nothing_eligible": "AI non eseguita: nessuna transazione da classificare con l'AI.",
+        "cancelled_by_user": "Interrotta dall'utente: {{classified}} transazioni classificate su {{total}}.",
         "run_completed": "Esecuzione conclusa: {{classified}} classificate, {{noMatch}} senza categoria pertinente, {{providerErrors}} errori del provider (su {{total}}).",
         "run_completed_short": "Esecuzione conclusa: {{classified}} classificate, {{providerErrors}} errori del provider (su {{total}})."
       }

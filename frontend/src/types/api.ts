@@ -347,7 +347,7 @@ export interface ImportRecord {
   ai_classification_error_message: string | null;
 }
 
-export type AiClassificationStatus = "pending" | "running" | "completed" | "failed" | "skipped";
+export type AiClassificationStatus = "pending" | "running" | "completed" | "failed" | "skipped" | "cancelled";
 
 /** IBAN/nominativo del titolare letti dall'intestazione del documento
  * (capability opzionale del parser) — `null`/campi `null` se non
@@ -910,7 +910,7 @@ export interface SnapshotBackfillTriggered {
  * refresh pagina, a differenza del toast mostrato subito dopo il click.
  * `null` (nessun JobRun) significa "non ancora eseguito", non un errore. */
 export interface JobRun {
-  status: "running" | "success" | "failed";
+  status: "running" | "success" | "failed" | "cancelled";
   started_at: string;
   finished_at: string | null;
   message: string | null;
@@ -1430,12 +1430,13 @@ export interface AIEngineImport {
   import_id: Uuid;
   filename: string;
   completed_at: IsoDateTime | null;
-  ai_status: "pending" | "running" | "completed" | "failed" | "skipped" | null;
+  ai_status: "pending" | "running" | "completed" | "failed" | "skipped" | "cancelled" | null;
   ai_total: number;
   ai_classified: number;
   ai_error_message: string | null;
   uncategorized_eligible: number;
   can_retry: boolean;
+  can_cancel: boolean;
 }
 
 export interface AIEngineStatus {

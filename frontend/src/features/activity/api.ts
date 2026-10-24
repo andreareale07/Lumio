@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../lib/apiClient";
 import { streamSse } from "../imports/api";
@@ -9,6 +9,8 @@ export interface ActivityItem {
   label_key: string | null;
   status: string;
   events_url: string | null;
+  /** Endpoint (POST) per interromperla, solo per le attivita' che lo permettono e solo finche' sono in corso. */
+  cancel_url: string | null;
   started_at: string | null;
   finished_at: string | null;
   message: string | null;
@@ -50,6 +52,22 @@ export function useActivityPulse() {
     queryKey: activityKey,
     queryFn: () => api.get<ActivityListResponse>("/activity").then((r) => r.items),
     refetchInterval: (query) => (query.state.data?.some(isActivityRunning) ? 5000 : 30000),
+  });
+}
+
+/** Chiede l'interruzione di un'attivita' in corso. Il job si ferma da solo tra una
+ * transazione e l'altra: dopo la richiesta lo stato torna a "Interrotta" al
+ * prossimo giro di polling, quindi si rileggono subito le viste che lo mostrano. */
+export function useCancelActivity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (cancelUrl: string) => api.post<{ stopping?: boolean; ai_status?: string | null }>(cancelUrl),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: activityKey });
+      void queryClient.invalidateQueries({ queryKey: ["ai-engine"] });
+      void queryClient.invalidateQueries({ queryKey: ["classification"] });
+      void queryClient.invalidateQueries({ queryKey: ["imports"] });
+    },
   });
 }
 

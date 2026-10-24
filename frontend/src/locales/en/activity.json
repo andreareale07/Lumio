@@ -5,12 +5,18 @@
     "loadError": "We couldn't load the activity.",
     "empty": "No activity to show."
   },
+  "cancel": {
+    "action": "Stop",
+    "requested": "Stopping…",
+    "error": "The activity could not be stopped."
+  },
   "row": {
     "status": {
       "running": "Running",
       "pending": "Pending",
       "success": "Completed",
       "completed": "Completed",
+      "cancelled": "Stopped",
       "failed": "Failed"
     },
     "startedAt": "Started: {{value}}",

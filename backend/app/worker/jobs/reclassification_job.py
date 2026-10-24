@@ -43,6 +43,7 @@ from app.db.rls import rls_session
 from app.models.classification import Classification
 from app.models.transaction import Transaction
 from app.services import job_events
+from app.services.job_cancellation import clear_cancel, is_cancel_requested
 from app.services.ai_run_event_service import (
     MAX_ERROR_EVENTS_PER_RUN,
     PendingEvent,
@@ -63,6 +64,12 @@ logger = logging.getLogger("lumio.worker.reclassification_job")
 
 JOB_KIND = "reclassification"
 NAMESPACE = "reclassification"
+# Chiave del segnale di interruzione (vedi app/services/job_cancellation.py).
+CANCEL_KIND = "reclassification"
+# Ogni quante righe, nella fase deterministica (veloce), si controlla se l'utente
+# ha chiesto di fermare: un controllo su Redis per riga sarebbe piu' costoso del
+# lavoro stesso.
+_CANCEL_CHECK_EVERY = 25
 _NEEDS_REVIEW_THRESHOLD_KEY = "classification.needs_review_threshold"
 
 
@@ -73,6 +80,7 @@ class ReclassificationStats:
     deterministic: int = 0
     ai_classified: int = 0
     ai_skipped_provider_error: int = 0
+    cancelled: bool = False
 
 
 async def _backfill_merchant(workspace_id: uuid.UUID, user_id: uuid.UUID) -> int:
@@ -108,7 +116,7 @@ async def _eligible_transaction_ids(workspace_id: uuid.UUID, user_id: uuid.UUID,
 
 async def _run_deterministic_phase(
     workspace_id: uuid.UUID, user_id: uuid.UUID, transaction_ids: list[uuid.UUID], total_for_progress: int
-) -> int:
+) -> tuple[int, bool]:
     async with rls_session(user_id) as db:
         pipeline_ctx = await load_pipeline_context(db, workspace_id)
         # Per il dettaglio del cruscotto "Attivita'": nomi leggibili invece
@@ -117,7 +125,11 @@ async def _run_deterministic_phase(
     needs_review_threshold = float(await get_setting_value(_NEEDS_REVIEW_THRESHOLD_KEY, 0.6))
 
     classified = 0
+    stopped = False
     for index, txn_id in enumerate(transaction_ids, start=1):
+        if index % _CANCEL_CHECK_EVERY == 1 and await is_cancel_requested(CANCEL_KIND, workspace_id):
+            stopped = True
+            break
         async with rls_session(user_id) as db:
             txn = await db.get(Transaction, txn_id)
             if txn is None:
@@ -160,19 +172,19 @@ async def _run_deterministic_phase(
             total=total_for_progress,
             detail=detail,
         )
-    return classified
+    return classified, stopped
 
 
 async def _run_ai_phase(
     workspace_id: uuid.UUID, user_id: uuid.UUID, transaction_ids: list[uuid.UUID], events: list[PendingEvent]
-) -> tuple[int, int]:
+) -> tuple[int, int, bool]:
     async with rls_session(user_id) as db:
         active_ai_profile = await get_active_profile(db, workspace_id)
         if active_ai_profile is None:
             # L'utente ha chiesto esplicitamente l'AI: non classificare nulla
             # senza dirlo sarebbe un malfunzionamento silenzioso.
             events.append(PendingEvent("warning", "skipped_no_profile", "requested_without_profile"))
-            return 0, 0
+            return 0, 0, False
         ai_classifier = build_classifier(active_ai_profile)
         ai_categories = await load_category_options(db, workspace_id, kinds=None, leaves_only=True)
         ai_provider = active_ai_profile.provider
@@ -190,7 +202,12 @@ async def _run_ai_phase(
 
     classified = 0
     provider_errors = 0
+    stopped = False
     for index, txn_id in enumerate(ai_eligible_ids, start=1):
+        # Ogni chiamata al provider dura secondi: qui si controlla a ogni riga.
+        if await is_cancel_requested(CANCEL_KIND, workspace_id):
+            stopped = True
+            break
         detail = "Nessuna categoria trovata"
         async with rls_session(user_id) as db:
             txn = await db.get(Transaction, txn_id)
@@ -240,7 +257,7 @@ async def _run_ai_phase(
         await job_events.emit(
             workspace_id, "job.progress", namespace=NAMESPACE, processed=index, total=total_ai, detail=detail
         )
-    return classified, provider_errors
+    return classified, provider_errors, stopped
 
 
 async def _reclassify(
@@ -256,12 +273,12 @@ async def _reclassify(
         workspace_id, "job.progress", namespace=NAMESPACE, processed=0, total=stats.total_candidates
     )
 
-    stats.deterministic = await _run_deterministic_phase(
+    stats.deterministic, stats.cancelled = await _run_deterministic_phase(
         workspace_id, user_id, transaction_ids, stats.total_candidates
     )
 
-    if run_ai:
-        stats.ai_classified, stats.ai_skipped_provider_error = await _run_ai_phase(
+    if run_ai and not stats.cancelled:
+        stats.ai_classified, stats.ai_skipped_provider_error, stats.cancelled = await _run_ai_phase(
             workspace_id, user_id, transaction_ids, events
         )
 
@@ -285,25 +302,40 @@ async def reclassify_workspace_job(ctx, workspace_id: str, user_id: str, scope: 
     ws_id = uuid.UUID(workspace_id)
     uid = uuid.UUID(user_id)
 
+    # Un segnale residuo di una esecuzione precedente non deve fermare questa:
+    # l'API lo imposta solo con la riclassificazione 'running', quindi qui,
+    # prima di marcarla tale, non c'e' nessuna richiesta valida da perdere.
+    await clear_cancel(CANCEL_KIND, ws_id)
+
     async with tracked_job_run(ws_id, uid, JOB_KIND) as run:
         events: list[PendingEvent] = []
         stats = await _reclassify(ws_id, uid, scope, run_ai, events)
-        if run_ai:
+        if run_ai or stats.cancelled:
             events.append(
                 PendingEvent(
-                    "warning" if stats.ai_skipped_provider_error else "info",
-                    "run_completed",
+                    "warning" if (stats.ai_skipped_provider_error or stats.cancelled) else "info",
+                    "cancelled_by_user" if stats.cancelled else "run_completed",
                     f"classified={stats.ai_classified} provider_errors={stats.ai_skipped_provider_error} "
                     f"total={stats.total_candidates}",
                 )
             )
         await _flush_events(ws_id, uid, events)
         run.message = (
-            f"{stats.merchant_backfilled} merchant aggiornati, "
+            ("Interrotta dall'utente: " if stats.cancelled else "")
+            + f"{stats.merchant_backfilled} merchant aggiornati, "
             f"{stats.deterministic} classificate deterministicamente"
             + (f", {stats.ai_classified} classificate dall'AI" if run_ai else "")
             + "."
         )
-        await job_events.emit(
-            ws_id, "job.completed", namespace=NAMESPACE, processed=stats.total_candidates, total=stats.total_candidates
-        )
+        await clear_cancel(CANCEL_KIND, ws_id)
+        if stats.cancelled:
+            run.cancelled = True
+            await job_events.emit(ws_id, "job.cancelled", namespace=NAMESPACE, message="Riclassificazione interrotta")
+        else:
+            await job_events.emit(
+                ws_id,
+                "job.completed",
+                namespace=NAMESPACE,
+                processed=stats.total_candidates,
+                total=stats.total_candidates,
+            )

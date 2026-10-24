@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { isActivityRunning, useActivityPulse } from "./api";
 import type { ActivityItem } from "./api";
+import { CancelActivityButton } from "./CancelActivityButton";
 
 function progressOf(item: ActivityItem): number | null {
   if (item.total == null || item.total <= 0) return null;
@@ -91,6 +92,7 @@ export function ActivityIndicator() {
                     </span>
                   )}
                 </div>
+                {item.cancel_url && <CancelActivityButton cancelUrl={item.cancel_url} />}
                 <div
                   className="h-1.5 overflow-hidden rounded-full bg-surface-hover"
                   role="progressbar"

@@ -48,7 +48,7 @@ FILE_TYPES = ("csv", "pdf")
 # Classificazione AI disaccoppiata dal job di import (vedi migration 0019):
 # None = import ancora in corso o creato prima di questa feature; "skipped"
 # = nessuna AI attiva o nessuna transazione da classificare dopo le regole.
-AI_CLASSIFICATION_STATUSES = ("pending", "running", "completed", "failed", "skipped")
+AI_CLASSIFICATION_STATUSES = ("pending", "running", "completed", "failed", "skipped", "cancelled")
 
 
 class Import(Base):

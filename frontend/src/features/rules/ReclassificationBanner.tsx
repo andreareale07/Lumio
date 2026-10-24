@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { useEtaEstimate, type EtaLabelStrings } from "../../lib/eta";
+import { CancelActivityButton } from "../activity/CancelActivityButton";
 import type { ReclassificationLive } from "./useReclassificationLive";
 
 /** Avviso in cima alla pagina mentre una riclassificazione e' in corso:
@@ -58,9 +59,12 @@ export function ReclassificationBanner({ live }: { live: ReclassificationLive })
         </div>
         {live.progress?.detail && <p className="truncate text-xs text-text-muted">{live.progress.detail}</p>}
       </div>
-      <Link to="/activity" className="shrink-0 text-sm font-medium text-primary hover:underline">
-        {t("settings:items.rules.page.reclassification.banner.follow")}
-      </Link>
+      <div className="flex shrink-0 items-center gap-3">
+        {live.run?.status === "running" && <CancelActivityButton cancelUrl="/classification/reclassify/cancel" />}
+        <Link to="/activity" className="text-sm font-medium text-primary hover:underline">
+          {t("settings:items.rules.page.reclassification.banner.follow")}
+        </Link>
+      </div>
     </div>
   );
 }

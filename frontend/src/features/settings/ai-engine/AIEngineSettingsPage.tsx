@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +13,7 @@ import { friendlyErrorMessage } from "../../../lib/errorMessage";
 import { formatDateTime } from "../../../lib/format";
 import type { AIEngineImport, AIEventSeverity } from "../../../types/api";
 import { useTriggerReclassification } from "../../rules/api";
+import { CancelActivityButton } from "../../activity/CancelActivityButton";
 import {
   useAIEngineEvents,
   useAIEngineStatus,
@@ -30,6 +31,7 @@ const STATUS_TONE: Record<NonNullable<AIEngineImport["ai_status"]>, "primary" | 
   completed: "success",
   failed: "danger",
   skipped: "neutral",
+  cancelled: "neutral",
 };
 
 const SEVERITY_TONE: Record<AIEventSeverity, "danger" | "warning" | "neutral"> = {
@@ -45,19 +47,31 @@ const SEVERITY_TONE: Record<AIEventSeverity, "danger" | "warning" | "neutral"> =
 export function AIEngineSettingsPage() {
   const { t } = useTranslation("settings");
   const [settling, setSettling] = useState(false);
+  const [waiting, setWaiting] = useState<{ previousStartedAt: string | null } | null>(null);
   const status = useAIEngineStatus(settling);
+  const reclassStatus = useReclassificationRunStatus(waiting !== null);
   const [severity, setSeverity] = useState<AIEventSeverity | null>(null);
   const [eventsLimit, setEventsLimit] = useState(EVENTS_PAGE_SIZE);
-  const events = useAIEngineEvents(severity, eventsLimit, settling);
   const retry = useRetryImportAI();
   const trigger = useTriggerReclassification();
   const invalidate = useInvalidateAIEngine();
-  const [waiting, setWaiting] = useState<{ previousStartedAt: string | null } | null>(null);
-  const reclassStatus = useReclassificationRunStatus(waiting !== null);
   const [error, setError] = useState<string | null>(null);
 
   const run = reclassStatus.data ?? null;
   const reclassRunning = run?.status === "running" || waiting !== null;
+
+  // Qualcosa sta girando (import in coda o in corso, riclassificazione): il
+  // registro si rilegge finche' dura, e per qualche secondo dopo la fine, perche'
+  // il job scrive l'ultimo evento DOPO aver cambiato lo stato.
+  const anyActive =
+    (status.data?.recent_imports ?? []).some((i) => i.ai_status === "pending" || i.ai_status === "running") ||
+    run?.status === "running";
+  const wasActive = useRef(false);
+  useEffect(() => {
+    if (wasActive.current && !anyActive) settleForAWhile();
+    wasActive.current = anyActive;
+  }, [anyActive]);
+  const events = useAIEngineEvents(severity, eventsLimit, settling || anyActive);
 
   // L'attesa finisce quando compare un'esecuzione nuova e conclusa, o dopo 60s
   // (worker fermo: meglio smettere di far girare il pulsante).
@@ -170,7 +184,10 @@ export function AIEngineSettingsPage() {
             {hasProfile && data.uncategorized_eligible === 0 && (
               <p className="text-xs text-text-muted">{t("items.aiEngine.classify.nothingToDo")}</p>
             )}
-            <JobRunStatus run={run} />
+            <div className="flex flex-wrap items-center gap-3">
+              <JobRunStatus run={run} />
+              {run?.status === "running" && <CancelActivityButton cancelUrl="/classification/reclassify/cancel" />}
+            </div>
           </Card>
 
           {error && (
@@ -221,6 +238,7 @@ export function AIEngineSettingsPage() {
                         </td>
                         <td className="font-numeric px-3 py-2 text-right text-text">{item.uncategorized_eligible}</td>
                         <td className="px-3 py-2 text-right">
+                          {item.can_cancel && <CancelActivityButton cancelUrl={`/ai-engine/imports/${item.import_id}/cancel`} />}
                           {item.can_retry && (
                             <Button
                               size="sm"

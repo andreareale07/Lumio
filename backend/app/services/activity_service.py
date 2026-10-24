@@ -40,6 +40,11 @@ _JOB_RUN_EVENTS_URL = {
 }
 
 
+# Solo i job che controllano il segnale di interruzione (vedi
+# app/services/job_cancellation.py) possono offrire "Interrompi".
+_JOB_RUN_CANCEL_URL = {"reclassification": "/classification/reclassify/cancel"}
+
+
 def _import_status_activity_status(status: str) -> str:
     return "failed" if status == "failed" else "running"
 
@@ -85,6 +90,7 @@ async def _import_items(db: AsyncSession, workspace_id: uuid.UUID) -> list[Activ
                     label=f"Classificazione AI — {import_row.filename}",
                     status=import_row.ai_classification_status,
                     events_url=f"/imports/{import_row.id}/ai-classification-events",
+                    cancel_url=f"/ai-engine/imports/{import_row.id}/cancel" if ai_is_active else None,
                     started_at=import_row.created_at,
                     finished_at=import_row.updated_at if ai_recently_failed else None,
                     message=import_row.ai_classification_error_message,
@@ -110,6 +116,7 @@ async def _job_run_items(db: AsyncSession, workspace_id: uuid.UUID) -> list[Acti
                 label_key=_JOB_RUN_LABEL_KEYS.get(job_kind),
                 status=run.status,
                 events_url=_JOB_RUN_EVENTS_URL.get(job_kind),
+                cancel_url=_JOB_RUN_CANCEL_URL.get(job_kind) if run.status == "running" else None,
                 started_at=run.started_at,
                 finished_at=run.finished_at,
                 message=run.message,

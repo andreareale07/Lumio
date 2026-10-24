@@ -5,10 +5,11 @@ import type { JobRun } from "../../types/api";
 import { formatDateTime } from "../../lib/format";
 import { Badge } from "./Badge";
 
-const STATUS_TONE: Record<JobRun["status"], "primary" | "success" | "danger"> = {
+const STATUS_TONE: Record<JobRun["status"], "primary" | "success" | "danger" | "neutral"> = {
   running: "primary",
   success: "success",
   failed: "danger",
+  cancelled: "neutral",
 };
 
 /** Stato minimo persistente di un job async innescabile manualmente

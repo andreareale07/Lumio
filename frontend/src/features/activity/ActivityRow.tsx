@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
+import { Ban, CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../components/ui/Badge";
@@ -7,6 +7,7 @@ import { intlLocale } from "../../lib/format";
 import { useEtaEstimate, type EtaLabelStrings } from "../../lib/eta";
 import type { ActivityItem, ActivityProgressEvent } from "./api";
 import { streamActivityItemEvents } from "./api";
+import { CancelActivityButton } from "./CancelActivityButton";
 
 const STATUS_ICON: Record<string, typeof Loader2> = {
   running: Loader2,
@@ -14,6 +15,7 @@ const STATUS_ICON: Record<string, typeof Loader2> = {
   success: CheckCircle2,
   completed: CheckCircle2,
   failed: XCircle,
+  cancelled: Ban,
 };
 
 // Convenzione standard di stato (semaforo): blu/azzurro = in corso o in
@@ -26,6 +28,7 @@ const STATUS_TONE: Record<string, "primary" | "success" | "danger" | "neutral"> 
   success: "success",
   completed: "success",
   failed: "danger",
+  cancelled: "neutral",
 };
 
 function formatTimestamp(value: string | null): string | null {
@@ -59,6 +62,7 @@ export function ActivityRow({ item }: { item: ActivityItem }) {
       else if (event.message) setDetail(event.message);
       if (event.event === "job.completed") setStatus("success");
       if (event.event === "job.failed") setStatus("failed");
+      if (event.event === "job.cancelled") setStatus("cancelled");
       if (event.event === "job.completed" || event.event === "job.failed" || event.event === "job.cancelled") {
         controller.abort();
       }
@@ -95,7 +99,12 @@ export function ActivityRow({ item }: { item: ActivityItem }) {
           <Icon className={`h-4 w-4 ${iconColorClass} ${status === "running" ? "animate-spin" : ""}`} aria-hidden="true" />
           <span className="text-sm font-medium text-text">{label}</span>
         </div>
-        <Badge tone={tone}>{t(`row.status.${status}`, { defaultValue: status })}</Badge>
+        <div className="flex items-center gap-2">
+          {(status === "running" || status === "pending") && item.cancel_url && (
+            <CancelActivityButton cancelUrl={item.cancel_url} />
+          )}
+          <Badge tone={tone}>{t(`row.status.${status}`, { defaultValue: status })}</Badge>
+        </div>
       </div>
 
       {total != null && total > 0 && (

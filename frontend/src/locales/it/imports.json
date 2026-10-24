@@ -35,6 +35,7 @@
     "transactionsImported_one": "{{count}} movimento",
     "transactionsImported_other": "{{count}} movimenti",
     "alreadyPresent": "{{count}} già presenti",
+    "aiClassificationCancelled": "Classificazione AI interrotta ({{classified}} su {{total}} classificate)",
     "aiClassificationFailed": "Classificazione AI non riuscita: {{message}}",
     "duplicatesToReview": "{{count}} duplicati da verificare",
     "viewOriginalFile": "Visualizza file originale",

@@ -69,7 +69,12 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("DELETE FROM system_settings WHERE key = 'job_health.positions_recompute.stale_after_seconds'")
+    # `job_runs` ha la RLS FORZATA: senza un'identita' di workspace un DELETE
+    # dell'utente della migration non vede nessuna riga. La si sospende solo per
+    # il tempo della pulizia e si ripristina subito (stessa transazione).
+    op.execute("ALTER TABLE job_runs NO FORCE ROW LEVEL SECURITY")
     op.execute("DELETE FROM job_runs WHERE job_kind = 'positions_recompute'")
+    op.execute("ALTER TABLE job_runs FORCE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE job_runs DROP CONSTRAINT ck_job_runs_job_kind")
     op.execute(
         "ALTER TABLE job_runs ADD CONSTRAINT ck_job_runs_job_kind "

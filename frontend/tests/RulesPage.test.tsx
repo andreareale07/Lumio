@@ -172,4 +172,26 @@ describe("RulesPage", () => {
     await screen.findByText("Regola 01");
     await waitFor(() => expect(screen.queryByText("Riclassificazione in corso")).not.toBeInTheDocument());
   });
+
+  it("l'avviso permette di interrompere la riclassificazione in corso", async () => {
+    const running: JobRun = {
+      status: "running",
+      started_at: "2026-10-24T14:09:00Z",
+      finished_at: null,
+      message: null,
+    };
+    const fetchMock = stubApi({ ...BASE_ROUTES, "/rules": makeRules(5), "/classification/reclassify/status": running });
+    renderPage();
+
+    const banner = await screen.findByRole("status");
+    await userEvent.click(within(banner).getByRole("button", { name: "Interrompi" }));
+
+    await waitFor(() => {
+      const posted = fetchMock.mock.calls.some(
+        ([input, init]) =>
+          String(input).endsWith("/classification/reclassify/cancel") && (init as RequestInit | undefined)?.method === "POST",
+      );
+      expect(posted).toBe(true);
+    });
+  });
 });

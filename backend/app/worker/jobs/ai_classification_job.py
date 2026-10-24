@@ -38,6 +38,7 @@ from app.models.financial_account import FinancialAccount
 from app.models.import_ import Import
 from app.models.transaction import Transaction
 from app.services import job_events
+from app.services.job_cancellation import clear_cancel, is_cancel_requested
 from app.services.ai_run_event_service import (
     MAX_ERROR_EVENTS_PER_RUN,
     PendingEvent,
@@ -54,6 +55,8 @@ _NEEDS_REVIEW_THRESHOLD_KEY = "classification.needs_review_threshold"
 logger = logging.getLogger("lumio.worker.ai_classification_job")
 
 NAMESPACE = "ai_classification"
+# Chiave del segnale di interruzione (vedi app/services/job_cancellation.py).
+CANCEL_KIND = "ai_classification"
 
 # Oltre questa soglia di fallimenti di PROVIDER consecutivi (connessione
 # rifiutata, timeout, risposta non interpretabile — non "il modello non ha
@@ -134,6 +137,7 @@ async def classify_import_transactions_job(ctx, import_id: str, created_by_user_
         workspace_id = import_row.workspace_id
         financial_account_id = import_row.financial_account_id
         total = import_row.ai_transactions_total
+        await clear_cancel(CANCEL_KIND, import_uuid)
         import_row.ai_classification_status = "running"
         await db.commit()
 
@@ -141,7 +145,7 @@ async def classify_import_transactions_job(ctx, import_id: str, created_by_user_
 
     events: list[PendingEvent] = []
     try:
-        await _classify_all(import_uuid, user_uuid, workspace_id, total, financial_account_id, events)
+        cancelled = await _classify_all(import_uuid, user_uuid, workspace_id, total, financial_account_id, events)
     except (Exception, asyncio.CancelledError) as exc:
         # Stesso pattern di import_job.py: asyncio.CancelledError eredita da
         # BaseException (Python 3.8+), un `except Exception:` la lascerebbe
@@ -185,6 +189,12 @@ async def classify_import_transactions_job(ctx, import_id: str, created_by_user_
         return
 
     await _flush_events(user_uuid, workspace_id, import_uuid, events)
+    await clear_cancel(CANCEL_KIND, import_uuid)
+    if cancelled:
+        await job_events.emit(
+            import_uuid, "job.cancelled", namespace=NAMESPACE, message="Classificazione AI interrotta dall'utente"
+        )
+        return
     await job_events.emit(import_uuid, "job.completed", namespace=NAMESPACE, processed=total, total=total)
 
 
@@ -195,7 +205,9 @@ async def _classify_all(
     total: int,
     financial_account_id: uuid.UUID,
     events: list[PendingEvent],
-) -> None:
+) -> bool:
+    """Ritorna True se l'utente ha interrotto la classificazione (le righe gia'
+    classificate restano tali)."""
     async with rls_session(user_uuid) as db:
         active_ai_profile = await get_active_profile(db, workspace_id)
         if active_ai_profile is None:
@@ -207,7 +219,7 @@ async def _classify_all(
             if import_row is not None:
                 import_row.ai_classification_status = "skipped"
                 await db.commit()
-            return
+            return False
         ai_classifier = build_classifier(active_ai_profile)
         # Fetta 2 (PLAN_TAXONOMY_I18N.md): lingua di classificazione del
         # conto a cui appartiene questo import — None (mai impostata) vale
@@ -295,7 +307,13 @@ async def _classify_all(
     no_match = 0
     provider_errors = 0
     consecutive_provider_errors = 0
+    cancelled = False
     for batch_start in range(0, len(unclassified), max_concurrency):
+        # Interruzione chiesta dall'utente: ci si ferma tra un gruppo e l'altro,
+        # mai a meta' di una scrittura.
+        if await is_cancel_requested(CANCEL_KIND, import_uuid):
+            cancelled = True
+            break
         batch = unclassified[batch_start : batch_start + max_concurrency]
         attempts = await asyncio.gather(
             *[
@@ -394,12 +412,13 @@ async def _classify_all(
     async with rls_session(user_uuid) as db:
         import_row = await db.get(Import, import_uuid)
         if import_row is not None:
-            import_row.ai_classification_status = "completed"
+            import_row.ai_classification_status = "cancelled" if cancelled else "completed"
             await db.commit()
     events.append(
         PendingEvent(
-            "warning" if provider_errors else "info",
-            "run_completed",
+            "warning" if (provider_errors or cancelled) else "info",
+            "cancelled_by_user" if cancelled else "run_completed",
             f"classified={classified} no_match={no_match} provider_errors={provider_errors} total={total}",
         )
     )
+    return cancelled

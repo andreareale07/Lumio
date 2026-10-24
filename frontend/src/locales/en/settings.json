@@ -423,6 +423,7 @@
           "running": "Running",
           "completed": "Completed",
           "failed": "Failed",
+          "cancelled": "Stopped",
           "skipped": "Not run"
         }
       },
@@ -455,6 +456,7 @@
           "requested_without_profile": "You asked for the AI but there is no active profile: nothing was classified."
         },
         "skipped_nothing_eligible": "AI not run: no transactions to classify with AI.",
+        "cancelled_by_user": "Stopped by the user: {{classified}} of {{total}} transactions classified.",
         "run_completed": "Run finished: {{classified}} classified, {{noMatch}} with no relevant category, {{providerErrors}} provider errors (out of {{total}}).",
         "run_completed_short": "Run finished: {{classified}} classified, {{providerErrors}} provider errors (out of {{total}})."
       }

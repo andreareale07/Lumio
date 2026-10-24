@@ -25,6 +25,7 @@ function item(overrides: Partial<ActivityItem>): ActivityItem {
     label_key: "reclassification.name",
     status: "running",
     events_url: "/classification/reclassify/events",
+    cancel_url: null,
     started_at: "2026-10-24T14:09:00Z",
     finished_at: null,
     message: null,
@@ -35,10 +36,11 @@ function item(overrides: Partial<ActivityItem>): ActivityItem {
 }
 
 function stubActivity(items: ActivityItem[]) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => new Response(JSON.stringify({ items }), { status: 200, headers: { "Content-Type": "application/json" } })),
+  const fetchMock = vi.fn<typeof fetch>(
+    async () => new Response(JSON.stringify({ items }), { status: 200, headers: { "Content-Type": "application/json" } }),
   );
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 afterEach(() => {
@@ -85,5 +87,28 @@ describe("ActivityIndicator", () => {
 
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Elaborazioni" })).not.toBeInTheDocument();
+  });
+
+  it("offre Interrompi per le attività che lo permettono e lo chiede al server", async () => {
+    const fetchMock = stubActivity([item({ cancel_url: "/classification/reclassify/cancel" })]);
+    renderIndicator();
+
+    await userEvent.click(await screen.findByRole("button", { name: "1 elaborazione in corso" }));
+    await userEvent.click(screen.getByRole("button", { name: "Interrompi" }));
+
+    expect(await screen.findByRole("button", { name: "Interruzione in corso…" })).toBeDisabled();
+    const posted = fetchMock.mock.calls.some(
+      ([input, init]) =>
+        String(input).endsWith("/classification/reclassify/cancel") && (init as RequestInit | undefined)?.method === "POST",
+    );
+    expect(posted).toBe(true);
+  });
+
+  it("non mostra Interrompi per le attività che non si possono fermare", async () => {
+    stubActivity([item({ cancel_url: null })]);
+    renderIndicator();
+
+    await userEvent.click(await screen.findByRole("button", { name: "1 elaborazione in corso" }));
+    expect(screen.queryByRole("button", { name: "Interrompi" })).not.toBeInTheDocument();
   });
 });

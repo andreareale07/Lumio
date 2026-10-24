@@ -29,6 +29,9 @@ class ActivityItemOut(BaseModel):
     # schedulati (market_data, snapshot) non hanno mai granularita' live,
     # solo lo stato dell'ultima esecuzione persistito da tracked_job_run.
     events_url: str | None = None
+    # Endpoint (POST) per interrompere l'attivita', solo per quelle che lo
+    # permettono e solo finche' sono in corso.
+    cancel_url: str | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
     message: str | None = None

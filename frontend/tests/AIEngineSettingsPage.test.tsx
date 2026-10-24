@@ -34,6 +34,7 @@ const FAILED_IMPORT = {
   ai_error_message: "Provider AI non raggiungibile, classificazione interrotta",
   uncategorized_eligible: 40,
   can_retry: true,
+  can_cancel: false,
 };
 
 function statusWith(overrides: Partial<AIEngineStatus>): AIEngineStatus {
@@ -94,6 +95,12 @@ describe("describeEvent", () => {
     const text = describeEvent(t, { code: "run_completed", message: "classified=0 provider_errors=6 total=6" });
     expect(text).toContain("0 classificate, 6 errori del provider (su 6)");
     expect(text).not.toContain("—");
+  });
+
+  it("descrive un'interruzione chiesta dall'utente con i numeri", () => {
+    expect(describeEvent(t, { code: "cancelled_by_user", message: "classified=12 no_match=0 provider_errors=0 total=40" })).toBe(
+      "Interrotta dall'utente: 12 transazioni classificate su 40.",
+    );
   });
 
   it("per un codice sconosciuto ricade sul codice e il dettaglio", () => {
@@ -162,5 +169,56 @@ describe("AIEngineSettingsPage", () => {
       expect(call).toBeDefined();
       expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({ scope: "uncategorized", run_ai: true });
     });
+  });
+
+  it("un import con la classificazione in corso si può interrompere", async () => {
+    const running = { ...FAILED_IMPORT, ai_status: "running" as const, ai_error_message: null, can_retry: false, can_cancel: true };
+    const fetchMock = stubApi({
+      "/ai-engine/status": statusWith({ recent_imports: [running] }),
+      "/ai-engine/events": { items: [], total: 0 },
+      "/classification/reclassify/status": null,
+      "/ai-engine/imports/imp-1/cancel": { ai_status: "running", stopping: true },
+    });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Interrompi" }));
+
+    await waitFor(() => {
+      const posted = fetchMock.mock.calls.some(
+        ([input, init]) =>
+          String(input).endsWith("/ai-engine/imports/imp-1/cancel") && (init as RequestInit | undefined)?.method === "POST",
+      );
+      expect(posted).toBe(true);
+    });
+  });
+
+  it("un import interrotto è etichettato come tale e si può rilanciare", async () => {
+    const cancelled = { ...FAILED_IMPORT, ai_status: "cancelled" as const, ai_error_message: null, ai_classified: 12, can_retry: true };
+    stubApi({
+      "/ai-engine/status": statusWith({ recent_imports: [cancelled] }),
+      "/ai-engine/events": { items: [], total: 0 },
+      "/classification/reclassify/status": null,
+    });
+    renderPage();
+
+    expect(await screen.findByText("Interrotta")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rilancia" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Interrompi" })).not.toBeInTheDocument();
+  });
+
+  it("durante una riclassificazione offre Interrompi accanto allo stato", async () => {
+    stubApi({
+      "/ai-engine/status": statusWith({ recent_imports: [] }),
+      "/ai-engine/events": { items: [], total: 0 },
+      "/classification/reclassify/status": {
+        status: "running",
+        started_at: "2026-10-24T14:09:00Z",
+        finished_at: null,
+        message: null,
+      },
+    });
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Interrompi" })).toBeInTheDocument();
   });
 });

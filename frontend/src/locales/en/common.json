@@ -35,6 +35,7 @@
     "status": {
       "running": "Running",
       "success": "Completed",
+      "cancelled": "Stopped",
       "failed": "Failed"
     }
   },

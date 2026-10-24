@@ -5,12 +5,18 @@
     "loadError": "Non siamo riusciti a caricare le attività.",
     "empty": "Nessuna attività da mostrare."
   },
+  "cancel": {
+    "action": "Interrompi",
+    "requested": "Interruzione in corso…",
+    "error": "Non è stato possibile interrompere l'attività."
+  },
   "row": {
     "status": {
       "running": "In corso",
       "pending": "In attesa",
       "success": "Completato",
       "completed": "Completato",
+      "cancelled": "Interrotta",
       "failed": "Fallito"
     },
     "startedAt": "Iniziato: {{value}}",

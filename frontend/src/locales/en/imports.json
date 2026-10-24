@@ -35,6 +35,7 @@
     "transactionsImported_one": "{{count}} transaction",
     "transactionsImported_other": "{{count}} transactions",
     "alreadyPresent": "{{count}} already present",
+    "aiClassificationCancelled": "AI classification stopped ({{classified}} of {{total}} classified)",
     "aiClassificationFailed": "AI classification failed: {{message}}",
     "duplicatesToReview": "{{count}} duplicates to review",
     "viewOriginalFile": "View original file",

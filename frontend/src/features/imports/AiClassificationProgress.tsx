@@ -3,6 +3,7 @@ import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useEtaEstimate, type EtaLabelStrings } from "../../lib/eta";
+import { CancelActivityButton } from "../activity/CancelActivityButton";
 import { streamAiClassificationEvents, type AiClassificationProgressEvent } from "./api";
 
 /** Indicatore live "x/N" per la classificazione AI disaccoppiata dal job di
@@ -65,6 +66,7 @@ export function AiClassificationProgress({
       <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
       {t("aiProgress.label", { processed, total })}
       {eta && ` — ${eta.label}`}
+      <CancelActivityButton cancelUrl={`/ai-engine/imports/${importId}/cancel`} />
     </span>
   );
 }

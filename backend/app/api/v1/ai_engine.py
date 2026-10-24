@@ -14,6 +14,7 @@ from app.models.user import User
 from app.schemas.ai_engine import (
     AIEngineImportOut,
     AIEngineProfileOut,
+    AICancelResultOut,
     AIEngineStatusOut,
     AIRetryResultOut,
     AIRunEventListOut,
@@ -21,14 +22,15 @@ from app.schemas.ai_engine import (
 )
 from app.services.ai_classification_trigger import prepare_ai_classification_trigger
 from app.services.ai_profile_service import get_active_profile
-from app.services.ai_run_event_service import list_events
+from app.services.ai_run_event_service import PendingEvent, list_events, record_events
+from app.services.job_cancellation import request_cancel
 from app.services.system_classification import AI_EXCLUDED_TRANSACTION_TYPES
 from app.worker.queue import enqueue_classify_import_job
 
 router = APIRouter(prefix="/ai-engine", tags=["ai-engine"])
 
 _RECENT_IMPORTS_LIMIT = 20
-_RETRYABLE_AI_STATUSES = (None, "failed", "skipped", "completed")
+_RETRYABLE_AI_STATUSES = (None, "failed", "skipped", "completed", "cancelled")
 
 
 def _eligible_filter():
@@ -113,6 +115,7 @@ async def get_ai_engine_status(
                     and i.ai_classification_status in _RETRYABLE_AI_STATUSES
                     and per_import.get(i.id, 0) > 0
                 ),
+                can_cancel=i.ai_classification_status in ("pending", "running"),
             )
             for i in imports
         ],
@@ -185,3 +188,34 @@ async def retry_import_ai_classification(
     if should_enqueue:
         await enqueue_classify_import_job(import_row.id, import_row.created_by_user_id, rerun=True)
     return result
+
+
+@router.post("/imports/{import_id}/cancel", response_model=AICancelResultOut, status_code=status.HTTP_202_ACCEPTED)
+async def cancel_import_ai_classification(
+    import_id: uuid.UUID,
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> AICancelResultOut:
+    """Interrompe la classificazione AI di un import. Se e' ancora in coda la
+    annulla subito (il job, quando partira', trovera' lo stato e non fara'
+    nulla); se sta girando imposta il segnale di stop e il job si ferma da
+    solo tra un gruppo di transazioni e l'altro. Cio' che e' gia' stato
+    classificato resta classificato."""
+    import_row = await db.get(Import, import_id)
+    if import_row is None or import_row.workspace_id != workspace_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Import not found")
+
+    if import_row.ai_classification_status == "pending":
+        total = import_row.ai_transactions_total
+        import_row.ai_classification_status = "cancelled"
+        await record_events(
+            db, workspace_id, "import_classification",
+            [PendingEvent("warning", "cancelled_by_user", f"classified=0 no_match=0 provider_errors=0 total={total}")],
+            import_id=import_row.id,
+        )
+        await db.commit()
+        return AICancelResultOut(ai_status="cancelled", stopping=False)
+    if import_row.ai_classification_status == "running":
+        await request_cancel("ai_classification", import_row.id)
+        return AICancelResultOut(ai_status="running", stopping=True)
+    raise HTTPException(status.HTTP_409_CONFLICT, "Nessuna classificazione AI in corso per questo import")

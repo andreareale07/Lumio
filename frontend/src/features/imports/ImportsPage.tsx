@@ -247,6 +247,14 @@ export function ImportsPage() {
                         l'indicatore di progresso spariva silenziosamente non
                         appena lo stato non era piu' pending/running, senza
                         lasciare traccia del perche' fosse fallito. */}
+                    {!isLive && importRecord.ai_classification_status === "cancelled" && (
+                      <p className="text-sm text-text-muted">
+                        {t("page.aiClassificationCancelled", {
+                          classified: importRecord.ai_transactions_classified,
+                          total: importRecord.ai_transactions_total,
+                        })}
+                      </p>
+                    )}
                     {!isLive &&
                       importRecord.ai_classification_status === "failed" &&
                       importRecord.ai_classification_error_message && (

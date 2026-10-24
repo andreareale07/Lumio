@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,7 @@ from app.schemas.job_runs import JobRunOut
 from app.services import job_events
 from app.services.audit_log_service import log_event
 from app.services.classification_preview import preview_reclassification
+from app.services.job_cancellation import request_cancel
 from app.services.job_run_tracker import get_latest_run
 from app.worker.jobs.reclassification_job import JOB_KIND, NAMESPACE
 from app.worker.queue import enqueue_reclassification
@@ -74,6 +75,20 @@ async def trigger_reclassification(
     )
     await db.commit()
     return ReclassifyTriggered(job_id=job_id)
+
+
+@router.post("/reclassify/cancel", status_code=status.HTTP_202_ACCEPTED)
+async def cancel_reclassification(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, bool]:
+    """Chiede di fermare la riclassificazione in corso: il job si ferma da solo
+    tra una transazione e l'altra e conserva quanto ha gia' classificato."""
+    current = await get_latest_run(db, workspace_id, JOB_KIND)
+    if current is None or current.status != "running":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Nessuna riclassificazione in corso")
+    await request_cancel("reclassification", workspace_id)
+    return {"stopping": True}
 
 
 @router.get("/reclassify/status", response_model=JobRunOut | None)

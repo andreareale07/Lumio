@@ -19,7 +19,7 @@ JOB_KINDS = (
     "snapshot_backfill",
     "positions_recompute",
 )
-JOB_RUN_STATUSES = ("running", "success", "failed")
+JOB_RUN_STATUSES = ("running", "success", "failed", "cancelled")
 
 
 class JobRun(Base):
