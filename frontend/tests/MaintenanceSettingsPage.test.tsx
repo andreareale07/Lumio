@@ -35,8 +35,8 @@ const SUCCESS_RUN: JobRun = {
   status: "success",
   started_at: "2026-10-24T10:00:00Z",
   finished_at: "2026-10-24T10:00:05Z",
-  message: "1 posizioni aggiornate su 35 controllate.",
-  details: { checked: 35, changed: 1, truncated: false, changes: [SAMPLE_CHANGE] },
+  message: "1 posizioni aggiornate su 12 controllate.",
+  details: { checked: 12, changed: 1, truncated: false, changes: [SAMPLE_CHANGE] },
 };
 
 function stubApi(routes: Record<string, unknown>) {
@@ -60,19 +60,19 @@ describe("MaintenanceSettingsPage", () => {
 
     expect(await screen.findByText("EXAMPLE CORP.")).toBeInTheDocument();
     expect(screen.getByText("Trade Republic")).toBeInTheDocument();
-    expect(screen.getByText(/1 posizioni aggiornate su 35 controllate/)).toBeInTheDocument();
+    expect(screen.getByText(/1 posizioni aggiornate su 12 controllate/)).toBeInTheDocument();
   });
 
   it("una riesecuzione a vuoto continua a mostrare le ultime modifiche effettive", async () => {
     const emptyRun: JobRun = {
       ...SUCCESS_RUN,
-      message: "0 posizioni aggiornate su 35 controllate.",
+      message: "0 posizioni aggiornate su 12 controllate.",
       details: {
-        checked: 35,
+        checked: 12,
         changed: 0,
         truncated: false,
         changes: [],
-        previous_changes: { at: "2026-10-24T09:00:00Z", checked: 35, changed: 1, truncated: false, changes: [SAMPLE_CHANGE] },
+        previous_changes: { at: "2026-10-24T09:00:00Z", checked: 12, changed: 1, truncated: false, changes: [SAMPLE_CHANGE] },
       },
     };
     stubApi({ "/maintenance/positions-recompute/status": emptyRun });
@@ -91,7 +91,7 @@ describe("MaintenanceSettingsPage", () => {
   });
 
   it("l'anteprima elenca le posizioni che cambierebbero senza avviare il job", async () => {
-    const preview: PositionsRecomputePreview = { checked: 35, changed: 1, changes: [SAMPLE_CHANGE] };
+    const preview: PositionsRecomputePreview = { checked: 12, changed: 1, changes: [SAMPLE_CHANGE] };
     const fetchMock = stubApi({
       "/maintenance/positions-recompute/preview": preview,
       "/maintenance/positions-recompute/status": null,

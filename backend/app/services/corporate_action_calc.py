@@ -1,10 +1,10 @@
 """Rilevamento di operazioni societarie dai soli movimenti registrati — nessuna
 dipendenza da DB/FastAPI, stessa separazione di `position_calc.py`.
 
-Due casi reali (verificati su dati dell'utente) che oggi lasciano posizioni
+Due casi tipici che altrimenti lasciano posizioni
 "aperte" per sempre:
 
-1. Raggruppamento/frazionamento con CAMBIO DI ISIN (es. Acme, 10.000:1):
+1. Raggruppamento/frazionamento con CAMBIO DI ISIN (es. 10.000:1):
    acquisti sul vecchio ISIN, vendite sul nuovo. Lumio crea un asset per ISIN,
    quindi i due lati non si incontrano mai: il vecchio resta aperto al costo
    non scalato, il nuovo risulta in vendita scoperta. Il segnale e' nei dati:

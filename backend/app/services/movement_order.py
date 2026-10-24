@@ -3,11 +3,11 @@
 Il libro mastro conosce solo la DATA di un'operazione, non l'ora, e l'ordine
 dei movimenti dello stesso giorno e' quello di importazione: nell'estratto
 Trade Republic le righe di uno stesso giorno non sono in ordine di esecuzione
-(bug reale su dati dell'utente: vendita di 13 azioni registrata PRIMA
-dell'acquisto di 13 dello stesso giorno). Rigiocata cosi', la vendita trova
-quantita' zero, viene valutata a costo medio zero (tutto l'incasso diventa
-"utile") e lascia il costo medio sporco per le operazioni successive: un
-utile realizzato di +999.999 EUR su un titolo in perdita.
+(spesso la vendita e' registrata PRIMA dell'acquisto corrispondente).
+Rigiocata cosi', la vendita trova quantita' zero, viene valutata a costo medio
+zero (tutto l'incasso diventa "utile") e lascia il costo medio sporco per le
+operazioni successive: un utile realizzato gonfiato di ordini di grandezza su
+un titolo in realta' in perdita.
 
 Regola: dentro ciascun giorno si mantiene l'ordine originale, ma una vendita
 che supererebbe la quantita' posseduta in quel momento slitta dopo i

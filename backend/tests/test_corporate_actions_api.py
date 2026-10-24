@@ -1,5 +1,5 @@
-"""Test API delle operazioni societarie: unione di due asset (caso reale Acme,
-raggruppamento 10.000:1 con cambio ISIN) e chiusura a zero di un derivato
+"""Test API delle operazioni societarie: unione di due asset (raggruppamento
+10.000:1 con cambio ISIN, dati sintetici) e chiusura a zero di un derivato
 scaduto (turbo/knock-out)."""
 from datetime import date
 
@@ -25,13 +25,13 @@ def _capture_backfill(monkeypatch) -> list[dict]:
     return calls
 
 
-async def _prepare_atos(client: AsyncClient, token: str) -> tuple[str, str, str]:
+async def _prepare_acme(client: AsyncClient, token: str) -> tuple[str, str, str]:
     account_id = await _create_account(client, token)
     old_asset = await _create_asset(client, token, name="ACME SE NOM. EO 1", symbol=None, asset_type="stock")
     new_asset = await _create_asset(client, token, name="ACME SE NOM.EO 1", symbol=None, asset_type="stock")
     for trade_date, qty, price, amount in (
-        ("2025-01-23", "100000", "0.002500", "-250.00"),
-        ("2025-03-06", "100000", "0.004500", "-450.00"),
+        ("2024-01-14", "100000", "0.002500", "-250.00"),
+        ("2024-03-03", "100000", "0.004500", "-450.00"),
     ):
         response = await _create_investment_transaction(
             client, token, account_id, asset_id=old_asset, trade_date=trade_date, quantity=qty, price=price, amount=amount
@@ -42,33 +42,33 @@ async def _prepare_atos(client: AsyncClient, token: str) -> tuple[str, str, str]
 
 async def test_merge_assets_applies_split_and_lets_the_sale_close_the_position(client, monkeypatch):
     backfill_calls = _capture_backfill(monkeypatch)
-    token = await _register(client, "merge-atos@example.com")
-    account_id, old_asset, new_asset = await _prepare_atos(client, token)
+    token = await _register(client, "merge-acme@example.com")
+    account_id, old_asset, new_asset = await _prepare_acme(client, token)
 
     # La vendita sul nuovo ISIN, senza lo split, e' una vendita scoperta: l'API
     # manuale la rifiuta (come l'import la lascia in posizione negativa).
     uncovered = await _create_investment_transaction(
-        client, token, account_id, asset_id=new_asset, trade_date="2025-04-28", type="sell",
+        client, token, account_id, asset_id=new_asset, trade_date="2024-04-08", type="sell",
         quantity="20", price="34.90", amount="698.00",
     )
     assert uncovered.status_code == 400
 
     merge = await client.post(
         "/api/v1/corporate-actions/merge-assets",
-        json={"source_asset_id": old_asset, "target_asset_id": new_asset, "ratio": "0.0001", "split_date": "2025-04-27"},
+        json={"source_asset_id": old_asset, "target_asset_id": new_asset, "ratio": "0.0001", "split_date": "2024-04-07"},
         headers=_auth_headers(token),
     )
     assert merge.status_code == 204, merge.text
     # Gli snapshot del patrimonio vanno ricostruiti dal primo movimento spostato.
-    assert backfill_calls == [{"date_from": date(2025, 1, 23)}]
+    assert backfill_calls == [{"date_from": date(2024, 1, 14)}]
 
     positions = (await client.get("/api/v1/positions", headers=_auth_headers(token))).json()
     assert [p["asset_id"] for p in positions] == [new_asset]
     assert positions[0]["quantity"] == "20.0000000000"
-    assert positions[0]["average_cost"] == "35.600000"
+    assert positions[0]["average_cost"] == "35.000000"
 
     sell = await _create_investment_transaction(
-        client, token, account_id, asset_id=new_asset, trade_date="2025-04-28", type="sell",
+        client, token, account_id, asset_id=new_asset, trade_date="2024-04-08", type="sell",
         quantity="20", price="34.90", amount="698.00",
     )
     assert sell.status_code == 201, sell.text
@@ -76,7 +76,7 @@ async def test_merge_assets_applies_split_and_lets_the_sale_close_the_position(c
         await client.get("/api/v1/positions", params={"only_open": "false"}, headers=_auth_headers(token))
     ).json()
     assert closed[0]["quantity"] == "0.0000000000"
-    assert closed[0]["realized_pl"] == "-1.60"
+    assert closed[0]["realized_pl"] == "-2.00"
 
 
 async def test_merge_rejects_same_asset_and_overlapping_dates(client):
@@ -130,9 +130,9 @@ async def test_expiry_suggestion_and_close_worthless_derivative(client, monkeypa
     )
     etf = await _create_asset(client, token, name="Vanguard FTSE All-World", symbol="VWCE")
     await _create_investment_transaction(
-        client, token, account_id, asset_id=turbo, trade_date="2026-03-02", quantity="100", price="0.25", amount="-25.00"
+        client, token, account_id, asset_id=turbo, trade_date="2024-03-02", quantity="100", price="0.25", amount="-25.00"
     )
-    await _create_investment_transaction(client, token, account_id, asset_id=etf, trade_date="2026-03-02")
+    await _create_investment_transaction(client, token, account_id, asset_id=etf, trade_date="2024-03-02")
 
     suggestions = (await client.get("/api/v1/corporate-actions/suggestions", headers=_auth_headers(token))).json()
     assert [e["asset_id"] for e in suggestions["expirations"]] == [turbo]
@@ -140,12 +140,12 @@ async def test_expiry_suggestion_and_close_worthless_derivative(client, monkeypa
 
     expire = await client.post(
         "/api/v1/corporate-actions/expire",
-        json={"asset_id": turbo, "expiry_date": "2026-03-20"},
+        json={"asset_id": turbo, "expiry_date": "2024-03-20"},
         headers=_auth_headers(token),
     )
     assert expire.status_code == 200, expire.text
     assert expire.json() == {"closed_positions": 1}
-    assert backfill_calls == [{"date_from": date(2026, 3, 20)}]
+    assert backfill_calls == [{"date_from": date(2024, 3, 20)}]
 
     positions = (
         await client.get("/api/v1/positions", params={"only_open": "false"}, headers=_auth_headers(token))
@@ -158,7 +158,7 @@ async def test_expiry_suggestion_and_close_worthless_derivative(client, monkeypa
     assert after["expirations"] == []
     again = await client.post(
         "/api/v1/corporate-actions/expire",
-        json={"asset_id": turbo, "expiry_date": "2026-03-20"},
+        json={"asset_id": turbo, "expiry_date": "2024-03-20"},
         headers=_auth_headers(token),
     )
     assert again.status_code == 400
