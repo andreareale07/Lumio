@@ -344,6 +344,83 @@
         }
       }
     },
+    "aiEngine": {
+      "label": "Motore AI",
+      "description": "Stato della classificazione AI, errori e malfunzionamenti, rilancio manuale.",
+      "pageDescription": "L'AI classifica le transazioni senza categoria solo dopo un import completato oppure quando la rilanci da qui o da Regole: non gira da sola a orari fissi. Qui vedi cosa è successo, perché non è partita e puoi rilanciarla.",
+      "loadError": "Non siamo riusciti a caricare lo stato del motore AI.",
+      "state": {
+        "title": "Stato",
+        "manageProfiles": "Gestisci i profili AI",
+        "activeProfile": "Profilo attivo: {{name}} ({{provider}}, modello {{model}})",
+        "noProfile": "Nessun profilo AI attivo: l'AI non parte finché non ne attivi uno. Tutto il resto funziona comunque con le sole regole.",
+        "uncategorized_one": "{{count}} transazione senza categoria idonea all'AI",
+        "uncategorized_other": "{{count}} transazioni senza categoria idonee all'AI",
+        "errors24h_one": "{{count}} errore nelle ultime 24 ore",
+        "errors24h_other": "{{count}} errori nelle ultime 24 ore",
+        "lastError": "Ultimo errore: {{date}}"
+      },
+      "classify": {
+        "title": "Classifica le transazioni rimaste senza categoria",
+        "description": "Applica l'AI a tutte le transazioni ancora senza categoria. Non tocca mai quelle che hai corretto a mano né quelle già classificate.",
+        "run": "Classifica ora con l'AI",
+        "running": "Classificazione in corso…",
+        "needsProfile": "Serve un profilo AI attivo.",
+        "nothingToDo": "Non c'è nulla da classificare.",
+        "error": "Non è stato possibile avviare la classificazione."
+      },
+      "imports": {
+        "title": "Ultimi import",
+        "empty": "Nessun import completato.",
+        "retry": "Rilancia",
+        "retryError": "Non è stato possibile rilanciare la classificazione.",
+        "table": {
+          "file": "File",
+          "status": "AI",
+          "progress": "Classificate",
+          "left": "Da classificare"
+        },
+        "status": {
+          "pending": "In coda",
+          "running": "In corso",
+          "completed": "Completata",
+          "failed": "Fallita",
+          "skipped": "Non eseguita"
+        }
+      },
+      "log": {
+        "title": "Registro eventi",
+        "description": "Errori, avvisi ed esiti delle ultime esecuzioni (si conservano gli ultimi 500).",
+        "filter": "Mostra",
+        "all": "Tutto",
+        "severity": {
+          "error": "Errore",
+          "warning": "Avviso",
+          "info": "Info"
+        },
+        "reclassification": "Riclassificazione",
+        "empty": "Nessun evento registrato.",
+        "loadError": "Non siamo riusciti a caricare il registro.",
+        "shown": "{{shown}} di {{total}}",
+        "loadMore": "Carica altri"
+      },
+      "events": {
+        "provider_error": "Il provider AI non ha risposto: {{detail}}",
+        "job_interrupted": {
+          "provider_unreachable": "Classificazione interrotta: provider AI non raggiungibile per troppe transazioni di seguito.",
+          "cancelled": "Classificazione interrotta: superato il tempo massimo del job.",
+          "unexpected": "Classificazione interrotta da un errore imprevisto."
+        },
+        "skipped_no_profile": {
+          "no_active_profile": "AI non eseguita: nessun profilo AI attivo.",
+          "profile_deactivated": "AI non eseguita: il profilo è stato disattivato prima dell'esecuzione.",
+          "requested_without_profile": "Hai chiesto l'AI ma non c'è un profilo attivo: nessuna transazione classificata."
+        },
+        "skipped_nothing_eligible": "AI non eseguita: nessuna transazione da classificare con l'AI.",
+        "run_completed": "Esecuzione conclusa: {{classified}} classificate, {{noMatch}} senza categoria pertinente, {{providerErrors}} errori del provider (su {{total}}).",
+        "run_completed_short": "Esecuzione conclusa: {{classified}} classificate, {{providerErrors}} errori del provider (su {{total}})."
+      }
+    },
     "maintenance": {
       "label": "Manutenzione",
       "description": "Ricalcoli e riparazioni da lanciare a mano, con anteprima e un resoconto di cosa è cambiato.",

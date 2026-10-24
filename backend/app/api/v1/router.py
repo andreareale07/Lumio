@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     accounts,
     activity,
+    ai_engine,
     analytics,
     assets,
     auth,
@@ -51,6 +52,7 @@ api_router.include_router(positions.router)
 api_router.include_router(system_settings.router)
 api_router.include_router(jobs.router)
 api_router.include_router(maintenance.router)
+api_router.include_router(ai_engine.router)
 api_router.include_router(classification.router)
 api_router.include_router(activity.router)
 api_router.include_router(currencies.router)

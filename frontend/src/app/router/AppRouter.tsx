@@ -23,6 +23,7 @@ import { RulesPage } from "../../features/rules/RulesPage";
 import { AISettingsPage } from "../../features/settings/ai/AISettingsPage";
 import { CurrencySettingsPage } from "../../features/settings/currency/CurrencySettingsPage";
 import { IntegrationsSettingsPage } from "../../features/settings/integrations/IntegrationsSettingsPage";
+import { AIEngineSettingsPage } from "../../features/settings/ai-engine/AIEngineSettingsPage";
 import { JobsSettingsPage } from "../../features/settings/jobs/JobsSettingsPage";
 import { MaintenanceSettingsPage } from "../../features/settings/maintenance/MaintenanceSettingsPage";
 import { MarketDataSettingsPage } from "../../features/settings/market-data/MarketDataSettingsPage";
@@ -86,6 +87,7 @@ export function AppRouter() {
           <Route path="categories" element={<CategoriesSettingsPage />} />
           <Route path="rules" element={<RulesPage />} />
           <Route path="ai" element={<AISettingsPage />} />
+          <Route path="ai-engine" element={<AIEngineSettingsPage />} />
           <Route path="market-data" element={<MarketDataSettingsPage />} />
           <Route path="currency" element={<CurrencySettingsPage />} />
           <Route path="tax" element={<TaxSettingsPage />} />

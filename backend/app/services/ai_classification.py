@@ -20,6 +20,7 @@ from app.ai.base import (
 )
 from app.classification.taxonomy import TAXONOMY_BY_CODE
 from app.models.category import Category
+from app.services.ai_run_event_service import describe_provider_error
 
 logger = logging.getLogger("lumio.ai")
 
@@ -59,6 +60,10 @@ class ClassificationAttempt:
 
     result: AIClassificationResult | None
     provider_error: bool
+    # Solo se `provider_error`: descrizione sicura (tipo di errore + status
+    # HTTP, mai il messaggio grezzo con URL/chiavi) — vedi
+    # `ai_run_event_service.describe_provider_error`.
+    error_detail: str | None = None
 
 
 async def load_category_options(
@@ -149,6 +154,6 @@ async def classify_transaction(
     try:
         result = await classifier.classify(transaction, categories, language or "it")
         return ClassificationAttempt(result=result, provider_error=False)
-    except AIProviderError:
+    except AIProviderError as exc:
         logger.warning("classificazione AI fallita (provider=%s)", classifier.provider, exc_info=True)
-        return ClassificationAttempt(result=None, provider_error=True)
+        return ClassificationAttempt(result=None, provider_error=True, error_detail=describe_provider_error(exc))

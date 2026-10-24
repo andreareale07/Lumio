@@ -43,6 +43,11 @@ from app.db.rls import rls_session
 from app.models.classification import Classification
 from app.models.transaction import Transaction
 from app.services import job_events
+from app.services.ai_run_event_service import (
+    MAX_ERROR_EVENTS_PER_RUN,
+    PendingEvent,
+    record_events,
+)
 from app.services.ai_classification import classify_transaction, kinds_for_transaction, load_category_options
 from app.services.ai_profile_service import get_active_profile
 from app.services.classification_loader import load_eligible_transaction_ids, load_pipeline_context
@@ -159,11 +164,14 @@ async def _run_deterministic_phase(
 
 
 async def _run_ai_phase(
-    workspace_id: uuid.UUID, user_id: uuid.UUID, transaction_ids: list[uuid.UUID]
+    workspace_id: uuid.UUID, user_id: uuid.UUID, transaction_ids: list[uuid.UUID], events: list[PendingEvent]
 ) -> tuple[int, int]:
     async with rls_session(user_id) as db:
         active_ai_profile = await get_active_profile(db, workspace_id)
         if active_ai_profile is None:
+            # L'utente ha chiesto esplicitamente l'AI: non classificare nulla
+            # senza dirlo sarebbe un malfunzionamento silenzioso.
+            events.append(PendingEvent("warning", "skipped_no_profile", "requested_without_profile"))
             return 0, 0
         ai_classifier = build_classifier(active_ai_profile)
         ai_categories = await load_category_options(db, workspace_id, kinds=None, leaves_only=True)
@@ -208,6 +216,8 @@ async def _run_ai_phase(
             )
             if attempt.provider_error:
                 provider_errors += 1
+                if provider_errors <= MAX_ERROR_EVENTS_PER_RUN:
+                    events.append(PendingEvent("error", "provider_error", attempt.error_detail or "unknown"))
                 detail = "Provider AI non raggiungibile per questa transazione"
             elif attempt.result is not None and txn.category_id is None:
                 txn.category_id = attempt.result.category_id
@@ -233,7 +243,9 @@ async def _run_ai_phase(
     return classified, provider_errors
 
 
-async def _reclassify(workspace_id: uuid.UUID, user_id: uuid.UUID, scope: str, run_ai: bool) -> ReclassificationStats:
+async def _reclassify(
+    workspace_id: uuid.UUID, user_id: uuid.UUID, scope: str, run_ai: bool, events: list[PendingEvent]
+) -> ReclassificationStats:
     stats = ReclassificationStats()
 
     stats.merchant_backfilled = await _backfill_merchant(workspace_id, user_id)
@@ -250,10 +262,23 @@ async def _reclassify(workspace_id: uuid.UUID, user_id: uuid.UUID, scope: str, r
 
     if run_ai:
         stats.ai_classified, stats.ai_skipped_provider_error = await _run_ai_phase(
-            workspace_id, user_id, transaction_ids
+            workspace_id, user_id, transaction_ids, events
         )
 
     return stats
+
+
+async def _flush_events(workspace_id: uuid.UUID, user_id: uuid.UUID, events: list[PendingEvent]) -> None:
+    """Registro eventi AI in una sessione propria; un errore qui non deve far
+    fallire una riclassificazione che ha gia' fatto il suo lavoro."""
+    if not events:
+        return
+    try:
+        async with rls_session(user_id) as db:
+            await record_events(db, workspace_id, "reclassification", events)
+            await db.commit()
+    except Exception:
+        logger.exception("scrittura del registro eventi AI fallita (workspace %s)", workspace_id)
 
 
 async def reclassify_workspace_job(ctx, workspace_id: str, user_id: str, scope: str, run_ai: bool) -> None:
@@ -261,7 +286,18 @@ async def reclassify_workspace_job(ctx, workspace_id: str, user_id: str, scope: 
     uid = uuid.UUID(user_id)
 
     async with tracked_job_run(ws_id, uid, JOB_KIND) as run:
-        stats = await _reclassify(ws_id, uid, scope, run_ai)
+        events: list[PendingEvent] = []
+        stats = await _reclassify(ws_id, uid, scope, run_ai, events)
+        if run_ai:
+            events.append(
+                PendingEvent(
+                    "warning" if stats.ai_skipped_provider_error else "info",
+                    "run_completed",
+                    f"classified={stats.ai_classified} provider_errors={stats.ai_skipped_provider_error} "
+                    f"total={stats.total_candidates}",
+                )
+            )
+        await _flush_events(ws_id, uid, events)
         run.message = (
             f"{stats.merchant_backfilled} merchant aggiornati, "
             f"{stats.deterministic} classificate deterministicamente"

@@ -73,7 +73,7 @@ async def _clean_tables():
                 "market_data_profiles, asset_prices, portfolio_snapshots, net_worth_snapshots, "
                 "job_runs, transaction_type_mappings, financial_account_iban_history, "
                 "transaction_dedup_decisions, transaction_review_items, "
-                "detection_overrides, "
+                "detection_overrides, ai_run_events, "
                 "workspace_tax_residences, financial_account_tax_regimes, "
                 "asset_tax_classifications, tax_loss_opening_balances, "
                 "tax_realized_event_overrides, "

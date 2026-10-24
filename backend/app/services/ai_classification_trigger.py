@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.import_ import Import
 from app.models.transaction import Transaction
 from app.services.ai_profile_service import get_active_profile
+from app.services.ai_run_event_service import PendingEvent, record_events
 from app.services.system_classification import is_ai_eligible
 
 
@@ -36,6 +37,12 @@ async def prepare_ai_classification_trigger(
     if active_ai_profile is None:
         import_row.ai_classification_status = "skipped"
         import_row.ai_transactions_total = 0
+        # L'AI e' opzionale, quindi "info" e non un errore: ma e' il motivo
+        # per cui non e' partita, e senza registrarlo resta invisibile.
+        await record_events(
+            db, workspace_id, "import_classification",
+            [PendingEvent("info", "skipped_no_profile", "no_active_profile")], import_id=import_row.id,
+        )
         return False
 
     result = await db.execute(
@@ -54,4 +61,9 @@ async def prepare_ai_classification_trigger(
 
     import_row.ai_classification_status = "skipped"
     import_row.ai_transactions_total = 0
+    await record_events(
+        db, workspace_id, "import_classification",
+        [PendingEvent("info", "skipped_nothing_eligible", "no_uncategorized_eligible_rows")],
+        import_id=import_row.id,
+    )
     return False

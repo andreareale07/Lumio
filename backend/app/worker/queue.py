@@ -51,20 +51,31 @@ async def enqueue_import_job(import_id: uuid.UUID, created_by_user_id: uuid.UUID
     return job_id
 
 
-async def enqueue_classify_import_job(import_id: uuid.UUID, created_by_user_id: uuid.UUID) -> str:
+async def enqueue_classify_import_job(
+    import_id: uuid.UUID, created_by_user_id: uuid.UUID, rerun: bool = False
+) -> str:
     """Accoda la classificazione AI disaccoppiata (vedi
     ai_classification_job.py) — stesso principio di `_job_id` fisso di
     `enqueue_import_job`: un solo job di classificazione per import, mai
-    duplicato da un retry o da un doppio trigger."""
+    duplicato da un retry o da un doppio trigger.
+
+    `rerun=True` (rilancio manuale da Impostazioni > Motore AI): l'id fisso
+    NON va usato, arq considera "gia' esistente" un `_job_id` anche quando
+    resta solo il RISULTATO di un'esecuzione passata (`keep_result`, 1h) e
+    ignorerebbe in silenzio il rilancio — stesso bug gia' documentato per i
+    trigger manuali piu' sotto. Il doppio click resta coperto dallo stato
+    'pending'/'running' controllato dal chiamante."""
     pool = await get_arq_pool()
+    job_id = (
+        f"ai_classification:{import_id}:{uuid.uuid4().hex[:8]}" if rerun else f"ai_classification:{import_id}"
+    )
     job = await pool.enqueue_job(
         CLASSIFY_IMPORT_TRANSACTIONS_FUNCTION,
         str(import_id),
         str(created_by_user_id),
-        _job_id=f"ai_classification:{import_id}",
+        _job_id=job_id,
     )
-    job_id = job.job_id if job is not None else f"ai_classification:{import_id}"
-    return job_id
+    return job.job_id if job is not None else job_id
 
 
 async def enqueue_market_data_refresh(workspace_id: uuid.UUID, user_id: uuid.UUID) -> str:

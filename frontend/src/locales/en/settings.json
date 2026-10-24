@@ -344,6 +344,83 @@
         }
       }
     },
+    "aiEngine": {
+      "label": "AI engine",
+      "description": "AI classification status, errors and malfunctions, manual relaunch.",
+      "pageDescription": "The AI classifies uncategorized transactions only after a completed import, or when you relaunch it from here or from Rules: it does not run on a fixed schedule. Here you can see what happened, why it did not start, and relaunch it.",
+      "loadError": "We could not load the AI engine status.",
+      "state": {
+        "title": "Status",
+        "manageProfiles": "Manage AI profiles",
+        "activeProfile": "Active profile: {{name}} ({{provider}}, model {{model}})",
+        "noProfile": "No active AI profile: the AI does not start until you activate one. Everything else still works with rules alone.",
+        "uncategorized_one": "{{count}} uncategorized transaction eligible for AI",
+        "uncategorized_other": "{{count}} uncategorized transactions eligible for AI",
+        "errors24h_one": "{{count}} error in the last 24 hours",
+        "errors24h_other": "{{count}} errors in the last 24 hours",
+        "lastError": "Last error: {{date}}"
+      },
+      "classify": {
+        "title": "Classify the remaining uncategorized transactions",
+        "description": "Applies the AI to every transaction that still has no category. It never touches the ones you corrected by hand or that are already classified.",
+        "run": "Classify now with AI",
+        "running": "Classifying…",
+        "needsProfile": "An active AI profile is required.",
+        "nothingToDo": "There is nothing to classify.",
+        "error": "The classification could not be started."
+      },
+      "imports": {
+        "title": "Latest imports",
+        "empty": "No completed imports.",
+        "retry": "Relaunch",
+        "retryError": "The classification could not be relaunched.",
+        "table": {
+          "file": "File",
+          "status": "AI",
+          "progress": "Classified",
+          "left": "To classify"
+        },
+        "status": {
+          "pending": "Queued",
+          "running": "Running",
+          "completed": "Completed",
+          "failed": "Failed",
+          "skipped": "Not run"
+        }
+      },
+      "log": {
+        "title": "Event log",
+        "description": "Errors, warnings and outcomes of the latest runs (the last 500 are kept).",
+        "filter": "Show",
+        "all": "All",
+        "severity": {
+          "error": "Error",
+          "warning": "Warning",
+          "info": "Info"
+        },
+        "reclassification": "Reclassification",
+        "empty": "No events recorded.",
+        "loadError": "We could not load the log.",
+        "shown": "{{shown}} of {{total}}",
+        "loadMore": "Load more"
+      },
+      "events": {
+        "provider_error": "The AI provider did not respond: {{detail}}",
+        "job_interrupted": {
+          "provider_unreachable": "Classification interrupted: AI provider unreachable for too many transactions in a row.",
+          "cancelled": "Classification interrupted: the job's maximum time was exceeded.",
+          "unexpected": "Classification interrupted by an unexpected error."
+        },
+        "skipped_no_profile": {
+          "no_active_profile": "AI not run: no active AI profile.",
+          "profile_deactivated": "AI not run: the profile was deactivated before the run.",
+          "requested_without_profile": "You asked for the AI but there is no active profile: nothing was classified."
+        },
+        "skipped_nothing_eligible": "AI not run: no transactions to classify with AI.",
+        "run_completed": "Run finished: {{classified}} classified, {{noMatch}} with no relevant category, {{providerErrors}} provider errors (out of {{total}}).",
+        "run_completed_short": "Run finished: {{classified}} classified, {{providerErrors}} provider errors (out of {{total}})."
+      }
+    },
     "maintenance": {
       "label": "Maintenance",
       "description": "Recomputes and repairs you can run by hand, with a preview and a report of what changed.",

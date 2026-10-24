@@ -1,4 +1,4 @@
-import { Coins, FolderTree, Link2, ListChecks, Percent, Sparkles, LineChart, Tags, Wand2, Wrench } from "lucide-react";
+import { Activity, Coins, FolderTree, Link2, ListChecks, Percent, Sparkles, LineChart, Tags, Wand2, Wrench } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
 export interface SettingsPageLink {
@@ -39,6 +39,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     items: [
       { to: "/settings/rules", icon: Wand2, itemKey: "rules" },
       { to: "/settings/ai", icon: Sparkles, itemKey: "ai" },
+      { to: "/settings/ai-engine", icon: Activity, itemKey: "aiEngine" },
     ],
   },
   {

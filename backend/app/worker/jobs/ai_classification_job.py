@@ -38,6 +38,11 @@ from app.models.financial_account import FinancialAccount
 from app.models.import_ import Import
 from app.models.transaction import Transaction
 from app.services import job_events
+from app.services.ai_run_event_service import (
+    MAX_ERROR_EVENTS_PER_RUN,
+    PendingEvent,
+    record_events,
+)
 from app.services.ai_classification import classify_transaction, kinds_for_transaction, load_category_options
 from app.services.ai_profile_service import get_active_profile
 from app.services.confidence import compute_ai_confidence, needs_review as score_needs_review
@@ -67,6 +72,22 @@ class AIProviderUnavailableError(Exception):
     try/except di `classify_import_transactions_job`, che marca il job
     'failed' con un messaggio comprensibile invece del generico
     "Classificazione AI interrotta"."""
+
+
+async def _flush_events(
+    user_uuid: uuid.UUID, workspace_id: uuid.UUID, import_uuid: uuid.UUID, events: list[PendingEvent]
+) -> None:
+    """Scrive il registro eventi della run in una sessione propria (la
+    sessione RLS ha l'identita' solo fino al commit). Un errore qui non deve
+    mai far fallire un job che ha gia' fatto il suo lavoro."""
+    if not events:
+        return
+    try:
+        async with rls_session(user_uuid) as db:
+            await record_events(db, workspace_id, "import_classification", events, import_id=import_uuid)
+            await db.commit()
+    except Exception:
+        logger.exception("scrittura del registro eventi AI fallita (import %s)", import_uuid)
 
 
 @dataclass
@@ -118,8 +139,9 @@ async def classify_import_transactions_job(ctx, import_id: str, created_by_user_
 
     await job_events.emit(import_uuid, "job.started", namespace=NAMESPACE, processed=0, total=total)
 
+    events: list[PendingEvent] = []
     try:
-        await _classify_all(import_uuid, user_uuid, workspace_id, total, financial_account_id)
+        await _classify_all(import_uuid, user_uuid, workspace_id, total, financial_account_id, events)
     except (Exception, asyncio.CancelledError) as exc:
         # Stesso pattern di import_job.py: asyncio.CancelledError eredita da
         # BaseException (Python 3.8+), un `except Exception:` la lascerebbe
@@ -136,6 +158,15 @@ async def classify_import_transactions_job(ctx, import_id: str, created_by_user_
             if isinstance(exc, AIProviderUnavailableError)
             else "Classificazione AI interrotta"
         )
+        events.append(
+            PendingEvent(
+                "error",
+                "job_interrupted",
+                "provider_unreachable"
+                if isinstance(exc, AIProviderUnavailableError)
+                else ("cancelled" if is_cancelled else "unexpected"),
+            )
+        )
         async with rls_session(user_uuid) as db:
             import_row = await db.get(Import, import_uuid)
             if import_row is not None:
@@ -147,11 +178,13 @@ async def classify_import_transactions_job(ctx, import_id: str, created_by_user_
                 # provider AI dal vivo.
                 import_row.ai_classification_error_message = failure_message
                 await db.commit()
+        await _flush_events(user_uuid, workspace_id, import_uuid, events)
         await job_events.emit(import_uuid, "job.failed", namespace=NAMESPACE, message=failure_message)
         if is_cancelled:
             raise
         return
 
+    await _flush_events(user_uuid, workspace_id, import_uuid, events)
     await job_events.emit(import_uuid, "job.completed", namespace=NAMESPACE, processed=total, total=total)
 
 
@@ -161,10 +194,12 @@ async def _classify_all(
     workspace_id: uuid.UUID,
     total: int,
     financial_account_id: uuid.UUID,
+    events: list[PendingEvent],
 ) -> None:
     async with rls_session(user_uuid) as db:
         active_ai_profile = await get_active_profile(db, workspace_id)
         if active_ai_profile is None:
+            events.append(PendingEvent("warning", "skipped_no_profile", "profile_deactivated"))
             # Il profilo e' stato disattivato tra la fine dell'import e
             # l'esecuzione di questo job: nessun provider disponibile, non e'
             # un errore, semplicemente non c'e' piu' nulla da classificare.
@@ -257,6 +292,8 @@ async def _classify_all(
 
     processed = 0
     classified = 0
+    no_match = 0
+    provider_errors = 0
     consecutive_provider_errors = 0
     for batch_start in range(0, len(unclassified), max_concurrency):
         batch = unclassified[batch_start : batch_start + max_concurrency]
@@ -284,6 +321,9 @@ async def _classify_all(
 
         for row, attempt in zip(batch, attempts):
             if attempt.provider_error:
+                provider_errors += 1
+                if provider_errors <= MAX_ERROR_EVENTS_PER_RUN:
+                    events.append(PendingEvent("error", "provider_error", attempt.error_detail or "unknown"))
                 consecutive_provider_errors += 1
                 if consecutive_provider_errors >= _MAX_CONSECUTIVE_PROVIDER_ERRORS:
                     raise AIProviderUnavailableError(
@@ -329,6 +369,7 @@ async def _classify_all(
             elif attempt.provider_error:
                 detail = "Provider AI non raggiungibile per questa transazione"
             else:
+                no_match += 1
                 detail = "Nessuna categoria pertinente trovata"
 
             processed += 1
@@ -355,3 +396,10 @@ async def _classify_all(
         if import_row is not None:
             import_row.ai_classification_status = "completed"
             await db.commit()
+    events.append(
+        PendingEvent(
+            "warning" if provider_errors else "info",
+            "run_completed",
+            f"classified={classified} no_match={no_match} provider_errors={provider_errors} total={total}",
+        )
+    )

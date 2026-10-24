@@ -1419,3 +1419,47 @@ export interface CorporateActionSuggestions {
   splits: SplitSuggestion[];
   expirations: ExpirySuggestion[];
 }
+
+export interface AIEngineProfile {
+  name: string;
+  provider: string;
+  model: string | null;
+}
+
+export interface AIEngineImport {
+  import_id: Uuid;
+  filename: string;
+  completed_at: IsoDateTime | null;
+  ai_status: "pending" | "running" | "completed" | "failed" | "skipped" | null;
+  ai_total: number;
+  ai_classified: number;
+  ai_error_message: string | null;
+  uncategorized_eligible: number;
+  can_retry: boolean;
+}
+
+export interface AIEngineStatus {
+  active_profile: AIEngineProfile | null;
+  uncategorized_eligible: number;
+  errors_last_24h: number;
+  last_error_at: IsoDateTime | null;
+  recent_imports: AIEngineImport[];
+}
+
+export type AIEventSeverity = "error" | "warning" | "info";
+
+export interface AIRunEvent {
+  id: Uuid;
+  run_kind: "import_classification" | "reclassification";
+  import_id: Uuid | null;
+  import_filename: string | null;
+  severity: AIEventSeverity;
+  code: string;
+  message: string;
+  created_at: IsoDateTime;
+}
+
+export interface AIRunEventList {
+  items: AIRunEvent[];
+  total: number;
+}

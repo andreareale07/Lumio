@@ -1,4 +1,5 @@
 from app.models.ai_profile import AIProfile
+from app.models.ai_run_event import AIRunEvent
 from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
 from app.models.asset_price_quote import AssetPriceQuote
@@ -40,6 +41,7 @@ from app.models.workspace_tax_residence import WorkspaceTaxResidence
 
 __all__ = [
     "AIProfile",
+    "AIRunEvent",
     "Asset",
     "AssetPrice",
     "AssetPriceQuote",
