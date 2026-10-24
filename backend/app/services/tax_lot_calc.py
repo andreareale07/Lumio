@@ -37,6 +37,8 @@ from datetime import date
 from decimal import Decimal
 from typing import Iterable, Literal, Protocol
 
+from app.services.movement_order import order_movements_within_day
+
 # FISCAL ASSUMPTION REQUIRING VALIDATION: il consumo dei lotti avviene
 # sempre per singolo conto, mai aggregato tra conti anche con lo stesso
 # perimetro fiscale — prassi coerente con la custodia fisica separata di
@@ -122,7 +124,7 @@ def compute_tax_lots(
     chiamante senza passare dalla giurisdizione."""
     state = TaxLotState()
 
-    for m in movements:
+    for m in order_movements_within_day(movements):
         if m.type in ("dividend", "deposit", "withdrawal", "fee", "tax"):
             # Mai un evento di costo/vendita sul lotto — dividend e' reddito
             # di capitale (gestito come event_kind="income" a valle, non

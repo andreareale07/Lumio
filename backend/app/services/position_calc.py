@@ -23,6 +23,7 @@ from decimal import Decimal
 from typing import Iterable, Protocol
 
 from app.services.investment_strategy import classify_strategy
+from app.services.movement_order import order_movements_within_day
 
 
 class MovementLike(Protocol):
@@ -75,7 +76,7 @@ def compute_position(movements: Iterable[MovementLike]) -> PositionState:
     """
     state = PositionState()
 
-    for m in movements:
+    for m in order_movements_within_day(movements):
         if m.type in _NO_EFFECT_TYPES:
             continue
 
