@@ -201,3 +201,55 @@ def test_extract_transfer_counterparty_returns_none_for_unrelated_description():
     parser = TradeRepublicParser()
     assert parser.extract_transfer_counterparty("Savings plan execution IE00B4L5Y983, quantity: 1") is None
     assert parser.extract_transfer_counterparty("Interessi maturati su liquidita'") is None
+
+
+def _build_pdf_with_columns(data_x, tipo_x, descr_x, entrata_x, uscita_x, saldo_x) -> bytes:
+    import io
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    height = A4[1]
+    c.setFont("Helvetica", 6)
+    c.drawString(75, height - 60, "TRADE REPUBLIC BANK GMBH, BRANCH ITALY TRBKITMMXXX")
+    c.drawString(data_x, height - 120, "DATA")
+    c.drawString(tipo_x, height - 120, "TIPO")
+    c.drawString(descr_x, height - 120, "DESCRIZIONE")
+    c.drawString(entrata_x, height - 120, "IN ENTRATA")
+    c.drawString(uscita_x, height - 120, "IN USCITA")
+    c.drawString(saldo_x, height - 120, "SALDO")
+    rows = [
+        ("05 set", "Bonifico", "Deposito accettato", "100,00 €", None, "109,00 €"),
+        ("06 set", "Commercio", "Buy trade IE00B3WJKG14", None, "11,03 €", "97,97 €"),
+    ]
+    y = height - 160
+    for date, tipo, descr, entrata, uscita, saldo in rows:
+        c.drawString(data_x, y, date)
+        c.drawString(tipo_x, y - 4, tipo)
+        c.drawString(descr_x, y - 4, descr)
+        if entrata:
+            c.drawString(entrata_x, y - 4, entrata)
+        if uscita:
+            c.drawString(uscita_x, y - 4, uscita)
+        c.drawString(saldo_x, y - 4, saldo)
+        c.drawString(data_x, y - 8, "2024")
+        y -= 40
+    c.save()
+    return buffer.getvalue()
+
+
+def test_parse_reads_column_positions_from_the_header_not_from_fixed_offsets():
+    # Coordinate dell'estratto reale con ENTRATA a x0=400 e USCITA a x0=442:
+    # con soglie fisse (450) l'uscita veniva letta come entrata.
+    pdf = _build_pdf_with_columns(74.4, 101.7, 149.1, 400.2, 441.9, 494.2)
+    result = TradeRepublicParser().parse(pdf)
+    assert result.warnings == []
+    credit, debit = result.rows
+    assert (credit.direction, credit.amount) == ("credit", Decimal("100.00"))
+    assert credit.source_type_raw == "Bonifico"
+    assert credit.description_raw == "Deposito accettato"
+    assert (debit.direction, debit.amount) == ("debit", Decimal("-11.03"))
+    assert debit.source_type_raw == "Commercio"
+    assert debit.description_raw == "Buy trade IE00B3WJKG14"

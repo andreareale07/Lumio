@@ -24,10 +24,10 @@ milestone (147 transazioni, nessuna discrepanza — vedi sotto):
    colonna al numero della colonna successiva in un unico token (es.
    "€6.266,14"), che ricadrebbe nella colonna sbagliata. Si cercano invece
    tutti i token con una coda numerica in stile IT (`_AMOUNT_TAIL_RE`) a
-   destra della soglia x0=400 (oltre DESCRIZIONE), ordinati da sinistra a
+   destra dell inizio della colonna IN ENTRATA (letto dall intestazione), ordinati da sinistra a
    destra: l'ULTIMO e' sempre il SALDO (colonna piu' a destra), l'eventuale
    token prima di esso e' l'importo IN ENTRATA o IN USCITA a seconda che la
-   sua x0 sia prima o dopo la soglia tra le due colonne (x0=450).
+   sua x0 sia prima o dopo l inizio di IN USCITA (stessa intestazione).
 5. Una riga visiva e' una transazione solo se la colonna DATA, cosi'
    ricostruita, interpreta come "DD mmm YYYY" (mese abbreviato IT) — questo
    e', non un range di coordinate verticali, e' cio' che esclude
@@ -46,6 +46,7 @@ import io
 import re
 from datetime import date
 from decimal import Decimal
+from typing import NamedTuple
 
 import pdfplumber
 
@@ -69,15 +70,48 @@ _TRANSFER_COUNTERPARTY_RE = re.compile(
     r"^(?:Outgoing|Incoming) transfer for (?P<name>.+?) \((?P<iban>[A-Z]{2}\d{2}[A-Z0-9]+)\)$"
 )
 
-# Soglie in punti PDF, specifiche di questo template (SPEC §17: se Trade
-# Republic cambia layout, serve una nuova versione del parser, non un
-# aggiustamento qui — vedi `version` sotto).
 _ROW_GAP_POINTS = 9.0
-_COL_DATA = (60.0, 100.0)
-_COL_TIPO = (100.0, 150.0)
-_COL_DESCRIZIONE = (150.0, 410.0)
-_COL_AMOUNT_MIN_X0 = 400.0
-_COL_ENTRATA_USCITA_SPLIT_X0 = 450.0
+
+
+class _ColumnLayout(NamedTuple):
+    """Inizio (x0, in punti PDF) di ogni colonna. Trade Republic dimensiona le
+    colonne sul contenuto, quindi le posizioni cambiano da un estratto
+    all'altro (verificato su due PDF reali: ENTRATA a x0=415 e a x0=400): si
+    leggono dalla riga d'intestazione di ogni pagina. I default sono il
+    layout del primo PDF di riferimento, usati solo se l'intestazione manca."""
+
+    data_min: float = 60.0
+    tipo_min: float = 100.0
+    descrizione_min: float = 150.0
+    amount_min: float = 400.0
+    entrata_uscita_split: float = 450.0
+
+
+def _detect_layout(words: list[dict]) -> _ColumnLayout | None:
+    anchor = next((w for w in words if w["text"].upper() == "DESCRIZIONE"), None)
+    if anchor is None:
+        return None
+    header = sorted(
+        (w for w in words if abs(w["top"] - anchor["top"]) < 3.0), key=lambda w: w["x0"]
+    )
+    by_text = {w["text"].upper(): w["x0"] for w in header if w["text"].upper() in ("DATA", "TIPO", "DESCRIZIONE", "SALDO")}
+    entrata_x0 = uscita_x0 = None
+    for current, following in zip(header, header[1:]):
+        if current["text"].upper() != "IN":
+            continue
+        if following["text"].upper() == "ENTRATA":
+            entrata_x0 = current["x0"]
+        elif following["text"].upper() == "USCITA":
+            uscita_x0 = current["x0"]
+    if not {"DATA", "TIPO", "DESCRIZIONE"} <= by_text.keys() or entrata_x0 is None or uscita_x0 is None:
+        return None
+    return _ColumnLayout(
+        data_min=by_text["DATA"] - 14.0,
+        tipo_min=by_text["TIPO"] - 2.0,
+        descrizione_min=by_text["DESCRIZIONE"] - 2.0,
+        amount_min=entrata_x0 - 5.0,
+        entrata_uscita_split=uscita_x0 - 5.0,
+    )
 
 _DETECT_MARKERS = ("TRADE REPUBLIC", "TRBKITMMXXX")
 
@@ -90,12 +124,12 @@ def _parse_amount(raw: str) -> Decimal:
     return Decimal(raw.replace(".", "").replace(",", "."))
 
 
-def _bucket_for_x0(x0: float) -> str | None:
-    if _COL_DATA[0] <= x0 < _COL_DATA[1]:
+def _bucket_for_x0(x0: float, layout: _ColumnLayout) -> str | None:
+    if layout.data_min <= x0 < layout.tipo_min:
         return "data"
-    if _COL_TIPO[0] <= x0 < _COL_TIPO[1]:
+    if layout.tipo_min <= x0 < layout.descrizione_min:
         return "tipo"
-    if _COL_DESCRIZIONE[0] <= x0 < _COL_DESCRIZIONE[1]:
+    if layout.descrizione_min <= x0 < layout.amount_min:
         return "descrizione"
     return None
 
@@ -119,12 +153,12 @@ def _join_bucket(words: list[dict]) -> str:
     return " ".join(w["text"] for w in sorted(words, key=lambda w: (w["top"], w["x0"])))
 
 
-def _extract_amounts(row_words: list[dict]) -> tuple[Decimal | None, Decimal | None, Decimal | None, str | None]:
+def _extract_amounts(row_words: list[dict], layout: _ColumnLayout) -> tuple[Decimal | None, Decimal | None, Decimal | None, str | None]:
     """Ritorna (entrata, uscita, saldo, warning). Vedi il modulo docstring
     per il perche' non si usa un semplice bucket per x0 qui."""
     tokens: list[tuple[float, Decimal]] = []
     for w in row_words:
-        if w["x0"] < _COL_AMOUNT_MIN_X0:
+        if w["x0"] < layout.amount_min:
             continue
         match = _AMOUNT_TAIL_RE.search(w["text"])
         if match:
@@ -133,12 +167,12 @@ def _extract_amounts(row_words: list[dict]) -> tuple[Decimal | None, Decimal | N
 
     if len(tokens) == 2:
         (x0, first_value), (_, saldo) = tokens
-        if x0 < _COL_ENTRATA_USCITA_SPLIT_X0:
+        if x0 < layout.entrata_uscita_split:
             return first_value, None, saldo, None
         return None, first_value, saldo, None
     if len(tokens) == 1:
         x0, value = tokens[0]
-        if x0 < _COL_ENTRATA_USCITA_SPLIT_X0:
+        if x0 < layout.entrata_uscita_split:
             return value, None, None, "riga con importo ma senza saldo leggibile"
         return None, value, None, "riga con importo ma senza saldo leggibile"
     return None, None, None, "riga con data valida ma nessun importo riconosciuto"
@@ -241,14 +275,16 @@ class TradeRepublicParser:
     def parse(self, raw_bytes: bytes) -> ParsedStatement:
         rows: list[ParsedRow] = []
         warnings: list[str] = []
+        layout = _ColumnLayout()
 
         with pdfplumber.open(io.BytesIO(raw_bytes)) as pdf:
             for page_number, page in enumerate(pdf.pages, start=1):
                 words = page.extract_words(use_text_flow=False, keep_blank_chars=False)
+                layout = _detect_layout(words) or layout
                 for row_words in _cluster_into_rows(words):
                     buckets: dict[str, list[dict]] = {}
                     for word in row_words:
-                        bucket = _bucket_for_x0(word["x0"])
+                        bucket = _bucket_for_x0(word["x0"], layout)
                         if bucket is not None:
                             buckets.setdefault(bucket, []).append(word)
 
@@ -267,7 +303,7 @@ class TradeRepublicParser:
                         warnings.append(f"pagina {page_number}: riga del {data_text} senza descrizione, saltata")
                         continue
 
-                    entrata, uscita, saldo, amount_warning = _extract_amounts(row_words)
+                    entrata, uscita, saldo, amount_warning = _extract_amounts(row_words, layout)
                     if amount_warning is not None and entrata is None and uscita is None:
                         warnings.append(f"pagina {page_number}: {amount_warning} ({data_text})")
                         continue
