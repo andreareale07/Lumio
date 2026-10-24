@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useTheme } from "../../app/providers/ThemeProvider";
 import { setLocale, SUPPORTED_LOCALES, type SupportedLocale } from "../../app/i18n";
+import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
 
 const THEME_ICONS = { light: Sun, dark: Moon, system: Monitor } as const;
 
@@ -58,6 +59,7 @@ export function Topbar({ toolbarSlotRef }: { toolbarSlotRef: (el: HTMLDivElement
          * corrente abbia o meno un contenuto da mostrare nello slot. */}
         <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
         <div className="flex shrink-0 items-center gap-2">
+          <ActivityIndicator />
           <button
             type="button"
             onClick={cycleLocale}

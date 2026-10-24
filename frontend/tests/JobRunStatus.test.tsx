@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
 import { JobRunStatus } from "../src/components/ui/JobRunStatus";
@@ -46,5 +47,25 @@ describe("JobRunStatus", () => {
     );
     expect(screen.getByText("Non riuscito")).toBeInTheDocument();
     expect(screen.getByText(/provider non raggiungibile/)).toBeInTheDocument();
+  });
+
+  it("con il job in corso dentro l'app indica dove seguirlo (Attività)", () => {
+    render(
+      <MemoryRouter>
+        <JobRunStatus run={{ status: "running", started_at: "2026-08-11T10:00:00Z", finished_at: null, message: null }} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("link", { name: "Segui in Attività" })).toHaveAttribute("href", "/activity");
+  });
+
+  it("a job concluso non propone il link", () => {
+    render(
+      <MemoryRouter>
+        <JobRunStatus
+          run={{ status: "success", started_at: "2026-08-11T10:00:00Z", finished_at: "2026-08-11T10:00:05Z", message: null }}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

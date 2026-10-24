@@ -35,6 +35,24 @@ export function useActivity() {
   });
 }
 
+const RUNNING_STATUSES = ["running", "pending"];
+
+export function isActivityRunning(item: ActivityItem): boolean {
+  return RUNNING_STATUSES.includes(item.status);
+}
+
+/** Stessa cache di `useActivity` ma pensata per l'indicatore globale nella
+ * barra superiore, presente in OGNI pagina: scorre piano (30s) quando non c'e'
+ * nulla in corso e a 5s solo mentre qualcosa gira, cosi' un'app aperta tutto
+ * il giorno non martella l'endpoint per niente. */
+export function useActivityPulse() {
+  return useQuery({
+    queryKey: activityKey,
+    queryFn: () => api.get<ActivityListResponse>("/activity").then((r) => r.items),
+    refetchInterval: (query) => (query.state.data?.some(isActivityRunning) ? 5000 : 30000),
+  });
+}
+
 export interface ActivityProgressEvent {
   event: string;
   processed?: number;

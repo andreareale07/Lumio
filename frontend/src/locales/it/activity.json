@@ -15,5 +15,17 @@
     },
     "startedAt": "Iniziato: {{value}}",
     "finishedAt": "Terminato: {{value}}"
+  },
+  "indicator": {
+    "title": "Elaborazioni",
+    "running_one": "{{count}} elaborazione in corso",
+    "running_other": "{{count}} elaborazioni in corso",
+    "failed_one": "{{count}} elaborazione fallita di recente",
+    "failed_other": "{{count}} elaborazioni fallite di recente",
+    "idle": "Nessuna elaborazione in corso",
+    "nothingRunning": "Nessuna elaborazione in corso.",
+    "failedRecently_one": "{{count}} elaborazione fallita di recente.",
+    "failedRecently_other": "{{count}} elaborazioni fallite di recente.",
+    "seeAll": "Apri Attività"
   }
 }

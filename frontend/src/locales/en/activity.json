@@ -15,5 +15,17 @@
     },
     "startedAt": "Started: {{value}}",
     "finishedAt": "Finished: {{value}}"
+  },
+  "indicator": {
+    "title": "Processing",
+    "running_one": "{{count}} task running",
+    "running_other": "{{count}} tasks running",
+    "failed_one": "{{count}} task failed recently",
+    "failed_other": "{{count}} tasks failed recently",
+    "idle": "Nothing is running",
+    "nothingRunning": "Nothing is running.",
+    "failedRecently_one": "{{count}} task failed recently.",
+    "failedRecently_other": "{{count}} tasks failed recently.",
+    "seeAll": "Open Activity"
   }
 }

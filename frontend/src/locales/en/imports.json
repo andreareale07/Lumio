@@ -16,6 +16,22 @@
       "title": "No import yet",
       "description": "Import a CSV or PDF bank statement to populate your transactions."
     },
+    "summary_one": "{{count}} import",
+    "summary_other": "{{count}} imports",
+    "search": {
+      "label": "Search imports",
+      "placeholder": "Search {{count}} imports by file or account"
+    },
+    "filter": {
+      "label": "Status",
+      "all": "All",
+      "running": "Running",
+      "review": "To review",
+      "completed": "Completed",
+      "failed": "Failed or cancelled"
+    },
+    "noResults": "No import matches your search.",
+    "clearFilters": "Clear filters",
     "transactionsImported_one": "{{count}} transaction",
     "transactionsImported_other": "{{count}} transactions",
     "alreadyPresent": "{{count}} already present",

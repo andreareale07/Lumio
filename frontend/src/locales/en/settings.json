@@ -59,6 +59,19 @@
           "title": "No labels observed",
           "description": "No transaction imported with this parser carries a raw label yet."
         },
+        "summary_one": "{{count}} label, {{overrides}} with a custom mapping",
+        "summary_other": "{{count}} labels, {{overrides}} with a custom mapping",
+        "search": {
+          "label": "Search labels",
+          "placeholder": "Search {{count}} labels"
+        },
+        "filter": {
+          "label": "Show",
+          "all": "All labels",
+          "overrides": "Only with a custom mapping"
+        },
+        "noResults": "No label matches your search.",
+        "clearFilters": "Clear filters",
         "overrideActive": "Override active",
         "removeOverride": "Remove override",
         "typeFor": "Type for \"{{label}}\"",
@@ -102,7 +115,10 @@
         "suggestion": {
           "text_one": "You classified \"{{value}}\" as {{category}} {{count}} time. Create an automatic rule?",
           "text_other": "You classified \"{{value}}\" as {{category}} {{count}} times. Create an automatic rule?",
-          "createRule": "Create rule"
+          "createRule": "Create rule",
+          "showMore_one": "Show one more suggestion",
+          "showMore_other": "Show {{count}} more suggestions",
+          "showFewer": "Show fewer suggestions"
         },
         "loadError": "We couldn't load the rules.",
         "empty": {
@@ -110,6 +126,20 @@
           "description": "Create a rule to automatically classify future transactions, e.g. NETFLIX → Subscriptions.",
           "action": "New rule"
         },
+        "summary_one": "{{count}} rule ({{active}} active)",
+        "summary_other": "{{count}} rules ({{active}} active)",
+        "search": {
+          "label": "Search rules",
+          "placeholder": "Search {{count}} rules by name, text or category"
+        },
+        "filter": {
+          "label": "Status",
+          "all": "All",
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "noResults": "No rule matches your search.",
+        "clearFilters": "Clear filters",
         "priority": "Priority {{value}}",
         "badgeInactive": "Deactivated",
         "toggleActivate": "Activate",
@@ -133,6 +163,14 @@
           "wouldChange": "<strong>{{count}}</strong> out of {{total}} transactions would change category.",
           "breakdownExample": " (e.g. \"{{example}}\")",
           "inProgress": "In progress: {{processed}}/{{total}}",
+          "banner": {
+            "title": "Reclassification in progress",
+            "progress": "{{processed}} of {{total}}",
+            "starting": "Starting…",
+            "follow": "Follow in Activity"
+          },
+          "alreadyRunning": "A reclassification is already running: wait for it to finish before starting another.",
+          "startedNote": "It runs in the background: you can close this window, progress stays at the top of the page and in Activity.",
           "applyNow": "Apply now",
           "error": "We couldn't start the reclassification."
         }

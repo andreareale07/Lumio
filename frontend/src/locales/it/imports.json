@@ -16,6 +16,22 @@
       "title": "Nessuna importazione",
       "description": "Importa un estratto conto CSV o PDF per popolare i tuoi movimenti."
     },
+    "summary_one": "{{count}} import",
+    "summary_other": "{{count}} import",
+    "search": {
+      "label": "Cerca negli import",
+      "placeholder": "Cerca tra {{count}} import per file o conto"
+    },
+    "filter": {
+      "label": "Stato",
+      "all": "Tutti",
+      "running": "In corso",
+      "review": "Da rivedere",
+      "completed": "Completati",
+      "failed": "Falliti o annullati"
+    },
+    "noResults": "Nessun import corrisponde alla ricerca.",
+    "clearFilters": "Azzera i filtri",
     "transactionsImported_one": "{{count}} movimento",
     "transactionsImported_other": "{{count}} movimenti",
     "alreadyPresent": "{{count}} già presenti",

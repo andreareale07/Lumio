@@ -59,6 +59,19 @@
           "title": "Nessuna etichetta osservata",
           "description": "Nessuna transazione importata con questo parser ha ancora un'etichetta grezza."
         },
+        "summary_one": "{{count}} etichetta, {{overrides}} con mappatura personalizzata",
+        "summary_other": "{{count}} etichette, {{overrides}} con mappatura personalizzata",
+        "search": {
+          "label": "Cerca nelle etichette",
+          "placeholder": "Cerca tra {{count}} etichette"
+        },
+        "filter": {
+          "label": "Mostra",
+          "all": "Tutte le etichette",
+          "overrides": "Solo con mappatura personalizzata"
+        },
+        "noResults": "Nessuna etichetta corrisponde alla ricerca.",
+        "clearFilters": "Azzera i filtri",
         "overrideActive": "Override attivo",
         "removeOverride": "Rimuovi override",
         "typeFor": "Tipo per \"{{label}}\"",
@@ -102,7 +115,10 @@
         "suggestion": {
           "text_one": "Hai classificato \"{{value}}\" come {{category}} {{count}} volta. Vuoi creare una regola automatica?",
           "text_other": "Hai classificato \"{{value}}\" come {{category}} {{count}} volte. Vuoi creare una regola automatica?",
-          "createRule": "Crea regola"
+          "createRule": "Crea regola",
+          "showMore_one": "Mostra un altro suggerimento",
+          "showMore_other": "Mostra altri {{count}} suggerimenti",
+          "showFewer": "Mostra meno suggerimenti"
         },
         "loadError": "Non siamo riusciti a caricare le regole.",
         "empty": {
@@ -110,6 +126,20 @@
           "description": "Crea una regola per classificare automaticamente i movimenti futuri, ad esempio NETFLIX → Abbonamenti.",
           "action": "Nuova regola"
         },
+        "summary_one": "{{count}} regola ({{active}} attive)",
+        "summary_other": "{{count}} regole ({{active}} attive)",
+        "search": {
+          "label": "Cerca nelle regole",
+          "placeholder": "Cerca tra {{count}} regole per nome, testo o categoria"
+        },
+        "filter": {
+          "label": "Stato",
+          "all": "Tutte",
+          "active": "Attive",
+          "inactive": "Disattivate"
+        },
+        "noResults": "Nessuna regola corrisponde alla ricerca.",
+        "clearFilters": "Azzera i filtri",
         "priority": "Priorità {{value}}",
         "badgeInactive": "Disattiva",
         "toggleActivate": "Attiva",
@@ -133,6 +163,14 @@
           "wouldChange": "<strong>{{count}}</strong> su {{total}} transazioni cambierebbero categoria.",
           "breakdownExample": " (es. \"{{example}}\")",
           "inProgress": "In corso: {{processed}}/{{total}}",
+          "banner": {
+            "title": "Riclassificazione in corso",
+            "progress": "{{processed}} di {{total}}",
+            "starting": "Avvio…",
+            "follow": "Segui in Attività"
+          },
+          "alreadyRunning": "C'è già una riclassificazione in corso: attendi che finisca per avviarne un'altra.",
+          "startedNote": "Parte in background: puoi chiudere questa finestra, l'avanzamento resta in cima alla pagina e in Attività.",
           "applyNow": "Applica ora",
           "error": "Non è stato possibile avviare la riclassificazione."
         }

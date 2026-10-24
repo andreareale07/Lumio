@@ -30,6 +30,7 @@
     "label": "Sections"
   },
   "jobRun": {
+    "follow": "Follow in Activity",
     "never": "Never run yet.",
     "status": {
       "running": "Running",
@@ -44,6 +45,13 @@
   "cashFlow": {
     "income": "Income",
     "expenses": "Expenses"
+  },
+  "pagination": {
+    "label": "Pagination",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "page": "Page {{page}} of {{pages}}",
+    "previous": "Previous",
+    "next": "Next"
   },
   "eta": {
     "lessThanAMinute": "less than a minute remaining",

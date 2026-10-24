@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Tags } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Search, Tags } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "../../../components/ui/Badge";
@@ -7,8 +7,10 @@ import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { ErrorState } from "../../../components/ui/ErrorState";
+import { Pagination } from "../../../components/ui/Pagination";
 import { Select } from "../../../components/ui/Select";
 import { SkeletonRows } from "../../../components/ui/Skeleton";
+import { usePagedList } from "../../../lib/usePagedList";
 import { useTransactionTypeLabel } from "../../transactions/labels";
 import { TRANSACTION_TYPES, type TransactionType, type TransactionTypeLabel } from "../../../types/api";
 import { useDeleteTransactionTypeMapping, useTransactionTypeLabels, useUpsertTransactionTypeMapping, useUsedParserTypes } from "./api";
@@ -33,7 +35,7 @@ export function TransactionTypeMappingsPage() {
   }, [parserTypes, selectedParser]);
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4">
       <h1 className="text-lg font-semibold text-text">{t("items.transactionTypes.label")}</h1>
 
       <p className="text-sm text-text-muted">
@@ -90,12 +92,93 @@ function LabelsList({ parserType }: { parserType: string }) {
     );
   }
 
+  return <LabelsTable parserType={parserType} labels={labels} />;
+}
+
+const PAGE_SIZE = 8;
+type LabelFilter = "all" | "overrides";
+
+function LabelsTable({ parserType, labels }: { parserType: string; labels: TransactionTypeLabel[] }) {
+  const { t } = useTranslation("settings");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<LabelFilter>("all");
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return labels
+      .filter((label) => (filter === "overrides" ? label.override !== null : true))
+      .filter((label) => needle === "" || label.source_type_raw.toLowerCase().includes(needle));
+  }, [labels, query, filter]);
+  const paged = usePagedList(filtered, PAGE_SIZE, `${parserType}|${query}|${filter}`);
+  const overrides = labels.filter((label) => label.override !== null).length;
+  const hasFilters = query.trim() !== "" || filter !== "all";
+
   return (
-    <div className="flex flex-col gap-2">
-      {labels.map((label) => (
-        <LabelRow key={label.source_type_raw} parserType={parserType} label={label} />
-      ))}
-    </div>
+    <section className="flex flex-col gap-3">
+      <p className="text-sm text-text-muted">
+        {t("items.transactionTypes.page.summary", { count: labels.length, overrides })}
+      </p>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="relative min-w-52 flex-1">
+          <label htmlFor="labels-search" className="sr-only">
+            {t("items.transactionTypes.page.search.label")}
+          </label>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
+          <input
+            id="labels-search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t("items.transactionTypes.page.search.placeholder", { count: labels.length })}
+            className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-text placeholder:text-text-muted"
+          />
+        </div>
+        <div className="w-56">
+          <Select
+            label={t("items.transactionTypes.page.filter.label")}
+            value={filter}
+            onChange={(event) => setFilter(event.target.value as LabelFilter)}
+          >
+            <option value="all">{t("items.transactionTypes.page.filter.all")}</option>
+            <option value="overrides">{t("items.transactionTypes.page.filter.overrides")}</option>
+          </Select>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-start gap-2 rounded-lg border border-border p-4">
+          <p className="text-sm text-text-muted">{t("items.transactionTypes.page.noResults")}</p>
+          {hasFilters && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setQuery("");
+                setFilter("all");
+              }}
+            >
+              {t("items.transactionTypes.page.clearFilters")}
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {paged.pageItems.map((label) => (
+            <LabelRow key={label.source_type_raw} parserType={parserType} label={label} />
+          ))}
+        </div>
+      )}
+
+      <Pagination
+        page={paged.page}
+        pageCount={paged.pageCount}
+        from={paged.from}
+        to={paged.to}
+        total={paged.total}
+        onPageChange={paged.setPage}
+      />
+    </section>
   );
 }
 

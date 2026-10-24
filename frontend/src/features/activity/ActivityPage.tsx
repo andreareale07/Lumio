@@ -17,7 +17,7 @@ export function ActivityPage() {
   const { data: items, isLoading, isError, refetch } = useActivity();
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4">
       <div>
         <h1 className="text-lg font-semibold text-text">{t("page.title")}</h1>
         <p className="text-sm text-text-muted">{t("page.description")}</p>
