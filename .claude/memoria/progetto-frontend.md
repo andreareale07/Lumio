@@ -34,6 +34,11 @@ Tailwind 4, Recharts, i18next, icone lucide-react. Build servita da nginx nel co
   compare 2 volte nel DOM (nei test usare `findAllByText`/`.first()`).
 - `AreaTrendChart` ha `yAxisDomain="tight"` per i prezzi (il default parte da 0).
 
+- **Bottom bar mobile** (`components/layout/MobileNav.tsx`): una sola griglia `grid-cols-[repeat(5,1fr)]`
+  per barra + voci espanse ("Altro" -> "Chiudi", niente Drawer). Va usato `1fr` e NON
+  `grid-cols-5` (= `minmax(0,1fr)`): cosi' le colonne prendono la larghezza dell'etichetta piu'
+  lunga e il testo non si tronca mai. Se sfora su schermi stretti, ridurre il font (ora 11px).
+
 ## Regole i18n
 - Nuovo namespace: aggiungerlo **sia** a `resources` **sia** all'array `ns` in `app/i18n.ts`
   (se ne manca uno, `t()` restituisce la chiave grezza senza errori).

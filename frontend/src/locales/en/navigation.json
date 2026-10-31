@@ -17,6 +17,7 @@
     "imports": "Import",
     "activity": "Activity",
     "settings": "Settings",
-    "more": "More"
+    "more": "More",
+    "close": "Close"
   }
 }
