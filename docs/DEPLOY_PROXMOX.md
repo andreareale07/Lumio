@@ -230,9 +230,10 @@ disco: su un self-hosted senza log rotation esterna è il modo più comune di
 far cadere il servizio dopo mesi di uptime.
 
 Il frontend viene legato a `127.0.0.1`, presupponendo un reverse proxy sulla
-**stessa** macchina. Se il proxy gira altrove, togli il prefisso in
-`docker-compose.prod.yml` (`"${FRONTEND_PORT:-8080}:80"`) e proteggi la porta
-con `ufw` come nella sezione 2.
+**stessa** macchina. Se il proxy gira altrove (altro host o LXC), imposta
+`FRONTEND_BIND=0.0.0.0` nel `.env` e proteggi la porta con `ufw` come nella
+sezione 2. Sintomo di un bind sbagliato: il reverse proxy risponde
+"Bad Gateway".
 
 ### 5.2 Comando di avvio
 

@@ -56,8 +56,8 @@ services:
     # accanto a questo — la porta resterebbe aperta sulla LAN. Verificabile
     # con `docker compose ... config`.
     ports: !override
-      # 127.0.0.1 presuppone un reverse proxy sulla STESSA macchina. Se il
-      # proxy gira altrove togli il prefisso ("${FRONTEND_PORT:-8080}:80") e
-      # limita l'accesso alla porta via firewall.
-      - "127.0.0.1:${FRONTEND_PORT:-8080}:80"
+      # Default 127.0.0.1: presuppone un reverse proxy sulla STESSA macchina.
+      # Se il proxy gira altrove (altro host/LXC) imposta FRONTEND_BIND=0.0.0.0
+      # nel .env e limita l'accesso alla porta via firewall.
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-8080}:80"
     logging: *prod_logging

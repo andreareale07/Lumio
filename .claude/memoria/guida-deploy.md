@@ -11,6 +11,9 @@ operativamente.
 - Produzione: aggiungere `docker-compose.prod.yml` (+ `docker-compose.prod.local-db.yml`
   se Postgres e' nel compose). Richiede Compose >= 2.24, frontend su 127.0.0.1 dietro un
   reverse proxy.
+- Il prod lega il frontend a `127.0.0.1`: con reverse proxy su un altro host/LXC serve
+  `FRONTEND_BIND=0.0.0.0` nel `.env` (dal 2026-11-06), altrimenti il proxy dà "Bad Gateway"
+  (le richieste non arrivano ai container: log vuoti).
 - Con `APP_ENV=production` il cookie di refresh e' `Secure`: **senza HTTPS il login non
   funziona**.
 
