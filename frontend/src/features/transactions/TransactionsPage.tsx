@@ -9,7 +9,6 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
-import { Select } from "../../components/ui/Select";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { useAccounts } from "../accounts/api";
 import { useCategories } from "../categories/api";
@@ -17,9 +16,10 @@ import { buildCategoryOptions, useCategoryLabel } from "../categories/utils";
 import { formatDate, formatSignedMoney } from "../../lib/format";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { TRANSACTION_TYPES, type Transaction } from "../../types/api";
-import { useTransactionReviewSummary, useTransactions } from "./api";
+import { useTransactionListSummary, useTransactionReviewSummary, useTransactions } from "./api";
 import { useTransactionTypeLabel } from "./labels";
 import { TransactionDetailDrawer } from "./TransactionDetailDrawer";
+import { TransactionFilterBar, type SelectFilter, type StaticFilterChip } from "./TransactionFilterBar";
 
 const PAGE_SIZE = 25;
 
@@ -31,11 +31,15 @@ export function TransactionsPage() {
   const [offset, setOffset] = useState(0);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
-  const accountId = searchParams.get("account") ?? "";
-  const categoryId = searchParams.get("category") ?? "";
-  const transactionType = searchParams.get("type") ?? "";
+  // Filtri multipli: parametri ripetuti nell'URL (`?category=a&category=b`).
+  const accountIds = searchParams.getAll("account");
+  const categoryIds = searchParams.getAll("category");
+  const transactionTypes = searchParams.getAll("type");
+  const merchants = searchParams.getAll("merchant");
   const importId = searchParams.get("import") ?? "";
+  const noMerchant = searchParams.get("no_merchant") === "1";
   const reviewOnly = searchParams.get("review") === "1";
+  const urlQuery = searchParams.get("q") ?? "";
   const { currentPeriod } = usePeriodNavigator({
     granularities: ["day", "week", "month", "quarter", "semester", "year"],
     allowAll: true,
@@ -53,25 +57,28 @@ export function TransactionsPage() {
   // sotto — ma la lista applicava comunque il periodo corrente, risultando
   // vuota ogni volta che le righe segnalate erano di un mese diverso).
   const bypassPeriodFilter = reviewOnly || !!importId;
-  const filters = {
-    financial_account_id: accountId || undefined,
-    category_id: categoryId || undefined,
-    transaction_type: transactionType || undefined,
+  const baseFilters = {
+    financial_account_id: accountIds,
+    category_id: categoryIds,
+    q: urlQuery || undefined,
+    merchant: merchants,
+    no_merchant: noMerchant ? true : undefined,
+    transaction_type: transactionTypes,
     date_from: bypassPeriodFilter ? undefined : currentPeriod.date_from,
     date_to: bypassPeriodFilter ? undefined : currentPeriod.date_to,
     import_id: importId || undefined,
     needs_review: reviewOnly ? true : undefined,
-    limit: PAGE_SIZE,
-    offset,
   };
+  const filters = { ...baseFilters, limit: PAGE_SIZE, offset };
   const { data: transactions, isLoading, isError, refetch } = useTransactions(filters);
+  const { data: listSummary } = useTransactionListSummary(baseFilters);
   // Il conteggio "da verificare" resta scoped allo stesso import/conto del
   // filtro attivo (se presenti), ma NON al periodo/tipo/categoria — deve
   // restare stabile mentre l'utente affina gli altri filtri, altrimenti il
   // numero sul badge cambierebbe ad ogni click perdendo di significato come
   // "quante ne restano da guardare in totale".
   const { data: reviewSummary } = useTransactionReviewSummary({
-    financial_account_id: accountId || undefined,
+    financial_account_id: accountIds.length === 1 ? accountIds[0] : undefined,
     import_id: importId || undefined,
   });
 
@@ -83,6 +90,14 @@ export function TransactionsPage() {
     setOffset(0);
   }, [currentPeriod.date_from, currentPeriod.date_to]);
 
+  const setFilterValues = (key: string, values: string[]) => {
+    setOffset(0);
+    const next = new URLSearchParams(searchParams);
+    next.delete(key);
+    values.forEach((value) => next.append(key, value));
+    setSearchParams(next);
+  };
+
   const updateFilter = (key: string, value: string) => {
     setOffset(0);
     const next = new URLSearchParams(searchParams);
@@ -90,6 +105,90 @@ export function TransactionsPage() {
     else next.delete(key);
     setSearchParams(next);
   };
+
+  // Ricerca testuale: lo stato locale segue la digitazione, l'URL (e quindi la
+  // query) si aggiorna dopo una breve pausa. Il valore nell'URL e' la fonte di
+  // verita': un "Azzera filtri" o un link esterno lo riallineano.
+  const [searchText, setSearchText] = useState(urlQuery);
+  useEffect(() => {
+    setSearchText(urlQuery);
+  }, [urlQuery]);
+  useEffect(() => {
+    const trimmed = searchText.trim();
+    if (trimmed === urlQuery) return;
+    const timer = setTimeout(() => {
+      setOffset(0);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (trimmed) next.set("q", trimmed);
+          else next.delete("q");
+          return next;
+        },
+        { replace: true },
+      );
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText, urlQuery, setSearchParams]);
+
+  const removeFilters = (...keys: string[]) => {
+    setOffset(0);
+    const next = new URLSearchParams(searchParams);
+    keys.forEach((key) => next.delete(key));
+    setSearchParams(next);
+  };
+  const PERIOD_KEYS = ["mode", "granularity", "anchor", "from", "to"];
+  const hasPeriodOverride = PERIOD_KEYS.some((key) => searchParams.has(key));
+  const hasFilters = !!(
+    accountIds.length ||
+    categoryIds.length ||
+    transactionTypes.length ||
+    merchants.length ||
+    importId ||
+    noMerchant ||
+    reviewOnly ||
+    urlQuery
+  );
+  // "Azzera tutto" riporta anche il periodo al default: altrimenti un link che
+  // arriva con un periodo fisso (es. dal drill-down) lascia zero risultati
+  // senza che l'utente capisca perche'.
+  const hasAnyFilter = hasFilters || hasPeriodOverride;
+  const clearAllFilters = () =>
+    removeFilters("account", "category", "type", "import", "merchant", "no_merchant", "review", "q", ...PERIOD_KEYS);
+
+  const selectFilters: SelectFilter[] = [
+    {
+      key: "account",
+      label: t("page.filters.account"),
+      values: accountIds,
+      options: (accounts ?? []).map((account) => ({ value: account.id, label: account.name })),
+    },
+    {
+      key: "category",
+      label: t("page.filters.category"),
+      values: categoryIds,
+      options: categoryOptions.map((option) => ({ value: option.id, label: option.label })),
+    },
+    {
+      key: "type",
+      label: t("page.filters.type"),
+      values: transactionTypes,
+      options: TRANSACTION_TYPES.map((type) => ({ value: type, label: transactionTypeLabel(type) })),
+    },
+    { key: "merchant", label: t("page.filters.merchant"), values: merchants, options: [], remote: true },
+  ];
+
+  const staticChips: StaticFilterChip[] = [];
+  if (noMerchant) {
+    staticChips.push({
+      key: "no_merchant",
+      label: t("page.filters.noMerchant"),
+      onRemove: () => removeFilters("no_merchant"),
+    });
+  }
+  if (importId) {
+    staticChips.push({ key: "import", label: t("page.filters.importChip"), onRemove: () => removeFilters("import") });
+  }
 
   const periodNav = (
     <PeriodNavigator granularities={["day", "week", "month", "quarter", "semester", "year"]} allowAll />
@@ -104,59 +203,21 @@ export function TransactionsPage() {
         <div className="md:hidden">{periodNav}</div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <Select
-          aria-label={t("page.filters.account")}
-          value={accountId}
-          onChange={(e) => updateFilter("account", e.target.value)}
-          className="w-auto"
-        >
-          <option value="">{t("page.filters.allAccounts")}</option>
-          {(accounts ?? []).map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.name}
-            </option>
-          ))}
-        </Select>
-        <Select
-          aria-label={t("page.filters.category")}
-          value={categoryId}
-          onChange={(e) => updateFilter("category", e.target.value)}
-          className="w-auto"
-        >
-          <option value="">{t("page.filters.allCategories")}</option>
-          {categoryOptions.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
-        <Select
-          aria-label={t("page.filters.type")}
-          value={transactionType}
-          onChange={(e) => updateFilter("type", e.target.value)}
-          className="w-auto"
-        >
-          <option value="">{t("page.filters.allTypes")}</option>
-          {TRANSACTION_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {transactionTypeLabel(type)}
-            </option>
-          ))}
-        </Select>
-        {!!reviewSummary?.needs_review && (
-          <button
-            type="button"
-            onClick={() => updateFilter("review", reviewOnly ? "" : "1")}
-            aria-pressed={reviewOnly}
-            className={`inline-flex ${reviewOnly ? "" : "opacity-80 hover:opacity-100"}`}
-          >
-            <Badge tone={reviewOnly ? "warning" : "neutral"}>
-              ⚠ {t("page.needsReview", { count: reviewSummary.needs_review })}
-            </Badge>
-          </button>
-        )}
-      </div>
+      <TransactionFilterBar
+        searchText={searchText}
+        onSearchTextChange={setSearchText}
+        selectFilters={selectFilters}
+        onSetFilterValues={setFilterValues}
+        staticChips={staticChips}
+        review={
+          reviewSummary?.needs_review
+            ? { count: reviewSummary.needs_review, active: reviewOnly, onToggle: () => updateFilter("review", reviewOnly ? "" : "1") }
+            : null
+        }
+        hasAnyFilter={hasAnyFilter}
+        onClearAll={clearAllFilters}
+        summary={listSummary}
+      />
 
       {isLoading && <SkeletonRows rows={6} />}
       {isError && (
@@ -166,8 +227,15 @@ export function TransactionsPage() {
       {!isLoading && !isError && transactions && transactions.length === 0 && (
         <EmptyState
           icon={ArrowLeftRight}
-          title={t("page.empty.title")}
-          description={t("page.empty.description")}
+          title={hasAnyFilter ? t("page.noResults.title") : t("page.empty.title")}
+          description={hasAnyFilter ? t("page.noResults.description") : t("page.empty.description")}
+          action={
+            hasAnyFilter ? (
+              <Button variant="secondary" size="sm" onClick={clearAllFilters}>
+                {t("page.filters.clearAll")}
+              </Button>
+            ) : undefined
+          }
         />
       )}
 

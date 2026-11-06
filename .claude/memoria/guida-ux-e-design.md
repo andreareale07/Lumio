@@ -13,6 +13,32 @@ di prodotto).
   ne accorga.
 - Mattoni da usare: vedi `progetto-frontend.md` (Pagination, usePagedList, RulesPage).
 
+## Drill-down e range dei grafici (richiesta utente, 2026-11-06)
+- Modello di riferimento: "Dove vanno i soldi" (`CategoryHierarchyList`): righe cliccabili
+  (`clickableRowClasses`) che aprono il `DrillDownDrawer` (andamento + ripartizione +
+  transazioni + "Vedi tutte"), espansione per i livelli figli. Ogni elenco di aggregati
+  (merchant, conti, asset...) deve comportarsi cosi', non essere una lista statica.
+- Mai mostrare range in cui non c'e' ancora nessun dato: un tratto a zero prima del primo
+  movimento schiaccia la curva. Le serie temporali passano da `lib/trimSeries.ts`
+  (`trimLeadingEmpty`); la finestra si scarica intera se serve a confronti (YoY), si taglia
+  solo la visualizzazione e il subtitle del grafico riflette il range mostrato.
+
+## Filtri di una lista (modello: `TransactionFilterBar`, Movimenti)
+- Ricerca testuale in cima (debounce 300ms, nell'URL come `q`, lato server); sotto, una sola riga:
+  filtri rapidi ("Da verificare"), un chip per ogni filtro attivo (clic = cambia valore con
+  ricerca nell'elenco, X = toglie), "+ Filtro" per i filtri non ancora attivi, "Azzera filtri"
+  (riporta anche il periodo al default). Sotto, riepilogo "N movimenti · entrate · uscite" da
+  `GET /transactions/summary` (stessi filtri della lista, `list_filters` condiviso nel backend).
+- Un filtro impostato da un link esterno (merchant, import) e' un chip rimovibile; la lista
+  vuota con filtri attivi dice "Nessun risultato" + azzera. Il periodo resta nel navigatore
+  del Topbar (come in ogni pagina). "Senza categoria" non e' un filtro rapido: e' gia' incluso
+  in "Da verificare" (`_is_pending_review`).
+- Selezione multipla (OR) per conto/categoria/tipo/merchant: valori ripetuti nell'URL
+  (`?category=a&category=b`, `buildQueryString` accetta array) e liste nel backend
+  (`list_filters`). Liste lunghe: ricerca nel picker (appare oltre 6 voci); i merchant sono
+  remoti (`GET /transactions/merchants?q=`: piu' frequenti con conteggi + "N su totale").
+- Non fatto: "piu' usate" e raggruppamento per le categorie (solo ricerca), importo, viste salvate.
+
 ## Azioni
 - Le azioni primarie di una pagina vanno **sempre nella toolbar** (`usePageToolbar`):
   icona lucide + testo breve, mai un link accanto all'h1 o in fondo al contenuto. Le azioni

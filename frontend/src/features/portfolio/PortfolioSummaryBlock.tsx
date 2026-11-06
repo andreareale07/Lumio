@@ -13,6 +13,7 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { Skeleton, SkeletonRows } from "../../components/ui/Skeleton";
 import { formatDate, formatMoney, formatPercent, formatSignedMoney } from "../../lib/format";
 import { buildDietzReturnSeries, modifiedDietzReturn, type DietzFlow } from "../../lib/modifiedDietz";
+import { trimLeadingEmpty } from "../../lib/trimSeries";
 import { PORTFOLIO_HISTORY_PRESETS, type InvestmentTransaction, type PortfolioHistoryPreset } from "../../types/api";
 import {
   type PortfolioScope,
@@ -93,7 +94,10 @@ function useDietzGain(portfolioId: string | null, unassigned: boolean, dateFrom:
   const netFlowTotal = dietzFlows.reduce((sum, f) => sum + f.amount, 0);
   const gain = hasActivity && v1 !== null ? v1 - v0! - netFlowTotal : null;
   const returnPct = hasActivity && v1 !== null ? modifiedDietzReturn(v0!, v1, dietzFlows, dateFrom, dateTo) : null;
-  const returnSeries = buildDietzReturnSeries(points, dietzFlows, dateFrom);
+  // Con "Max"/"5A" il range parte prima del primo investimento: il tratto a 0%
+  // precedente non e' un rendimento nullo, e' assenza di posizione — si parte dal primo punto utile.
+  // (Solo la serie mostrata: V0/gain sopra restano calcolati sull'intervallo intero.)
+  const returnSeries = trimLeadingEmpty(buildDietzReturnSeries(points, dietzFlows, dateFrom), (p) => p.value === 0);
 
   return {
     isLoading: performance.isLoading || flows.isLoading,

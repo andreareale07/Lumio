@@ -18,6 +18,7 @@ import { JobRunStatus } from "../../components/ui/JobRunStatus";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { formatDate, formatMoney } from "../../lib/format";
 import { GRANULARITY_ORDER } from "../../lib/period";
+import { trimLeadingEmpty } from "../../lib/trimSeries";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useTransactions } from "../transactions/api";
 import {
@@ -65,11 +66,16 @@ export function NetWorthPage() {
   const compositionTransactions = useTransactions({ limit: 5 }, { enabled: !!selectedComposition });
 
   const currency = summary.data?.currency ?? "EUR";
-  const trendPoints = (history.data?.points ?? []).map((p) => ({
-    period: p.snapshot_date,
-    label: formatDate(p.snapshot_date),
-    value: Number(p.net_worth),
-  }));
+  // Snapshot a zero prima del primo dato reale (storico ricostruito su anni
+  // senza movimenti) non sono patrimonio zero: si parte dal primo valore.
+  const trendPoints = trimLeadingEmpty(
+    (history.data?.points ?? []).map((p) => ({
+      period: p.snapshot_date,
+      label: formatDate(p.snapshot_date),
+      value: Number(p.net_worth),
+    })),
+    (p) => p.value === 0,
+  );
 
   const compositionAccounts = (balances.data?.accounts ?? []).filter((a) =>
     selectedComposition === "liquidity"

@@ -277,3 +277,130 @@ async def test_list_transactions_by_category_id_matches_parent_or_child(client):
     )
     assert len(by_parent.json()) == 1
     assert by_parent.json()[0]["category_id"] == carburante["id"]
+
+
+async def test_list_transactions_text_search(client):
+    token = await _register(client, "search@example.com")
+    account_id = await _create_account(client, token)
+    for description, merchant in [
+        ("Pagamento AMAZON EU", "AMAZON"),
+        ("Sconto 50% estate", "LIDL"),
+        ("Altro movimento", None),
+    ]:
+        response = await client.post(
+            "/api/v1/transactions",
+            json=_transaction_payload(account_id, description_raw=description, merchant=merchant),
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 201, response.text
+
+    async def search(q):
+        response = await client.get("/api/v1/transactions", params={"q": q}, headers=_auth_headers(token))
+        assert response.status_code == 200, response.text
+        return {t["description_raw"] for t in response.json()}
+
+    assert await search("amazon") == {"Pagamento AMAZON EU"}
+    assert await search("lidl") == {"Sconto 50% estate"}
+    # `%` e' un carattere letterale, non un jolly
+    assert await search("50%") == {"Sconto 50% estate"}
+    assert await search("%") == {"Sconto 50% estate"}
+    assert await search("nessuno") == set()
+
+
+async def test_transaction_summary_matches_list_filters(client):
+    token = await _register(client, "summary@example.com")
+    other_token = await _register(client, "summary-other@example.com")
+    account_id = await _create_account(client, token)
+    other_account_id = await _create_account(client, other_token)
+    rows = [
+        ("AMAZON", "-100.00", "expense"),
+        ("AMAZON", "-50.00", "expense"),
+        ("LIDL", "-30.00", "expense"),
+        ("DATORE", "2000.00", "income"),
+        ("GIRO", "-500.00", "transfer"),
+    ]
+    for merchant, amount, kind in rows:
+        response = await client.post(
+            "/api/v1/transactions",
+            json=_transaction_payload(
+                account_id, description_raw=merchant, merchant=merchant, amount=amount, transaction_type=kind
+            ),
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 201, response.text
+    await client.post(
+        "/api/v1/transactions",
+        json=_transaction_payload(other_account_id, merchant="AMAZON", amount="-999.00"),
+        headers=_auth_headers(other_token),
+    )
+
+    everything = await client.get("/api/v1/transactions/summary", headers=_auth_headers(token))
+    assert everything.status_code == 200, everything.text
+    body = everything.json()
+    # il trasferimento conta nel numero di righe ma non in entrate/uscite
+    assert body["count"] == 5
+    assert body["income"] == "2000.00"
+    assert body["expenses"] == "180.00"
+    assert body["net"] == "1820.00"
+
+    amazon = await client.get(
+        "/api/v1/transactions/summary", params={"merchant": "AMAZON"}, headers=_auth_headers(token)
+    )
+    assert amazon.json()["count"] == 2
+    assert amazon.json()["expenses"] == "150.00"
+
+    searched = await client.get(
+        "/api/v1/transactions/summary", params={"q": "lid"}, headers=_auth_headers(token)
+    )
+    assert searched.json()["count"] == 1
+
+
+async def test_multi_value_filters_and_merchants_endpoint(client):
+    token = await _register(client, "multi@example.com")
+    other_token = await _register(client, "multi-other@example.com")
+    account_id = await _create_account(client, token)
+    other_account_id = await _create_account(client, other_token)
+    for merchant, kind in [("AMAZON", "expense"), ("AMAZON", "expense"), ("LIDL", "expense"), ("DATORE", "income"), (None, "expense")]:
+        amount = "2000.00" if kind == "income" else "-10.00"
+        response = await client.post(
+            "/api/v1/transactions",
+            json=_transaction_payload(
+                account_id, description_raw=merchant or "Senza", merchant=merchant, amount=amount, transaction_type=kind
+            ),
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 201, response.text
+    await client.post(
+        "/api/v1/transactions",
+        json=_transaction_payload(other_account_id, merchant="ALTROUTENTE"),
+        headers=_auth_headers(other_token),
+    )
+    headers = _auth_headers(token)
+
+    two_merchants = await client.get(
+        "/api/v1/transactions", params=[("merchant", "AMAZON"), ("merchant", "LIDL")], headers=headers
+    )
+    assert len(two_merchants.json()) == 3
+
+    with_none = await client.get(
+        "/api/v1/transactions", params=[("merchant", "LIDL"), ("no_merchant", "true")], headers=headers
+    )
+    assert len(with_none.json()) == 2
+
+    two_types = await client.get(
+        "/api/v1/transactions", params=[("transaction_type", "income"), ("transaction_type", "expense")], headers=headers
+    )
+    assert len(two_types.json()) == 5
+    summary = await client.get(
+        "/api/v1/transactions/summary", params=[("merchant", "AMAZON"), ("merchant", "LIDL")], headers=headers
+    )
+    assert summary.json()["count"] == 3
+
+    merchants = await client.get("/api/v1/transactions/merchants", params={"limit": 2}, headers=headers)
+    body = merchants.json()
+    assert [(m["merchant"], m["count"]) for m in body["items"]][0] == ("AMAZON", 2)
+    assert body["total"] == 3  # AMAZON, LIDL, DATORE: i movimenti senza merchant non contano
+    assert "ALTROUTENTE" not in {m["merchant"] for m in body["items"]}
+
+    searched = await client.get("/api/v1/transactions/merchants", params={"q": "lid"}, headers=headers)
+    assert [m["merchant"] for m in searched.json()["items"]] == ["LIDL"]

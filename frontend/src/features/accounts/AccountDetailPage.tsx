@@ -15,6 +15,7 @@ import { LinkButton } from "../../components/ui/LinkButton";
 import { Skeleton, SkeletonRows } from "../../components/ui/Skeleton";
 import { Tabs } from "../../components/ui/Tabs";
 import { formatDate, formatMoney, formatPeriodLabel, formatSignedMoney, intlLocale } from "../../lib/format";
+import { trimLeadingEmpty } from "../../lib/trimSeries";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import {
   useAnalyticsBalanceHistory,
@@ -253,19 +254,26 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
   };
 
   const historyGranularity = history.data?.granularity ?? "month";
-  const trendPoints = (history.data?.points ?? []).map((p) => ({
-    period: p.period,
-    label: formatBucketLabel(p.period, historyGranularity, bucketLabelStrings),
-    value: Number(p.balance),
-  }));
+  // Saldo e flussi partono dal primo movimento: prima il conto non ha storia.
+  const trendPoints = trimLeadingEmpty(
+    (history.data?.points ?? []).map((p) => ({
+      period: p.period,
+      label: formatBucketLabel(p.period, historyGranularity, bucketLabelStrings),
+      value: Number(p.balance),
+    })),
+    (p) => p.value === 0,
+  );
 
   const cashFlowGranularity = cashFlow.data?.granularity ?? "month";
-  const cashFlowBars = (cashFlow.data?.points ?? []).map((p) => ({
-    period: p.period,
-    label: formatBucketLabel(p.period, cashFlowGranularity, bucketLabelStrings),
-    income: Number(p.income),
-    expenses: Number(p.expenses),
-  }));
+  const cashFlowBars = trimLeadingEmpty(
+    (cashFlow.data?.points ?? []).map((p) => ({
+      period: p.period,
+      label: formatBucketLabel(p.period, cashFlowGranularity, bucketLabelStrings),
+      income: Number(p.income),
+      expenses: Number(p.expenses),
+    })),
+    (p) => p.income === 0 && p.expenses === 0,
+  );
 
   const periodNav = <PeriodNavigator granularities={["month", "quarter", "year"]} />;
   const toolbarPortal = usePageToolbar(periodNav);
@@ -279,7 +287,7 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
       {history.data && (
         <ChartCard
           title={t("detail.analyticsTab.balanceChart.title")}
-          subtitle={formatPeriodLabel(history.data.period.date_from, history.data.period.date_to)}
+          subtitle={formatPeriodLabel(trendPoints[0]?.period ?? history.data.period.date_from, history.data.period.date_to)}
           empty={trendPoints.length === 0}
           emptyState={
             <EmptyState

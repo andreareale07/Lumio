@@ -70,6 +70,24 @@ class TransactionReviewSummaryOut(BaseModel):
     needs_review: int
 
 
+class TransactionListSummaryOut(BaseModel):
+    count: int
+    currency: str
+    income: Decimal
+    expenses: Decimal
+    net: Decimal
+
+
+class TransactionMerchantOut(BaseModel):
+    merchant: str
+    count: int
+
+
+class TransactionMerchantsOut(BaseModel):
+    items: list[TransactionMerchantOut]
+    total: int
+
+
 class ClassificationOut(BaseModel):
     id: uuid.UUID
     transaction_id: uuid.UUID

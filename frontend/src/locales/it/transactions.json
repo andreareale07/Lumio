@@ -33,7 +33,24 @@
       "category": "Categoria",
       "allCategories": "Tutte le categorie",
       "type": "Tipo",
-      "allTypes": "Tutti i tipi"
+      "allTypes": "Tutti i tipi",
+      "merchantChip": "Merchant: {{name}}",
+      "noMerchant": "Senza merchant",
+      "importChip": "Import selezionato",
+      "active": "Filtri attivi",
+      "removeFilter": "Rimuovi il filtro {{name}}",
+      "clearAll": "Azzera filtri",
+      "add": "Filtro",
+      "addTitle": "Aggiungi filtro",
+      "pickerSearch": "Cerca {{name}}…",
+      "pickerEmpty": "Nessun risultato.",
+      "merchant": "Merchant",
+      "mostFrequent": "Più frequenti",
+      "merchantsHint": "Mostrati {{shown}} su {{total}}. Scrivi per cercare gli altri.",
+      "deselect": "Deseleziona",
+      "done": "Fatto",
+      "selectedCount_one": "{{count}} selezionato",
+      "selectedCount_other": "{{count}} selezionati"
     },
     "needsReview_one": "{{count}} da verificare",
     "needsReview_other": "{{count}} da verificare",
@@ -55,6 +72,20 @@
     "pagination": {
       "previous": "Precedenti",
       "next": "Successivi"
+    },
+    "search": {
+      "label": "Cerca nei movimenti",
+      "placeholder": "Cerca per descrizione, merchant, controparte o riferimento"
+    },
+    "noResults": {
+      "title": "Nessun risultato",
+      "description": "Nessun movimento corrisponde ai filtri attivi."
+    },
+    "summary": {
+      "count_one": "{{count}} movimento",
+      "count_other": "{{count}} movimenti",
+      "income": "entrate {{value}}",
+      "expenses": "uscite {{value}}"
     }
   }
 }

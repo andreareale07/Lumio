@@ -29,6 +29,7 @@ import {
   usePortfolioValuation,
 } from "../portfolio/api";
 import { isSignificantChange, median } from "../../lib/stats";
+import { trimLeadingEmpty } from "../../lib/trimSeries";
 
 export function DashboardPage() {
   const { t } = useTranslation("dashboard");
@@ -62,7 +63,12 @@ export function DashboardPage() {
 
   const currency = summary.data?.currency ?? "EUR";
   const cashFlowIsEmpty = cashFlow.data?.points.every((p) => p.income === "0" && p.expenses === "0") ?? false;
-  const cashFlowPoints = cashFlow.data?.points ?? [];
+  // Si mostra l'andamento solo da quando ci sono movimenti: i bucket prima del
+  // primo import sono assenza di dati, non "zero", e schiacciano la curva.
+  const cashFlowPoints = trimLeadingEmpty(
+    cashFlow.data?.points ?? [],
+    (p) => Number(p.income) === 0 && Number(p.expenses) === 0,
+  );
   const cashFlowGranularity = (cashFlow.data?.granularity ?? "month") as Granularity;
 
   // --- Blocco PATRIMONIO (stock, "a oggi", ignora il period navigator) ----
@@ -367,7 +373,7 @@ export function DashboardPage() {
         {cashFlow.data && (
           <ChartCard
             title={t("cashFlowChart.title")}
-            subtitle={formatPeriodLabel(cashFlow.data.period.date_from, cashFlow.data.period.date_to)}
+            subtitle={formatPeriodLabel(cashFlowPoints[0]?.period ?? cashFlow.data.period.date_from, cashFlow.data.period.date_to)}
             empty={cashFlowIsEmpty}
             emptyState={
               <EmptyState

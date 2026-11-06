@@ -166,12 +166,23 @@ async def get_cash_flow(
     currency: str | None = None,
     financial_account_id: uuid.UUID | None = None,
     category_id: uuid.UUID | None = None,
+    merchant: str | None = None,
+    no_merchant: bool = False,
 ) -> CashFlowOut:
     date_from, date_to = _resolve_period(date_from, date_to)
     granularity = _validate_granularity(granularity)
     resolved_currency = await analytics_service.resolve_currency(db, workspace_id, currency)
     points = await analytics_service.cash_flow(
-        db, workspace_id, resolved_currency, granularity, date_from, date_to, financial_account_id, category_id
+        db,
+        workspace_id,
+        resolved_currency,
+        granularity,
+        date_from,
+        date_to,
+        financial_account_id,
+        category_id,
+        merchant,
+        no_merchant,
     )
     return CashFlowOut(
         currency=resolved_currency,
@@ -191,11 +202,22 @@ async def get_by_category(
     currency: str | None = None,
     financial_account_id: uuid.UUID | None = None,
     parent_id: uuid.UUID | None = None,
+    merchant: str | None = None,
+    no_merchant: bool = False,
 ) -> CategoryBreakdownOut:
     date_from, date_to = _resolve_period(date_from, date_to)
     resolved_currency = await analytics_service.resolve_currency(db, workspace_id, currency)
     items = await analytics_service.by_category(
-        db, workspace_id, resolved_currency, direction, date_from, date_to, financial_account_id, parent_id
+        db,
+        workspace_id,
+        resolved_currency,
+        direction,
+        date_from,
+        date_to,
+        financial_account_id,
+        parent_id,
+        merchant,
+        no_merchant,
     )
     return CategoryBreakdownOut(
         currency=resolved_currency,

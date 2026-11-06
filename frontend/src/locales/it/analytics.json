@@ -51,6 +51,7 @@
       "othersRow_one": "Altro {{count}} merchant",
       "othersRow_other": "Altri {{count}} merchant",
       "breakdownTitle": "Top merchant",
+      "categoriesTitle": "Per categoria",
       "noMerchant": "Senza merchant"
     }
   },

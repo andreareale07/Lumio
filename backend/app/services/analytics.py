@@ -66,6 +66,17 @@ DEBT_ACCOUNT_TYPES = frozenset({"credit_card"})
 _EXCLUDED_FROM_CASH_FLOW = ("transfer", "investment")
 
 
+def merchant_clause(merchant: str | None, no_merchant: bool):
+    """Filtro merchant del drill-down (Top merchant): match esatto sul valore
+    gia' normalizzato, oppure `IS NULL` per la riga "Senza merchant" di
+    `by_merchant`. `None` = nessun filtro."""
+    if no_merchant:
+        return Transaction.merchant.is_(None)
+    if merchant is not None:
+        return Transaction.merchant == merchant
+    return None
+
+
 @dataclass
 class AccountBalanceRow:
     financial_account_id: uuid.UUID
@@ -393,6 +404,8 @@ async def cash_flow(
     date_to: date,
     financial_account_id: uuid.UUID | None = None,
     category_id: uuid.UUID | None = None,
+    merchant: str | None = None,
+    no_merchant: bool = False,
 ) -> list[dict]:
     fx_rate = fx_rate_service.fx_rate_expr(Transaction.currency, Transaction.transaction_date, currency)
     converted_amount = Transaction.amount * fx_rate
@@ -421,6 +434,9 @@ async def cash_flow(
         query = query.outerjoin(Category, Transaction.category_id == Category.id).where(
             or_(Transaction.category_id == category_id, Category.parent_id == category_id)
         )
+    merchant_filter = merchant_clause(merchant, no_merchant)
+    if merchant_filter is not None:
+        query = query.where(merchant_filter)
 
     rows = (await db.execute(query)).all()
     cents = Decimal("0.01")
@@ -446,6 +462,8 @@ async def by_category(
     date_to: date,
     financial_account_id: uuid.UUID | None = None,
     parent_id: uuid.UUID | None = None,
+    merchant: str | None = None,
+    no_merchant: bool = False,
 ) -> list[dict]:
     """Breakdown a DUE livelli (SPEC §22: le sottocategorie del seed non
     vanno oltre un livello): le transazioni di una sottocategoria vengono
@@ -488,6 +506,9 @@ async def by_category(
         query = query.where(Transaction.financial_account_id == financial_account_id)
     if parent_id is not None:
         query = query.where(or_(Transaction.category_id == parent_id, Category.parent_id == parent_id))
+    merchant_filter = merchant_clause(merchant, no_merchant)
+    if merchant_filter is not None:
+        query = query.where(merchant_filter)
 
     rows = (await db.execute(query)).all()
     return await _label_category_rows(db, rows)

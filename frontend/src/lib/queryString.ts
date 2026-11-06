@@ -6,9 +6,17 @@
  * resta assegnabile senza dichiarare a sua volta un index signature. */
 export function buildQueryString(filters: object): string {
   const params = new URLSearchParams();
-  Object.entries(filters as Record<string, string | number | undefined>).forEach(([key, value]) => {
-    if (value !== undefined && value !== "") params.set(key, String(value));
-  });
+  Object.entries(filters as Record<string, string | number | boolean | string[] | undefined>).forEach(
+    ([key, value]) => {
+      // Un array diventa un parametro ripetuto (`?category=a&category=b`):
+      // e' il formato che FastAPI legge come lista.
+      if (Array.isArray(value)) {
+        value.filter((v) => v !== "").forEach((v) => params.append(key, v));
+      } else if (value !== undefined && value !== "") {
+        params.set(key, String(value));
+      }
+    },
+  );
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }

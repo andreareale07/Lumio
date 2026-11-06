@@ -1,9 +1,11 @@
 import uuid
+import dataclasses
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,10 +19,15 @@ from app.models.user import User
 from app.schemas.transactions import (
     ClassificationOut,
     TransactionCreate,
+    TransactionListSummaryOut,
+    TransactionMerchantOut,
+    TransactionMerchantsOut,
     TransactionOut,
     TransactionReviewSummaryOut,
     TransactionUpdate,
 )
+from app.services import analytics as analytics_service
+from app.services import fx_rate_service
 from app.services.audit_log_service import log_event
 from app.services.confidence import needs_review as score_needs_review
 from app.services.csv_import import collapse_whitespace
@@ -140,30 +147,85 @@ async def create_transaction(
     return transaction
 
 
-@router.get("", response_model=list[TransactionOut])
-async def list_transactions(
-    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
-    db: AsyncSession = Depends(get_db),
-    financial_account_id: uuid.UUID | None = None,
-    category_id: uuid.UUID | None = None,
-    transaction_type: str | None = None,
+@dataclass
+class TransactionListFilters:
+    """Filtri condivisi tra la lista e il riepilogo (`/summary`): un'unica
+    definizione, cosi' il conteggio/totale mostrato sopra la lista corrisponde
+    sempre alle righe che la lista restituisce."""
+
+    # Liste: un filtro con piu' valori e' un OR sui valori (selezione multipla
+    # nella barra filtri); un solo valore resta compatibile con i chiamanti
+    # che passano `?category_id=...` singolo.
+    financial_account_id: list[uuid.UUID] = dataclasses.field(default_factory=list)
+    category_id: list[uuid.UUID] = dataclasses.field(default_factory=list)
+    transaction_type: list[str] = dataclasses.field(default_factory=list)
+    date_from: date | None = None
+    date_to: date | None = None
+    needs_review: bool | None = None
+    import_id: uuid.UUID | None = None
+    merchant: list[str] = dataclasses.field(default_factory=list)
+    no_merchant: bool = False
+    q: str | None = None
+
+
+def list_filters(
+    financial_account_id: list[uuid.UUID] | None = Query(default=None),
+    category_id: list[uuid.UUID] | None = Query(default=None),
+    transaction_type: list[str] | None = Query(default=None),
     date_from: date | None = None,
     date_to: date | None = None,
     needs_review: bool | None = None,
     import_id: uuid.UUID | None = None,
-    limit: int = Query(default=50, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
-) -> list[Transaction]:
-    query = select(Transaction).where(Transaction.workspace_id == workspace_id)
-    if financial_account_id is not None:
-        query = query.where(Transaction.financial_account_id == financial_account_id)
-    if needs_review is True:
+    merchant: list[str] | None = Query(default=None),
+    no_merchant: bool = False,
+    q: str | None = Query(default=None, max_length=200),
+) -> TransactionListFilters:
+    return TransactionListFilters(
+        financial_account_id or [],
+        category_id or [],
+        transaction_type or [],
+        date_from,
+        date_to,
+        needs_review,
+        import_id,
+        merchant or [],
+        no_merchant,
+        q,
+    )
+
+
+def _apply_list_filters(query, workspace_id: uuid.UUID, f: TransactionListFilters):
+    query = query.where(Transaction.workspace_id == workspace_id)
+    needle = (f.q or "").strip()
+    if needle:
+        # Ricerca testuale libera (ILIKE, case-insensitive) su descrizione
+        # originale, merchant, controparte e riferimento. `%`/`_` dell'utente
+        # sono escapati: la ricerca e' sempre "contiene", mai un pattern.
+        escaped = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        query = query.where(
+            or_(
+                Transaction.description_raw.ilike(pattern, escape="\\"),
+                Transaction.merchant.ilike(pattern, escape="\\"),
+                Transaction.counterparty_name.ilike(pattern, escape="\\"),
+                Transaction.reference.ilike(pattern, escape="\\"),
+            )
+        )
+    if f.no_merchant and f.merchant:
+        query = query.where(or_(Transaction.merchant.is_(None), Transaction.merchant.in_(f.merchant)))
+    elif f.no_merchant:
+        query = query.where(Transaction.merchant.is_(None))
+    elif f.merchant:
+        query = query.where(Transaction.merchant.in_(f.merchant))
+    if f.financial_account_id:
+        query = query.where(Transaction.financial_account_id.in_(f.financial_account_id))
+    if f.needs_review is True:
         query = query.where(_is_pending_review())
-    elif needs_review is False:
+    elif f.needs_review is False:
         query = query.where(~_is_pending_review())
-    if import_id is not None:
-        query = query.where(Transaction.import_id == import_id)
-    if category_id is not None:
+    if f.import_id is not None:
+        query = query.where(Transaction.import_id == f.import_id)
+    if f.category_id:
         # Match padre-O-figlio, non solo esatto: `category_id` qui e' spesso
         # un group_id riaccorpato (come in analytics.by_merchant, stesso
         # pattern) — puo' essere una categoria padre, e le transazioni sono
@@ -172,18 +234,89 @@ async def list_transactions(
         # pagina di dettaglio KPI restituirebbe sempre una lista vuota (bug
         # gia' risolto in by_merchant, qui replicato).
         query = query.outerjoin(Category, Transaction.category_id == Category.id).where(
-            or_(Transaction.category_id == category_id, Category.parent_id == category_id)
+            or_(Transaction.category_id.in_(f.category_id), Category.parent_id.in_(f.category_id))
         )
-    if transaction_type is not None:
-        query = query.where(Transaction.transaction_type == transaction_type)
-    if date_from is not None:
-        query = query.where(Transaction.transaction_date >= date_from)
-    if date_to is not None:
-        query = query.where(Transaction.transaction_date <= date_to)
+    if f.transaction_type:
+        query = query.where(Transaction.transaction_type.in_(f.transaction_type))
+    if f.date_from is not None:
+        query = query.where(Transaction.transaction_date >= f.date_from)
+    if f.date_to is not None:
+        query = query.where(Transaction.transaction_date <= f.date_to)
+    return query
 
+
+@router.get("", response_model=list[TransactionOut])
+async def list_transactions(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+    filters: TransactionListFilters = Depends(list_filters),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> list[Transaction]:
+    query = _apply_list_filters(select(Transaction), workspace_id, filters)
     query = query.order_by(Transaction.transaction_date.desc()).limit(limit).offset(offset)
     result = await db.execute(query)
     return list(result.scalars().all())
+
+
+@router.get("/summary", response_model=TransactionListSummaryOut)
+async def get_transaction_list_summary(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+    filters: TransactionListFilters = Depends(list_filters),
+) -> TransactionListSummaryOut:
+    """Riepilogo delle righe che la lista restituirebbe con gli stessi filtri
+    (conteggio + entrate/uscite). Come per i flussi di cassa, trasferimenti
+    interni e investimenti non contano come entrata/uscita (regola 6:
+    un trasferimento non e' mai spesa ne' entrata), ma restano nel conteggio.
+    Gli importi sono convertiti nella valuta base del workspace."""
+    currency = await analytics_service.resolve_currency(db, workspace_id, None)
+    fx_rate = fx_rate_service.fx_rate_expr(Transaction.currency, Transaction.transaction_date, currency)
+    converted = Transaction.amount * fx_rate
+    counted = Transaction.transaction_type.notin_(("transfer", "investment"))
+    filtered = _apply_list_filters(select(Transaction.id, converted.label("converted"), counted.label("counted")), workspace_id, filters).subquery()
+    row = (
+        await db.execute(
+            select(
+                func.count(),
+                func.coalesce(func.sum(case((filtered.c.counted & (filtered.c.converted > 0), filtered.c.converted), else_=0)), 0),
+                func.coalesce(-func.sum(case((filtered.c.counted & (filtered.c.converted < 0), filtered.c.converted), else_=0)), 0),
+            ).select_from(filtered)
+        )
+    ).one()
+    cents = Decimal("0.01")
+    income = Decimal(row[1]).quantize(cents)
+    expenses = Decimal(row[2]).quantize(cents)
+    return TransactionListSummaryOut(
+        count=row[0], currency=currency, income=income, expenses=expenses, net=income - expenses
+    )
+
+
+@router.get("/merchants", response_model=TransactionMerchantsOut)
+async def list_transaction_merchants(
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+    q: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=10, ge=1, le=50),
+) -> TransactionMerchantsOut:
+    """Merchant del workspace con il numero di movimenti, dal piu' frequente:
+    alimenta il selettore del filtro merchant (con centinaia di valori non si
+    scarica l'elenco intero, si mostrano i piu' frequenti e si cerca sul
+    server). `total` = quanti merchant corrispondono alla ricerca, per dire
+    "10 su 412"."""
+    base = select(Transaction.merchant, func.count().label("n")).where(
+        Transaction.workspace_id == workspace_id, Transaction.merchant.is_not(None)
+    )
+    needle = (q or "").strip()
+    if needle:
+        escaped = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        base = base.where(Transaction.merchant.ilike(f"%{escaped}%", escape="\\"))
+    grouped = base.group_by(Transaction.merchant)
+    rows = (await db.execute(grouped.order_by(func.count().desc(), Transaction.merchant).limit(limit))).all()
+    total = (await db.execute(select(func.count()).select_from(grouped.subquery()))).scalar_one()
+    return TransactionMerchantsOut(
+        items=[TransactionMerchantOut(merchant=r.merchant, count=r.n) for r in rows], total=total
+    )
 
 
 @router.get("/review-summary", response_model=TransactionReviewSummaryOut)

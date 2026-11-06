@@ -2,12 +2,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../lib/apiClient";
 import { buildQueryString } from "../../lib/queryString";
-import type { Classification, Transaction, TransactionReviewSummary } from "../../types/api";
+import type {
+  Classification,
+  Transaction,
+  TransactionListSummary,
+  TransactionMerchants,
+  TransactionReviewSummary,
+} from "../../types/api";
 
 export interface TransactionFilters {
-  financial_account_id?: string;
-  category_id?: string;
-  transaction_type?: string;
+  /** Un valore o piu' valori (OR): la lista accetta selezione multipla. */
+  financial_account_id?: string | string[];
+  category_id?: string | string[];
+  /** Match esatto sul merchant; `no_merchant` per le righe senza merchant. */
+  merchant?: string | string[];
+  no_merchant?: boolean;
+  transaction_type?: string | string[];
   date_from?: string;
   date_to?: string;
   needs_review?: boolean;
@@ -33,13 +43,33 @@ export function useTransactions(filters: TransactionFilters, options: { enabled?
  * (ImportsPage), con gli stessi filtri di useTransactions cosi' i due numeri
  * restano coerenti tra loro. */
 export function useTransactionReviewSummary(
-  filters: Pick<TransactionFilters, "financial_account_id" | "import_id"> = {},
+  filters: { financial_account_id?: string; import_id?: string } = {},
   options: { enabled?: boolean } = {},
 ) {
   return useQuery({
     queryKey: ["transactions", "review-summary", filters],
     queryFn: () => api.get<TransactionReviewSummary>(`/transactions/review-summary${buildQueryString(filters)}`),
     enabled: options.enabled ?? true,
+  });
+}
+
+/** Conteggio + entrate/uscite delle righe che `useTransactions` restituisce
+ * con gli stessi filtri (senza paginazione). */
+export function useTransactionListSummary(filters: Omit<TransactionFilters, "limit" | "offset">) {
+  return useQuery({
+    queryKey: ["transactions", "list-summary", filters],
+    queryFn: () => api.get<TransactionListSummary>(`/transactions/summary${buildQueryString(filters)}`),
+  });
+}
+
+/** Merchant con numero di movimenti (piu' frequenti prima), con ricerca sul
+ * server: alimenta il selettore del filtro merchant. */
+export function useTransactionMerchants(query: string, limit = 10) {
+  const q = query.trim();
+  return useQuery({
+    queryKey: ["transactions", "merchants", q, limit],
+    queryFn: () => api.get<TransactionMerchants>(`/transactions/merchants${buildQueryString({ q, limit })}`),
+    placeholderData: (previous) => previous,
   });
 }
 

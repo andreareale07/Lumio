@@ -32,6 +32,12 @@ Tailwind 4, Recharts, i18next, icone lucide-react. Build servita da nginx nel co
 - Stato job: `components/ui/JobRunStatus.tsx` + `features/activity/ActivityIndicator.tsx`.
 - `ChartCard` rende sempre anche una `<table className="sr-only">`: ogni testo del grafico
   compare 2 volte nel DOM (nei test usare `findAllByText`/`.first()`).
+- `lib/trimSeries.ts::trimLeadingEmpty` taglia i punti iniziali vuoti di una serie (usato in
+  Spese/Entrate, Dashboard, Patrimonio, dettaglio conto, rendimento Investimenti). Il filtro
+  merchant (`merchant` / `no_merchant`) esiste su cash-flow, by-category e `/transactions`;
+  `MerchantList.tsx` riconosce la riga "Senza merchant" dal testo italiano del backend.
+- `FloatingPanel` ricalcola la posizione ogni volta che cambia l'identita' di `anchorRef`: passare
+  sempre un ref STABILE (mai un oggetto creato nel render), altrimenti ciclo di render infinito.
 - `AreaTrendChart` ha `yAxisDomain="tight"` per i prezzi (il default parte da 0).
 
 - **Bottom bar mobile** (`components/layout/MobileNav.tsx`): una sola griglia `grid-cols-[repeat(5,1fr)]`

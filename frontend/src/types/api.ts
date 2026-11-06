@@ -136,6 +136,19 @@ export interface TransactionReviewSummary {
   needs_review: number;
 }
 
+export interface TransactionListSummary {
+  count: number;
+  currency: string;
+  income: string;
+  expenses: string;
+  net: string;
+}
+
+export interface TransactionMerchants {
+  items: { merchant: string; count: number }[];
+  total: number;
+}
+
 export const CLASSIFICATION_METHODS = ["rule", "ai", "user", "manual", "system"] as const;
 export type ClassificationMethod = (typeof CLASSIFICATION_METHODS)[number];
 

@@ -26,12 +26,19 @@ export interface PeriodFilters {
   financial_account_id?: string;
 }
 
-export interface GranularityFilters extends PeriodFilters {
+/** Drill-down per merchant (Top merchant): `merchant` e' un match esatto,
+ * `no_merchant` seleziona le righe senza merchant ("Senza merchant"). */
+export interface MerchantFilters {
+  merchant?: string;
+  no_merchant?: boolean;
+}
+
+export interface GranularityFilters extends PeriodFilters, MerchantFilters {
   granularity?: AnalyticsGranularity;
   category_id?: string;
 }
 
-export interface BreakdownFilters extends PeriodFilters {
+export interface BreakdownFilters extends PeriodFilters, MerchantFilters {
   direction?: AnalyticsDirection;
   category_id?: string;
   /** Redesign Spese/Entrate (FETTA 1): raggruppa per FOGLIA dentro questo

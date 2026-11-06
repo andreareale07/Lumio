@@ -18,13 +18,15 @@ import { mean, median, movingMedian } from "../../lib/stats";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useTransactions } from "../transactions/api";
 import type { AnalyticsDirection } from "../../types/api";
+import { trimLeadingEmpty } from "../../lib/trimSeries";
 import { useAnalyticsByCategory, useAnalyticsByMerchant, useAnalyticsCashFlow, useAnalyticsSummary } from "./api";
 import { AnomalyInsights } from "./AnomalyInsights";
 import { formatBucketLabel } from "./chartData";
 import { CategoryHierarchyList } from "./CategoryHierarchyList";
+import { NO_MERCHANT_LABEL, MerchantList, type SelectedMerchant } from "./MerchantList";
 import { RecurringInsights } from "./RecurringInsights";
 
-const MERCHANT_DISPLAY_LIMIT = 10;
+const MERCHANT_DRAWER_TRANSACTIONS = 20;
 
 // Quanti bucket indietro corrisponde "un anno fa" per ciascuna granularita'
 // offerta da questa pagina (month/quarter/year) — usato per il confronto
@@ -71,6 +73,7 @@ export function BreakdownPage({
   const period = { date_from: currentPeriod.date_from, date_to: currentPeriod.date_to };
   const previousRange = previousPeriod(period.date_from, period.date_to);
   const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null);
+  const [selectedMerchant, setSelectedMerchant] = useState<SelectedMerchant | null>(null);
 
   const summary = useAnalyticsSummary(period);
   const byCategory = useAnalyticsByCategory({ ...period, direction });
@@ -106,6 +109,35 @@ export function BreakdownPage({
   const drawerTransactions = useTransactions(
     { category_id: selectedCategory?.id, date_from: period.date_from, date_to: period.date_to, limit: 5 },
     { enabled: !!selectedCategory },
+  );
+
+  // Drill-down merchant: stesso schema del drawer categoria, filtri
+  // `merchant`/`no_merchant` al posto di `category_id`.
+  const merchantFilter = selectedMerchant
+    ? selectedMerchant.merchant === null
+      ? { no_merchant: true }
+      : { merchant: selectedMerchant.merchant }
+    : {};
+  const merchantDrawerCashFlow = useAnalyticsCashFlow(
+    { ...yoyWindow, granularity, ...merchantFilter },
+    { enabled: !!selectedMerchant },
+  );
+  const merchantDrawerPrevious = useAnalyticsByMerchant(
+    { ...previousRange, direction },
+    { enabled: !!selectedMerchant },
+  );
+  const merchantDrawerCategories = useAnalyticsByCategory(
+    { ...period, direction, ...merchantFilter },
+    { enabled: !!selectedMerchant },
+  );
+  const merchantDrawerTransactions = useTransactions(
+    {
+      ...merchantFilter,
+      date_from: period.date_from,
+      date_to: period.date_to,
+      limit: MERCHANT_DRAWER_TRANSACTIONS,
+    },
+    { enabled: !!selectedMerchant },
   );
 
   const bucketLabelStrings = {
@@ -146,12 +178,20 @@ export function BreakdownPage({
       ? calculatePeriodComparison(trendValues[yoyCurrentIndex]!, yoyPriorValue, direction === "income")
       : undefined;
 
-  const trendChartData = trendPoints.map((p, i) => ({
-    period: p.period,
-    label: formatBucketLabel(p.period, trendGranularity, bucketLabelStrings),
-    value: trendValues[i]!,
-    typical: movingMedianSeries[i]!,
-  }));
+  // La finestra viene scaricata intera (serve al confronto anno su anno), ma
+  // si mostra solo da quando ci sono movimenti: i bucket precedenti al primo
+  // import non sono "zero", sono assenza di dati, e deformano la curva.
+  const trendChartData = trimLeadingEmpty(
+    trendPoints.map((p, i) => ({
+      period: p.period,
+      label: formatBucketLabel(p.period, trendGranularity, bucketLabelStrings),
+      value: trendValues[i]!,
+      typical: movingMedianSeries[i]!,
+      hasData: ghostMask[i]!,
+    })),
+    (p) => !p.hasData,
+  ).map(({ period, label, value, typical }) => ({ period, label, value, typical }));
+  const trendFrom = trendChartData[0]?.period ?? yoyWindow.date_from;
 
   // --- Rhythm: media/mediana mensile, ritmo giornaliero, movimenti ----
   const monthlyPoints = monthlyBreakdown.data?.points ?? [];
@@ -182,11 +222,34 @@ export function BreakdownPage({
 
   // --- Drill-down categoria (invariato, condiviso con la Dashboard) ---
   const drawerGranularity = drawerCashFlow.data?.granularity ?? granularity;
-  const drawerTrendPoints = (drawerCashFlow.data?.points ?? []).map((p) => ({
-    period: p.period,
-    label: formatBucketLabel(p.period, drawerGranularity, bucketLabelStrings),
-    value: Number(direction === "expense" ? p.expenses : p.income),
-  }));
+  const toDrawerTrend = (
+    data: typeof drawerCashFlow.data,
+    fallbackGranularity: typeof drawerGranularity,
+  ) =>
+    trimLeadingEmpty(
+      (data?.points ?? []).map((p) => ({
+        period: p.period,
+        label: formatBucketLabel(p.period, data?.granularity ?? fallbackGranularity, bucketLabelStrings),
+        value: Number(direction === "expense" ? p.expenses : p.income),
+      })),
+      (p) => p.value === 0,
+    );
+  const drawerTrendPoints = toDrawerTrend(drawerCashFlow.data, drawerGranularity);
+  const merchantTrendPoints = toDrawerTrend(merchantDrawerCashFlow.data, granularity);
+  const merchantKey = selectedMerchant?.merchant ?? NO_MERCHANT_LABEL;
+  const currentMerchantTotal = byMerchant.data?.items.find((i) => i.merchant === merchantKey)?.total;
+  const previousMerchantTotal = merchantDrawerPrevious.data?.items.find((i) => i.merchant === merchantKey)?.total;
+  const isMerchantDrawerLoading =
+    merchantDrawerCashFlow.isLoading ||
+    merchantDrawerPrevious.isLoading ||
+    merchantDrawerCategories.isLoading ||
+    merchantDrawerTransactions.isLoading;
+  const merchantViewAllParams = new URLSearchParams(
+    selectedMerchant?.merchant === null ? { no_merchant: "1" } : { merchant: selectedMerchant?.merchant ?? "" },
+  );
+  merchantViewAllParams.set("mode", "custom");
+  merchantViewAllParams.set("from", period.date_from);
+  merchantViewAllParams.set("to", period.date_to);
   const currentCategoryTotal = byCategory.data?.items.find((i) => i.category_id === selectedCategory?.id)?.total;
   const previousCategoryTotal = drawerPreviousCategory.data?.items.find(
     (i) => i.category_id === selectedCategory?.id,
@@ -195,12 +258,6 @@ export function BreakdownPage({
     drawerCashFlow.isLoading || drawerMerchants.isLoading || drawerPreviousCategory.isLoading || drawerTransactions.isLoading;
 
   // --- Top merchant / Top sorgenti -------------------------------------
-  const merchantItems = byMerchant.data?.items ?? [];
-  const visibleMerchants = merchantItems.slice(0, MERCHANT_DISPLAY_LIMIT);
-  const otherMerchants = merchantItems.slice(MERCHANT_DISPLAY_LIMIT);
-  const otherMerchantsTotal = otherMerchants.reduce((sum, m) => sum + Number(m.total), 0);
-  const maxMerchantTotal = Math.max(1, ...merchantItems.map((m) => Number(m.total)));
-
   const periodNav = <PeriodNavigator granularities={GRANULARITY_ORDER} />;
   const toolbarPortal = usePageToolbar(periodNav);
 
@@ -292,7 +349,7 @@ export function BreakdownPage({
       {trendCashFlow.data && (
         <ChartCard
           title={t("breakdown.trend.title")}
-          subtitle={formatPeriodLabel(yoyWindow.date_from, yoyWindow.date_to)}
+          subtitle={formatPeriodLabel(trendFrom, yoyWindow.date_to)}
           empty={trendValues.every((v) => v === 0)}
           emptyState={<EmptyState icon={icon} title={t("breakdown.trend.emptyTitle")} description={emptyDescription} />}
           tableCaption={t("breakdown.trend.tableCaption")}
@@ -348,46 +405,14 @@ export function BreakdownPage({
       {/* --- Top merchant / Top sorgenti --- */}
       {byMerchant.isLoading && <Skeleton className="h-64 w-full" />}
       {byMerchant.data && (
-        <ChartCard
+        <MerchantList
+          items={byMerchant.data.items}
+          currency={currency}
+          icon={icon}
           title={merchantsTitle}
-          chartClassName="h-auto"
-          empty={merchantItems.length === 0}
-          emptyState={<EmptyState icon={icon} title={t("breakdown.merchants.emptyTitle")} description={emptyDescription} />}
-          tableCaption={t("breakdown.merchants.tableCaption")}
-          tableHeaders={t("breakdown.merchants.tableHeaders", { returnObjects: true }) as string[]}
-          tableRows={merchantItems.map((m) => [
-            m.merchant,
-            formatMoney(m.total, currency),
-            `${Math.round(Number(m.share) * 100)}%`,
-            m.transactions_count,
-          ])}
-        >
-          <ul className="flex flex-col gap-3">
-            {visibleMerchants.map((m) => {
-              const barPct = Math.round((Number(m.total) / maxMerchantTotal) * 100);
-              return (
-                <li key={m.merchant} className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between gap-2 text-sm">
-                    <span className="truncate text-text">{m.merchant}</span>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs text-text-muted">{Math.round(Number(m.share) * 100)}%</span>
-                      <span className="font-numeric text-text">{formatMoney(m.total, currency)}</span>
-                    </div>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${barPct}%` }} />
-                  </div>
-                </li>
-              );
-            })}
-            {otherMerchants.length > 0 && (
-              <li className="flex items-center justify-between pt-1 text-sm text-text-muted">
-                <span>{t("breakdown.merchants.othersRow", { count: otherMerchants.length })}</span>
-                <span className="font-numeric">{formatMoney(otherMerchantsTotal, currency)}</span>
-              </li>
-            )}
-          </ul>
-        </ChartCard>
+          emptyDescription={emptyDescription}
+          onSelect={setSelectedMerchant}
+        />
       )}
 
       <DrillDownDrawer
@@ -420,6 +445,38 @@ export function BreakdownPage({
           currency: txn.currency,
         }))}
         viewAllHref={selectedCategory ? `/transactions?category=${selectedCategory.id}` : undefined}
+      />
+
+      <DrillDownDrawer
+        open={!!selectedMerchant}
+        onClose={() => setSelectedMerchant(null)}
+        title={selectedMerchant?.label ?? ""}
+        currency={currency}
+        isLoading={isMerchantDrawerLoading}
+        comparison={
+          currentMerchantTotal !== undefined
+            ? {
+                current: Number(currentMerchantTotal),
+                previous: Number(previousMerchantTotal ?? 0),
+                higherIsGood: direction === "income",
+              }
+            : undefined
+        }
+        trend={merchantTrendPoints}
+        breakdownTitle={t("breakdown.merchants.categoriesTitle")}
+        breakdown={(merchantDrawerCategories.data?.items ?? []).map((c) => ({
+          key: c.category_id ?? "senza-categoria",
+          label: c.name,
+          value: Number(c.total),
+        }))}
+        transactions={(merchantDrawerTransactions.data ?? []).map((txn) => ({
+          id: txn.id,
+          label: txn.description_raw,
+          date: txn.transaction_date,
+          amount: txn.amount,
+          currency: txn.currency,
+        }))}
+        viewAllHref={selectedMerchant ? `/transactions?${merchantViewAllParams.toString()}` : undefined}
       />
     </div>
   );

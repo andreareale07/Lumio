@@ -203,6 +203,66 @@ async def test_by_merchant_breakdown_and_category_drilldown(client):
     assert {i["merchant"] for i in drilldown.json()["items"]} == {"LIDL", "ESSELUNGA"}
 
 
+async def test_merchant_filter_on_cash_flow_by_category_and_transactions(client):
+    token = await _register(client, "merchant-filter@example.com")
+    other_token = await _register(client, "merchant-filter-other@example.com")
+    account_id = await _create_account(client, token)
+    other_account_id = await _create_account(client, other_token)
+    supermercato_id = await _category_id(client, token, "alimentari.supermercato")
+
+    await _create_transaction(
+        client, token, account_id, merchant="AMAZON", transaction_date="2026-07-10", amount="-100.00"
+    )
+    await _create_transaction(
+        client,
+        token,
+        account_id,
+        merchant="AMAZON",
+        transaction_date="2026-08-05",
+        amount="-50.00",
+        category_id=supermercato_id,
+    )
+    await _create_transaction(client, token, account_id, merchant="LIDL", transaction_date="2026-08-06", amount="-30.00")
+    await _create_transaction(client, token, account_id, transaction_date="2026-08-07", amount="-7.00")
+    await _create_transaction(
+        client, other_token, other_account_id, merchant="AMAZON", transaction_date="2026-08-08", amount="-999.00"
+    )
+
+    period = {"date_from": "2026-07-01", "date_to": "2026-08-31"}
+    headers = _auth_headers(token)
+
+    flow = await client.get(
+        "/api/v1/analytics/cash-flow",
+        params={**period, "granularity": "month", "merchant": "AMAZON"},
+        headers=headers,
+    )
+    assert [p["expenses"] for p in flow.json()["points"]] == ["100.00", "50.00"]
+
+    no_merchant_flow = await client.get(
+        "/api/v1/analytics/cash-flow",
+        params={**period, "granularity": "month", "no_merchant": "true"},
+        headers=headers,
+    )
+    assert [p["expenses"] for p in no_merchant_flow.json()["points"]] == ["0", "7.00"]
+
+    by_category = await client.get(
+        "/api/v1/analytics/by-category",
+        params={**period, "direction": "expense", "merchant": "AMAZON"},
+        headers=headers,
+    )
+    assert sum(float(i["total"]) for i in by_category.json()["items"]) == 150.0
+
+    transactions = await client.get(
+        "/api/v1/transactions", params={"merchant": "AMAZON"}, headers=headers
+    )
+    assert [t["amount"] for t in transactions.json()] == ["-50.00", "-100.00"]
+
+    no_merchant_transactions = await client.get(
+        "/api/v1/transactions", params={"no_merchant": "true"}, headers=headers
+    )
+    assert [t["amount"] for t in no_merchant_transactions.json()] == ["-7.00"]
+
+
 async def test_by_merchant_drilldown_on_parent_category_includes_subcategory_transactions(client):
     # Bug osservato manualmente in browser: il frontend passa a
     # /by-merchant?category_id=... il group_id RIACCORPATO di /by-category

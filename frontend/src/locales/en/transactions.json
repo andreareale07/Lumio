@@ -33,7 +33,24 @@
       "category": "Category",
       "allCategories": "All categories",
       "type": "Type",
-      "allTypes": "All types"
+      "allTypes": "All types",
+      "merchantChip": "Merchant: {{name}}",
+      "noMerchant": "No merchant",
+      "importChip": "Selected import",
+      "active": "Active filters",
+      "removeFilter": "Remove the {{name}} filter",
+      "clearAll": "Clear filters",
+      "add": "Filter",
+      "addTitle": "Add filter",
+      "pickerSearch": "Search {{name}}…",
+      "pickerEmpty": "No results.",
+      "merchant": "Merchant",
+      "mostFrequent": "Most frequent",
+      "merchantsHint": "Showing {{shown}} of {{total}}. Type to search the rest.",
+      "deselect": "Clear",
+      "done": "Done",
+      "selectedCount_one": "{{count}} selected",
+      "selectedCount_other": "{{count}} selected"
     },
     "needsReview_one": "{{count}} to review",
     "needsReview_other": "{{count}} to review",
@@ -55,6 +72,20 @@
     "pagination": {
       "previous": "Previous",
       "next": "Next"
+    },
+    "search": {
+      "label": "Search transactions",
+      "placeholder": "Search by description, merchant, counterparty or reference"
+    },
+    "noResults": {
+      "title": "No results",
+      "description": "No transaction matches the active filters."
+    },
+    "summary": {
+      "count_one": "{{count}} transaction",
+      "count_other": "{{count}} transactions",
+      "income": "income {{value}}",
+      "expenses": "expenses {{value}}"
     }
   }
 }
