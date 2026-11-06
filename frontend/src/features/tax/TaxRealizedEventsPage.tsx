@@ -3,16 +3,15 @@ import { ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { FilterBar } from "../../components/filters/FilterBar";
 import { PAGE_WIDTH_WIDE } from "../../components/layout/pageWidths";
 import { BackLink } from "../../components/ui/BackLink";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
-import { Select } from "../../components/ui/Select";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { formatDate, formatMoney } from "../../lib/format";
 import { useAccounts } from "../accounts/api";
-import { AssetPicker } from "../portfolio/AssetPicker";
 import { useAssets } from "../portfolio/api";
 import type { ClassifiedRealizedEvent } from "../../types/api";
 import { useRealizedEvents } from "./api";
@@ -78,39 +77,40 @@ export function TaxRealizedEventsPage() {
         <p className="text-sm text-text-muted">{t("realizedEventsPage.intro")}</p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-56">
-          <AssetPicker
-            label={t("realizedEventsPage.filters.asset")}
-            value={assetId}
-            includeEmptyOption
-            onChange={(e) => updateFilter("asset", e.target.value)}
-          />
-        </div>
-        <Select
-          aria-label={t("realizedEventsPage.filters.account")}
-          value={accountId}
-          onChange={(e) => updateFilter("account", e.target.value)}
-          className="w-auto"
-        >
-          <option value="">{t("realizedEventsPage.filters.allAccounts")}</option>
-          {(accounts ?? []).map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.name}
-            </option>
-          ))}
-        </Select>
-        <button
-          type="button"
-          onClick={() => updateFilter("excluded", excludedOnly ? "" : "1")}
-          aria-pressed={excludedOnly}
-          className={`inline-flex h-10 items-center rounded-lg border px-3 text-sm font-medium ${
-            excludedOnly ? "border-primary bg-primary/10 text-primary" : "border-border text-text-muted"
-          }`}
-        >
-          {t("realizedEventsPage.filters.excludedOnly")}
-        </button>
-      </div>
+      <FilterBar
+        selectFilters={[
+          {
+            key: "asset",
+            label: t("realizedEventsPage.filters.asset"),
+            single: true,
+            values: assetId ? [assetId] : [],
+            options: (assets ?? []).map((a) => ({ value: a.id, label: a.display_name ?? a.symbol ?? a.name })),
+          },
+          {
+            key: "account",
+            label: t("realizedEventsPage.filters.account"),
+            single: true,
+            values: accountId ? [accountId] : [],
+            options: (accounts ?? []).map((a) => ({ value: a.id, label: a.name })),
+          },
+        ]}
+        onSetFilterValues={(key, values) => updateFilter(key, values[0] ?? "")}
+        quickFilters={[
+          {
+            key: "excluded",
+            label: t("realizedEventsPage.filters.excludedOnly"),
+            active: excludedOnly,
+            onToggle: () => updateFilter("excluded", excludedOnly ? "" : "1"),
+          },
+        ]}
+        hasAnyFilter={!!(assetId || accountId || excludedOnly)}
+        onClearAll={() => {
+          setOffset(0);
+          const next = new URLSearchParams(searchParams);
+          for (const key of ["asset", "account", "excluded"]) next.delete(key);
+          setSearchParams(next);
+        }}
+      />
 
       {isLoading && <SkeletonRows rows={6} />}
       {isError && <ErrorState onRetry={() => void refetch()} />}

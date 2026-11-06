@@ -78,12 +78,16 @@ export function InvestmentsOverviewPage() {
       {toolbarPortal}
       <h1 className="text-lg font-semibold text-text">{t("overview.title")}</h1>
 
-      <div className="flex flex-wrap gap-2 md:hidden">
-        {managePortfoliosButton}
-        {newAssetButton}
-        {loadPositionButton}
+      {/* Mobile: l'azione principale a tutta larghezza, le altre in griglia 2x2
+          (con etichette che vanno a capo invece di uscire dalla colonna). */}
+      <div className="flex flex-col gap-2 md:hidden [&>*]:w-full">
         {recordTransactionButton}
-        {taxButton}
+        <div className="grid grid-cols-2 gap-2 [&>*]:h-auto [&>*]:min-h-11 [&>*]:w-full [&>*]:whitespace-normal [&>*]:py-2 [&>*]:text-center">
+          {managePortfoliosButton}
+          {newAssetButton}
+          {loadPositionButton}
+          {taxButton}
+        </div>
       </div>
 
       <CorporateActionSuggestions />

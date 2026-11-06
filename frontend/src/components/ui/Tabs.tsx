@@ -44,7 +44,7 @@ export function Tabs({ tabs, active, onChange }: TabsProps) {
           type="button"
           aria-selected={tab.key === active}
           onClick={() => onChange(tab.key)}
-          className={`-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+          className={`-mb-px shrink-0 border-b-2 px-3 py-3 text-sm font-medium md:py-2 transition-colors ${
             tab.key === active
               ? "border-primary text-primary"
               : "border-transparent text-text-muted hover:text-text"

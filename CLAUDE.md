@@ -16,6 +16,7 @@ Tienile aggiornate: se scopri un fatto nuovo non ovvio dal codice, o uno scritto
 | Migration, nuove tabelle, query, RLS | `progetto-database-rls.md` |
 | Qualsiasi modifica frontend | `progetto-frontend.md`, `guida-ux-e-design.md` |
 | Nuova pagina, lista, configurazione | `guida-ux-e-design.md` |
+| Filtri, selettore di periodo/vista, range temporale (task aperto) | `task-revisione-globale-filtri-e-periodo.md`, `guida-ux-e-design.md`, `progetto-frontend.md` |
 | Test, verifica, preparare un commit | `guida-metodo-sviluppo-e-test.md`, `procedura-gestione-branch.md` |
 | Job lunghi, worker, SSE, interruzioni | `guida-job-asincroni.md` |
 | Import, parser, dedup, trasferimenti, tipi transazione | `guida-import-e-movimenti.md` |
@@ -64,4 +65,5 @@ Manutenzione della memoria:
 - Al 2026-10-30: `TradeRepublicParser.extract_account_info` e' ancora uno stub (formato IBAN titolare mai verificato su PDF reale).
 - Al 2026-10-30: E2E Playwright non risultano rieseguiti dopo il dedup engine (2 golden-path rotti al 2026-08-21); test dedicati del motore a lotti da verificare (esiste `test_tax_calc.py`).
 - Al 2026-10-30: da pulire con ok dell'utente: 5 worktree `agent-*` orfani su `2280394`, cartelle `db/postgres-init;C/` e `backend/features/settings/` (artefatti di path), `Lumio.tar.gz`.
+- Al 2026-11-06: filtri di Movimenti rifatti (commit `2fe1506`, verificati solo su desktop); prossima attivita' richiesta: revisione globale di filtri e periodo, mobile first (scheda `task-*`).
 - Richiesto dall'utente dopo M12, non pianificato: ruolo admin di istanza con "Impostazioni istanza" (config fuori da `.env`, audit log) e restyle menu Impostazioni.

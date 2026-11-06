@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { setDesktop } from "./matchMedia";
 
 import { TransactionFilterBar, type SelectFilter } from "../src/features/transactions/TransactionFilterBar";
 
@@ -38,7 +40,10 @@ function renderBar(overrides: Partial<React.ComponentProps<typeof TransactionFil
   return props;
 }
 
-describe("TransactionFilterBar", () => {
+describe("TransactionFilterBar (desktop: popover, applicazione immediata)", () => {
+  beforeEach(() => setDesktop(true));
+  afterEach(() => setDesktop(false));
+
   it("'+ Filtro' propone i filtri non ancora attivi e applica il valore scelto", async () => {
     const props = renderBar();
     await userEvent.click(screen.getByRole("button", { name: /Filtro/ }));
@@ -88,5 +93,54 @@ describe("TransactionFilterBar", () => {
     });
     expect(screen.getByText(/4 movimenti/)).toBeInTheDocument();
     expect(screen.getByText(/uscite/)).toBeInTheDocument();
+  });
+});
+
+describe("TransactionFilterBar (smartphone: bottom sheet con Applica)", () => {
+  beforeEach(() => setDesktop(false));
+
+  it("le scelte si applicano solo con 'Applica', non a ogni tocco", async () => {
+    const props = renderBar();
+    await userEvent.click(screen.getByRole("button", { name: /Filtro/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Categoria" }));
+    expect(screen.getByRole("dialog", { name: "Categoria" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Casa › Affitto" }));
+    await userEvent.click(screen.getByRole("button", { name: "Alimentari › Supermercato" }));
+    expect(props.onSetFilterValues).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Applica · 2$/ }));
+    expect(props.onSetFilterValues).toHaveBeenCalledWith("category", ["c2", "c1"]);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("chiudere senza applicare scarta la bozza", async () => {
+    const props = renderBar();
+    await userEvent.click(screen.getByRole("button", { name: /Filtro/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Conto" }));
+    await userEvent.click(screen.getByRole("button", { name: "Conto verifica" }));
+    await userEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+
+    expect(props.onSetFilterValues).not.toHaveBeenCalled();
+  });
+
+  it("il campo di ricerca del picker non prende il focus da solo (niente tastiera a sorpresa)", async () => {
+    renderBar();
+    await userEvent.click(screen.getByRole("button", { name: /Filtro/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Categoria" }));
+
+    expect(screen.getByRole("searchbox", { name: /Cerca categoria/ })).not.toHaveFocus();
+  });
+
+  it("'Azzera' svuota la bozza e 'Applica' toglie il filtro", async () => {
+    const props = renderBar({
+      selectFilters: [baseFilters[0]!, { ...baseFilters[1]!, values: ["c1"] }],
+      hasAnyFilter: true,
+    });
+    await userEvent.click(screen.getByRole("button", { name: /^Categoria:/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Azzera" }));
+    await userEvent.click(screen.getByRole("button", { name: "Applica" }));
+
+    expect(props.onSetFilterValues).toHaveBeenCalledWith("category", []);
   });
 });

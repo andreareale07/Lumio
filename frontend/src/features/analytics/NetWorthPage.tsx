@@ -17,7 +17,7 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { JobRunStatus } from "../../components/ui/JobRunStatus";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { formatDate, formatMoney } from "../../lib/format";
-import { GRANULARITY_ORDER } from "../../lib/period";
+import { GRANULARITY_ORDER, PERIOD_FAMILY } from "../../lib/period";
 import { trimLeadingEmpty } from "../../lib/trimSeries";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useTransactions } from "../transactions/api";
@@ -51,6 +51,7 @@ export function NetWorthPage() {
   const { t } = useTranslation(["analytics", "dashboard"]);
   const { currentPeriod, trendWindow } = usePeriodNavigator({
     granularities: GRANULARITY_ORDER,
+    family: PERIOD_FAMILY,
   });
 
   const summary = useAnalyticsSummary({ date_from: currentPeriod.date_from, date_to: currentPeriod.date_to });
@@ -117,7 +118,6 @@ export function NetWorthPage() {
     void backfillStatus.refetch();
   };
 
-  const periodNav = <PeriodNavigator granularities={GRANULARITY_ORDER} />;
   const backfillButton = (
     <Button
       variant="secondary"
@@ -133,12 +133,10 @@ export function NetWorthPage() {
       <RefreshCw className="h-4 w-4" /> {t("netWorth.rebuildNow")}
     </Button>
   );
-  // Navigatore periodo + le due azioni di ricalcolo vivono nel Topbar
-  // (desktop) e in righe `md:hidden` qui sotto per mobile — stesso
-  // portal/duplicazione-per-breakpoint gia' in uso altrove.
+  // Le due azioni di ricalcolo vivono nel Topbar (desktop) e in una riga
+  // `md:hidden` qui sotto per mobile; il periodo sta nel corpo della pagina.
   const toolbarPortal = usePageToolbar(
     <>
-      {periodNav}
       {backfillButton}
       {rebuildButton}
     </>,
@@ -158,8 +156,8 @@ export function NetWorthPage() {
           )}
           <p className="text-sm text-text-muted">{t("netWorth.subtitle")}</p>
         </div>
-        <div className="md:hidden">{periodNav}</div>
       </div>
+      <PeriodNavigator granularities={GRANULARITY_ORDER} family={PERIOD_FAMILY} />
 
       {summary.isError && <ErrorState message={t("netWorth.errorMessage")} onRetry={() => void summary.refetch()} />}
 

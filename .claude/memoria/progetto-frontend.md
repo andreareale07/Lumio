@@ -40,6 +40,32 @@ Tailwind 4, Recharts, i18next, icone lucide-react. Build servita da nginx nel co
   sempre un ref STABILE (mai un oggetto creato nel render), altrimenti ciclo di render infinito.
 - `AreaTrendChart` ha `yAxisDomain="tight"` per i prezzi (il default parte da 0).
 
+- **Periodo (dal 2026-11-06):** `components/filters/PeriodNavigator.tsx` + `lib/usePeriodNavigator.ts`.
+  Una sola copia nel corpo della pagina (non piu' nel Topbar ne' duplicata `md:hidden`): pulsanti di testo
+  Mese/Anno/3M/12M(/Tutto con `allowAll`), icona calendario che apre `PeriodPanel` (trimestre, date
+  digitabili gg/mm/aaaa, `RangeCalendar` a 1 mese su mobile / 2 su desktop), sotto ‹ etichetta › e il
+  periodo con le date esatte. Modi nell'URL: `granular` (+`granularity`/`anchor`), `custom` (+`from`/`to`),
+  `all`, `rolling` (+`rolling=3m|12m`, calcolato da oggi con `resolveRolling`). Giorno/settimana/semestre
+  non sono piu' offerti in UI ma l'URL li accetta. Opzione `family` (es. `PERIOD_FAMILY` = "analysis":
+  Panoramica, Spese/Entrate, Patrimonio): senza stato nell'URL si ripristina l'ultimo periodo della famiglia
+  da `sessionStorage` (scritto nell'URL con replace); un link con periodo esplicito vince sempre.
+- **Mobile: `components/ui/BottomSheet.tsx`** (portal, chiusura visibile + Escape + sfondo) e
+  `FloatingPanel` che ora resta dentro lo schermo (margine 8px, `shiftX`). Da riusare per i filtri.
+- **Intervallo dei grafici (1G…Max):** `RangeSelector` e' solo testo (no bordi/sfondi, attivo sottolineato,
+  area di tocco 40px) e va messo in alto accanto al valore; stato nell'URL con `lib/useRangeParam.ts`
+  (`?range=3M`, ricorda l'ultimo scelto per famiglia in sessionStorage; famiglia "investments").
+  `AreaTrendChart` e' esplorabile con `onActivePointChange(index|null)` (puntatore su un wrapper
+  `touch-pan-y`, non gli eventi di Recharts): l'intestazione mostra valore/variazione/data del punto; senza
+  la prop resta il tooltip classico. `lib/useIsDesktop.ts` = breakpoint `md` per scegliere popover o
+  `BottomSheet` (es. `ActivityIndicator`).
+- **Filtri liste:** `components/filters/FilterBar.tsx` (tipi `SelectFilter`/`StaticFilterChip`/`QuickFilter`/
+  `RemoteOptions`; opzioni remote via `useRemoteOptions(query)` chiamato da un componente dedicato) +
+  `lib/useUrlListFilters.ts`; `features/transactions/TransactionFilterBar.tsx` ne e' un wrapper sottile
+  (merchant remoti, riepilogo). Stringhe condivise in `common:filters.*`. Nei test `tests/matchMedia.ts`
+  (`setDesktop`) sceglie popover (desktop) o bottom sheet (default mobile).
+- **Controlli su smartphone:** `Button` (sm/md/icon), `Input`, `Select`, `Tabs`, `BackLink`, Topbar sono
+  44px sotto `md`; `global.css` forza 16px su input/select/textarea (iOS zooma sotto) e `touch-action:
+  manipulation`. Per i link testuali dentro le card usare `inline-flex min-h-11 items-center md:min-h-0`.
 - **Bottom bar mobile** (`components/layout/MobileNav.tsx`): una sola griglia `grid-cols-[repeat(5,1fr)]`
   per barra + voci espanse ("Altro" -> "Chiudi", niente Drawer). Va usato `1fr` e NON
   `grid-cols-5` (= `minmax(0,1fr)`): cosi' le colonne prendono la larghezza dell'etichetta piu'

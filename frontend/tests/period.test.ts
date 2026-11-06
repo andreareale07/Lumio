@@ -6,8 +6,11 @@ import {
   migrateLegacyPeriodParams,
   nextBucketStart,
   periodForAnchor,
+  formatDisplayDate,
+  parseDisplayDate,
   periodLabel,
   previousPeriod,
+  resolveRolling,
   resolvePeriodPreset,
   shiftAnchor,
   slidingWindow,
@@ -273,5 +276,47 @@ describe("previousPeriod", () => {
       date_from: "2025-12-01",
       date_to: "2025-12-31",
     });
+  });
+});
+
+describe("resolveRolling", () => {
+  it("3M: dal giorno dopo 'oggi - 3 mesi' fino a oggi, inclusi", () => {
+    expect(resolveRolling("3m", new Date(2026, 10, 6))).toEqual({ date_from: "2026-08-07", date_to: "2026-11-06" });
+  });
+
+  it("12M: un anno esatto che termina oggi", () => {
+    expect(resolveRolling("12m", new Date(2026, 10, 6))).toEqual({ date_from: "2025-11-07", date_to: "2026-11-06" });
+  });
+
+  it("limita il giorno al mese di partenza (31 maggio - 3 mesi = fine febbraio)", () => {
+    expect(resolveRolling("3m", new Date(2026, 4, 31))).toEqual({ date_from: "2026-03-01", date_to: "2026-05-31" });
+  });
+
+  it("29 febbraio bisestile - 12 mesi non esiste l'anno prima: usa il 28", () => {
+    expect(resolveRolling("12m", new Date(2028, 1, 29))).toEqual({ date_from: "2027-03-01", date_to: "2028-02-29" });
+  });
+});
+
+describe("parseDisplayDate / formatDisplayDate", () => {
+  it("converte gg/mm/aaaa in ISO, con o senza zeri iniziali", () => {
+    expect(parseDisplayDate("05/01/2026")).toBe("2026-01-05");
+    expect(parseDisplayDate("5/1/2026")).toBe("2026-01-05");
+    expect(parseDisplayDate(" 31/12/2025 ")).toBe("2025-12-31");
+  });
+
+  it("rifiuta formati sbagliati e date inesistenti", () => {
+    expect(parseDisplayDate("2026-01-05")).toBeNull();
+    expect(parseDisplayDate("31/02/2026")).toBeNull();
+    expect(parseDisplayDate("29/02/2026")).toBeNull();
+    expect(parseDisplayDate("")).toBeNull();
+  });
+
+  it("accetta il 29 febbraio solo negli anni bisestili", () => {
+    expect(parseDisplayDate("29/02/2028")).toBe("2028-02-29");
+  });
+
+  it("formatDisplayDate e' l'inverso e gestisce il vuoto", () => {
+    expect(formatDisplayDate("2026-01-05")).toBe("05/01/2026");
+    expect(formatDisplayDate("")).toBe("");
   });
 });

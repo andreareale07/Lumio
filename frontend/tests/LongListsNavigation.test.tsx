@@ -129,7 +129,11 @@ describe("Elenco import", () => {
     renderWithProviders(<ImportsPage />);
     await screen.findByText("estratto-01.csv");
 
-    await userEvent.selectOptions(screen.getByLabelText("Stato"), "failed");
+    // Stato dalla barra filtri condivisa (smartphone: bottom sheet con Applica).
+    await userEvent.click(screen.getByRole("button", { name: /Filtro/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Stato" }));
+    await userEvent.click(screen.getByRole("button", { name: "Falliti o annullati" }));
+    await userEvent.click(screen.getByRole("button", { name: "Applica · 1" }));
 
     expect(await screen.findByText("estratto-13.csv")).toBeInTheDocument();
     expect(screen.getByText("estratto-14.csv")).toBeInTheDocument();
@@ -144,7 +148,7 @@ describe("Elenco import", () => {
     await userEvent.type(screen.getByRole("searchbox", { name: "Cerca negli import" }), "zzz");
     expect(await screen.findByText("Nessun import corrisponde alla ricerca.")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Azzera i filtri" }));
+    await userEvent.click(screen.getByRole("button", { name: "Azzera filtri" }));
     expect(await screen.findByText("estratto-01.csv")).toBeInTheDocument();
   });
 });
@@ -171,7 +175,7 @@ describe("Mappatura dei tipi di transazione", () => {
     renderWithProviders(<TransactionTypeMappingsPage />);
     await screen.findByText("Etichetta 01");
 
-    await userEvent.selectOptions(screen.getByLabelText("Mostra"), "overrides");
+    await userEvent.click(screen.getByRole("button", { name: "Solo con mappatura personalizzata" }));
 
     expect(await screen.findByText("Etichetta 05")).toBeInTheDocument();
     expect(screen.getByText("Etichetta 16")).toBeInTheDocument();

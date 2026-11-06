@@ -58,14 +58,14 @@ export function Topbar({ toolbarSlotRef }: { toolbarSlotRef: (el: HTMLDivElement
          * sempre presente, indipendentemente dal fatto che la pagina
          * corrente abbia o meno un contenuto da mostrare nello slot. */}
         <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-0 md:gap-1">
           <ActivityIndicator />
           <button
             type="button"
             onClick={cycleLocale}
             aria-label={t("language.toggle")}
             title={t(`language.${i18n.language}`)}
-            className="rounded-md px-2 py-1.5 text-xs font-semibold text-text-muted hover:bg-surface-hover hover:text-text"
+            className="flex h-11 min-w-11 items-center justify-center rounded-md px-2 text-xs font-semibold text-text-muted hover:bg-surface-hover hover:text-text md:h-9 md:min-w-9"
           >
             {i18n.language.toUpperCase()}
           </button>
@@ -74,7 +74,7 @@ export function Topbar({ toolbarSlotRef }: { toolbarSlotRef: (el: HTMLDivElement
             onClick={cycleTheme}
             aria-label={t("theme.label", { value: t(`theme.${theme}`) })}
             title={t("theme.label", { value: t(`theme.${theme}`) })}
-            className="rounded-md p-2 text-text-muted hover:bg-surface-hover hover:text-text"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-text-muted hover:bg-surface-hover hover:text-text md:h-9 md:w-9"
           >
             <ThemeIcon className="h-4 w-4" />
           </button>
@@ -84,7 +84,7 @@ export function Topbar({ toolbarSlotRef }: { toolbarSlotRef: (el: HTMLDivElement
             onClick={() => void logout()}
             aria-label={t("logout")}
             title={t("logout")}
-            className="rounded-md p-2 text-text-muted hover:bg-surface-hover hover:text-text"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-text-muted hover:bg-surface-hover hover:text-text md:h-9 md:w-9"
           >
             <LogOut className="h-4 w-4" />
           </button>

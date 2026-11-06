@@ -85,12 +85,12 @@ export function AccountsPage() {
                 )}
                 <div className="mt-2 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Link to={`/accounts/${account.id}`} className="text-sm font-medium text-primary hover:underline">
+                    <Link to={`/accounts/${account.id}`} className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline md:min-h-0">
                       {t("page.open")}
                     </Link>
                     <Link
                       to={`/accounts/${account.id}/edit`}
-                      className="text-sm text-text-muted hover:text-text"
+                      className="inline-flex min-h-11 items-center text-sm text-text-muted hover:text-text md:min-h-0"
                     >
                       {t("page.edit")}
                     </Link>
@@ -99,14 +99,14 @@ export function AccountsPage() {
                     <button
                       type="button"
                       onClick={() => setActive.mutate({ id: account.id, isActive: !account.is_active })}
-                      className="text-sm text-text-muted hover:text-text"
+                      className="inline-flex min-h-11 items-center text-sm text-text-muted hover:text-text md:min-h-0"
                     >
                       {account.is_active ? t("page.archive") : t("page.unarchive")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setDeleteTarget(account)}
-                      className="text-sm text-danger hover:underline"
+                      className="inline-flex min-h-11 items-center text-sm text-danger hover:underline md:min-h-0"
                     >
                       {t("page.delete")}
                     </button>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Tags } from "lucide-react";
+import { Tags } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { PAGE_WIDTH_WIDE } from "../../../components/layout/pageWidths";
@@ -11,6 +11,7 @@ import { ErrorState } from "../../../components/ui/ErrorState";
 import { Pagination } from "../../../components/ui/Pagination";
 import { Select } from "../../../components/ui/Select";
 import { SkeletonRows } from "../../../components/ui/Skeleton";
+import { FilterBar } from "../../../components/filters/FilterBar";
 import { usePagedList } from "../../../lib/usePagedList";
 import { useTransactionTypeLabel } from "../../transactions/labels";
 import { TRANSACTION_TYPES, type TransactionType, type TransactionTypeLabel } from "../../../types/api";
@@ -120,48 +121,34 @@ function LabelsTable({ parserType, labels }: { parserType: string; labels: Trans
         {t("items.transactionTypes.page.summary", { count: labels.length, overrides })}
       </p>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="relative min-w-52 flex-1">
-          <label htmlFor="labels-search" className="sr-only">
-            {t("items.transactionTypes.page.search.label")}
-          </label>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
-          <input
-            id="labels-search"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t("items.transactionTypes.page.search.placeholder", { count: labels.length })}
-            className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-text placeholder:text-text-muted"
-          />
-        </div>
-        <div className="w-56">
-          <Select
-            label={t("items.transactionTypes.page.filter.label")}
-            value={filter}
-            onChange={(event) => setFilter(event.target.value as LabelFilter)}
-          >
-            <option value="all">{t("items.transactionTypes.page.filter.all")}</option>
-            <option value="overrides">{t("items.transactionTypes.page.filter.overrides")}</option>
-          </Select>
-        </div>
-      </div>
+      <FilterBar
+        search={{
+          id: "labels-search",
+          label: t("items.transactionTypes.page.search.label"),
+          placeholder: t("items.transactionTypes.page.search.placeholder", { count: labels.length }),
+          value: query,
+          onChange: setQuery,
+        }}
+        selectFilters={[]}
+        onSetFilterValues={() => {}}
+        quickFilters={[
+          {
+            key: "overrides",
+            label: t("items.transactionTypes.page.filter.overrides"),
+            active: filter === "overrides",
+            onToggle: () => setFilter(filter === "overrides" ? "all" : "overrides"),
+          },
+        ]}
+        hasAnyFilter={hasFilters}
+        onClearAll={() => {
+          setQuery("");
+          setFilter("all");
+        }}
+      />
 
       {filtered.length === 0 ? (
         <div className="flex flex-col items-start gap-2 rounded-lg border border-border p-4">
           <p className="text-sm text-text-muted">{t("items.transactionTypes.page.noResults")}</p>
-          {hasFilters && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setQuery("");
-                setFilter("all");
-              }}
-            >
-              {t("items.transactionTypes.page.clearFilters")}
-            </Button>
-          )}
         </div>
       ) : (
         <div className="flex flex-col gap-2">

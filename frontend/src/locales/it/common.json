@@ -76,13 +76,54 @@
     "granularityAriaLabel": "Granularità",
     "previousAriaLabel": "Periodo precedente",
     "nextAriaLabel": "Periodo successivo",
-    "today": "Oggi",
     "customRange": "Intervallo personalizzato",
-    "backToGranular": "Torna alla navigazione per periodo",
-    "allPeriods": "Max",
+    "allPeriods": "Tutti i periodi",
     "filterByPeriod": "Filtra per periodo",
     "from": "Dal",
     "to": "Al",
-    "apply": "Applica"
+    "apply": "Applica",
+    "pills": {
+      "month": "Mese",
+      "year": "Anno",
+      "3m": "3M",
+      "12m": "12M",
+      "all": "Tutto"
+    },
+    "rolling": {
+      "3m": "Ultimi 3 mesi",
+      "12m": "Ultimi 12 mesi"
+    },
+    "allSpan": "dal primo movimento a oggi",
+    "shortcuts": {
+      "currentQuarter": "{{label}} · trimestre",
+      "previousQuarter": "Trimestre scorso"
+    },
+    "calendar": {
+      "title": "Calendario",
+      "pickTwo": "Scegli due date",
+      "previousMonth": "Mese precedente",
+      "nextMonth": "Mese successivo"
+    },
+    "errors": {
+      "invalidFormat": "Formato non valido: usa gg/mm/aaaa.",
+      "future": "La data non può essere nel futuro.",
+      "endBeforeStart": "La data finale è prima di quella iniziale."
+    }
+  },
+  "filters": {
+    "active": "Filtri attivi",
+    "removeFilter": "Rimuovi il filtro {{name}}",
+    "clearAll": "Azzera filtri",
+    "add": "Filtro",
+    "addTitle": "Aggiungi filtro",
+    "pickerSearch": "Cerca {{name}}…",
+    "pickerEmpty": "Nessun risultato.",
+    "remoteHint": "Mostrati {{shown}} su {{total}}. Scrivi per cercare gli altri.",
+    "deselect": "Deseleziona",
+    "done": "Fatto",
+    "apply": "Applica",
+    "reset": "Azzera",
+    "selectedCount_one": "{{count}} selezionato",
+    "selectedCount_other": "{{count}} selezionati"
   }
 }

@@ -22,7 +22,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           id={selectId}
           aria-invalid={!!error}
-          className={`h-10 rounded-lg border bg-surface px-3 text-sm text-text disabled:opacity-50 ${
+          className={`h-11 md:h-10 rounded-lg border bg-surface px-3 text-sm text-text disabled:opacity-50 ${
             error ? "border-danger" : "border-border"
           } ${className}`}
           {...rest}

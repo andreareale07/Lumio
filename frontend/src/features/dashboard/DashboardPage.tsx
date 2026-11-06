@@ -9,7 +9,6 @@ import { LineComparisonChart, type LineComparisonPoint } from "../../components/
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { KpiCard } from "../../components/kpi/KpiCard";
 import { Button } from "../../components/ui/Button";
-import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { JobRunStatus } from "../../components/ui/JobRunStatus";
@@ -17,7 +16,7 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { formatMoney, formatPercent, formatPeriodLabel, formatSignedMoney, intlLocale } from "../../lib/format";
-import { GRANULARITY_ORDER, periodForAnchor, shiftAnchor, slidingWindow, type Granularity } from "../../lib/period";
+import { GRANULARITY_ORDER, PERIOD_FAMILY, periodForAnchor, shiftAnchor, slidingWindow, type Granularity } from "../../lib/period";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useTransactionReviewSummary, useTransactions } from "../transactions/api";
 import { useAnalyticsCashFlow, useAnalyticsNetWorthHistory, useAnalyticsSummary } from "../analytics/api";
@@ -35,6 +34,7 @@ export function DashboardPage() {
   const { t } = useTranslation("dashboard");
   const { granularity, mode, currentPeriod, trendWindow, isAtToday } = usePeriodNavigator({
     granularities: GRANULARITY_ORDER,
+    family: PERIOD_FAMILY,
   });
   const period = { date_from: currentPeriod.date_from, date_to: currentPeriod.date_to };
   // PHASE 5b (Dashboard come punto d'ingresso): Entrate/Spese forwardano il
@@ -199,12 +199,9 @@ export function DashboardPage() {
     { enabled: !!selectedBucket },
   );
 
-  const periodNav = <PeriodNavigator granularities={GRANULARITY_ORDER} />;
-  const toolbarPortal = usePageToolbar(periodNav);
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      {toolbarPortal}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-text">
@@ -225,8 +222,9 @@ export function DashboardPage() {
             )}
           </div>
         </div>
-        <div className="md:hidden">{periodNav}</div>
       </div>
+
+      <PeriodNavigator granularities={GRANULARITY_ORDER} family={PERIOD_FAMILY} />
 
       {/* --- PATRIMONIO: stock, sempre "a oggi", ignora il navigator --- */}
       <section className="flex flex-col gap-2">

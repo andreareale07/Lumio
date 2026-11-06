@@ -148,3 +148,23 @@ body {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
+
+/* Smartphone: campi a 16px (sotto, iOS Safari ingrandisce la pagina al focus) e
+ * niente ritardo/zoom da doppio tocco sui controlli. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+button,
+a,
+select,
+summary,
+[role="button"] {
+  touch-action: manipulation;
+}
+html {
+  -webkit-tap-highlight-color: transparent;
+}

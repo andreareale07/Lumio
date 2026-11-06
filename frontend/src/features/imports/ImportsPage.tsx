@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FileText, Plus, Search, Trash2, UploadCloud } from "lucide-react";
+import { FileText, Plus, Trash2, UploadCloud } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { FilterBar, type SelectFilter } from "../../components/filters/FilterBar";
 import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -11,11 +12,11 @@ import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { Pagination } from "../../components/ui/Pagination";
-import { Select } from "../../components/ui/Select";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { useAccounts } from "../accounts/api";
 import { formatDateTime } from "../../lib/format";
 import { usePagedList } from "../../lib/usePagedList";
+import { useUrlListFilters } from "../../lib/useUrlListFilters";
 import { useTransactionReviewSummary } from "../transactions/api";
 import { importsKey, useImportReviewSummary, useImports } from "./api";
 import { AiClassificationProgress } from "./AiClassificationProgress";
@@ -66,7 +67,8 @@ function DuplicateReviewSummaryBadge({ importId, onClick }: { importId: string; 
 
 const PAGE_SIZE = 10;
 
-type ImportFilter = "all" | "running" | "review" | "completed" | "failed";
+type ImportFilter = "running" | "review" | "completed" | "failed";
+const IMPORT_FILTERS: ImportFilter[] = ["running", "review", "completed", "failed"];
 
 /** Raggruppa gli stati (molti, tecnici) in cio' che l'utente vuole sapere:
  * cosa sta girando, cosa aspetta una sua decisione, cosa e' andato storto. */
@@ -87,8 +89,6 @@ function matchesImportFilter(record: ImportRecord, filter: ImportFilter): boolea
       return (
         record.status === "failed" || record.status === "cancelled" || record.ai_classification_status === "failed"
       );
-    default:
-      return true;
   }
 }
 
@@ -103,22 +103,30 @@ export function ImportsPage() {
   const [deletingImport, setDeletingImport] = useState<ImportRecord | null>(null);
   const [reviewingImport, setReviewingImport] = useState<ImportRecord | null>(null);
   const accountsById = new Map((accounts ?? []).map((a) => [a.id, a]));
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<ImportFilter>("all");
+  // Ricerca e stati nell'URL (`?q=`, `?status=review`), stessa barra filtri di Movimenti.
+  const { query, setQuery, getValues, setValues, clearAll, hasAnyFilter: hasFilters } = useUrlListFilters(["status"]);
+  const statusFilters = getValues("status").filter((value): value is ImportFilter => IMPORT_FILTERS.includes(value as ImportFilter));
+  const selectFilters: SelectFilter[] = [
+    {
+      key: "status",
+      label: t("page.filter.label"),
+      values: statusFilters,
+      options: IMPORT_FILTERS.map((value) => ({ value, label: t(`page.filter.${value}`) })),
+    },
+  ];
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return (imports ?? [])
-      .filter((record) => matchesImportFilter(record, filter))
+      .filter((record) => statusFilters.length === 0 || statusFilters.some((f) => matchesImportFilter(record, f)))
       .filter((record) => {
         if (needle === "") return true;
         const accountName = record.financial_account_id ? (accountsById.get(record.financial_account_id)?.name ?? "") : "";
         return record.filename.toLowerCase().includes(needle) || accountName.toLowerCase().includes(needle);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- accountsById e' derivata da `accounts`
-  }, [imports, accounts, query, filter]);
-  const paged = usePagedList(filtered, PAGE_SIZE, `${query}|${filter}`);
-  const hasFilters = query.trim() !== "" || filter !== "all";
+  }, [imports, accounts, query, statusFilters.join(",")]);
+  const paged = usePagedList(filtered, PAGE_SIZE, `${query}|${statusFilters.join(",")}`);
 
   const importDocumentButton = (
     <Button size="sm" onClick={() => setWizardOpen(true)}>
@@ -154,51 +162,23 @@ export function ImportsPage() {
 
       {!isLoading && !isError && imports && imports.length > 0 && (
         <section className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="relative min-w-52 flex-1">
-              <label htmlFor="imports-search" className="sr-only">
-                {t("page.search.label")}
-              </label>
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
-              <input
-                id="imports-search"
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t("page.search.placeholder", { count: imports.length })}
-                className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-text placeholder:text-text-muted"
-              />
-            </div>
-            <div className="w-48">
-              <Select
-                label={t("page.filter.label")}
-                value={filter}
-                onChange={(event) => setFilter(event.target.value as ImportFilter)}
-              >
-                <option value="all">{t("page.filter.all")}</option>
-                <option value="running">{t("page.filter.running")}</option>
-                <option value="review">{t("page.filter.review")}</option>
-                <option value="completed">{t("page.filter.completed")}</option>
-                <option value="failed">{t("page.filter.failed")}</option>
-              </Select>
-            </div>
-          </div>
+          <FilterBar
+            search={{
+              id: "imports-search",
+              label: t("page.search.label"),
+              placeholder: t("page.search.placeholder", { count: imports.length }),
+              value: query,
+              onChange: setQuery,
+            }}
+            selectFilters={selectFilters}
+            onSetFilterValues={setValues}
+            hasAnyFilter={hasFilters}
+            onClearAll={clearAll}
+          />
 
           {filtered.length === 0 && (
             <div className="flex flex-col items-start gap-2 rounded-lg border border-border p-4">
               <p className="text-sm text-text-muted">{t("page.noResults")}</p>
-              {hasFilters && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setQuery("");
-                    setFilter("all");
-                  }}
-                >
-                  {t("page.clearFilters")}
-                </Button>
-              )}
             </div>
           )}
 

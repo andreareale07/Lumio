@@ -177,6 +177,56 @@ export function slidingWindow(granularity: Granularity, anchor: Date, size: numb
   };
 }
 
+// --- Finestre mobili (3M / 12M) e date digitate -----------------------------
+
+/** Famiglia "Analisi": Panoramica, Spese, Entrate e Patrimonio ricordano lo
+ * stesso periodo (vedi `UsePeriodNavigatorOptions.family`). */
+export const PERIOD_FAMILY = "analysis";
+
+export type RollingPreset = "3m" | "12m";
+
+export const ROLLING_PRESETS: RollingPreset[] = ["3m", "12m"];
+
+const ROLLING_MONTHS: Record<RollingPreset, number> = { "3m": 3, "12m": 12 };
+
+/** Finestra degli ultimi N mesi che termina oggi (inclusa): da "oggi - N mesi
+ * + 1 giorno". Il giorno del mese e' limitato a quello esistente nel mese di
+ * partenza (31 mag - 3 mesi = 28/29 feb, non 3 mar). Parametrizzata su `today`
+ * per i test. */
+export function resolveRolling(preset: RollingPreset, today: Date = new Date()): Period {
+  const months = ROLLING_MONTHS[preset];
+  const targetMonthStart = new Date(today.getFullYear(), today.getMonth() - months, 1);
+  const lastDay = endOfMonth(targetMonthStart).getDate();
+  const start = new Date(targetMonthStart.getFullYear(), targetMonthStart.getMonth(), Math.min(today.getDate(), lastDay));
+  return { date_from: toIsoDate(addDays(start, 1)), date_to: toIsoDate(today) };
+}
+
+/** "gg/mm/aaaa" -> ISO "aaaa-mm-gg", o `null` se il formato o la data non
+ * esistono (es. 31/02/2026). Il campo dell'intervallo personalizzato e'
+ * digitabile: il calendario non e' l'unico modo di inserire una data. */
+export function parseDisplayDate(text: string): string | null {
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text.trim());
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return toIsoDate(date);
+}
+
+/** ISO "aaaa-mm-gg" -> "gg/mm/aaaa" (formato dei campi digitabili). */
+export function formatDisplayDate(isoDate: string): string {
+  if (!isoDate) return "";
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+/** Data odierna in ISO (locale, non UTC) — limite massimo selezionabile. */
+export function todayIso(today: Date = new Date()): string {
+  return toIsoDate(today);
+}
+
 /** Abbreviazioni di trimestre/semestre e locale Intl — parametri opzionali
  * (mai una dipendenza diretta da i18next: questo modulo resta puro/
  * unit-testabile, vedi intestazione del file). I default riproducono

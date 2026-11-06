@@ -11,11 +11,14 @@ import {
   migrateLegacyPeriodParams,
   periodForAnchor,
   periodLabel,
+  resolveRolling,
+  ROLLING_PRESETS,
+  type RollingPreset,
   shiftAnchor,
   slidingWindow,
 } from "./period";
 
-export type PeriodMode = "all" | "granular" | "custom";
+export type PeriodMode = "all" | "granular" | "custom" | "rolling";
 
 export interface UsePeriodNavigatorOptions {
   /** Granularita' offerte da questa pagina — di default tutte. Il valore
@@ -35,6 +38,13 @@ export interface UsePeriodNavigatorOptions {
    * pagine di riepilogo (Dashboard/Analytics/Performance) NON la abilitano:
    * per loro "questo mese" e' il default corretto. */
   allowAll?: boolean;
+  /** Famiglia di pagine che condividono il periodo (es. "analysis": Panoramica,
+   * Spese, Entrate, Patrimonio). Aprendo una pagina della famiglia senza stato
+   * nell'URL si riparte dall'ultimo periodo scelto in quella famiglia (salvato
+   * in sessionStorage); l'URL resta la fonte di verita', quindi i link con
+   * periodo esplicito (drill-down) vincono sempre. Senza `family` ogni pagina
+   * riparte dal proprio default. */
+  family?: string;
 }
 
 export interface PeriodNavigatorState {
@@ -58,7 +68,15 @@ export interface PeriodNavigatorState {
   anchor: Date;
   customFrom: string;
   customTo: string;
+  /** Finestra mobile attiva (3M/12M) quando `mode === "rolling"`. */
+  rolling: RollingPreset | null;
   setGranularity: (granularity: Granularity) => void;
+  /** Passa a `granularity` posizionandosi sul bucket corrente (oggi), a
+   * differenza di `setGranularity` che conserva l'ancora attuale. */
+  selectGranularity: (granularity: Granularity) => void;
+  /** Passa a `granularity` posizionandosi sul bucket che contiene `date`. */
+  selectBucket: (granularity: Granularity, date: Date) => void;
+  setRolling: (preset: RollingPreset) => void;
   goToPrevious: () => void;
   goToNext: () => void;
   goToToday: () => void;
@@ -66,7 +84,34 @@ export interface PeriodNavigatorState {
   setCustomRange: (from: string, to: string) => void;
 }
 
-const NEW_STATE_KEYS = ["mode", "granularity", "anchor", "from", "to"];
+const NEW_STATE_KEYS = ["mode", "granularity", "anchor", "from", "to", "rolling"];
+
+function storageKey(family: string): string {
+  return `lumio.period.${family}`;
+}
+
+function readStoredPeriod(family: string | undefined): URLSearchParams | null {
+  if (!family) return null;
+  try {
+    const raw = sessionStorage.getItem(storageKey(family));
+    return raw ? new URLSearchParams(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredPeriod(family: string, params: URLSearchParams): void {
+  const subset = new URLSearchParams();
+  for (const key of NEW_STATE_KEYS) {
+    const value = params.get(key);
+    if (value !== null) subset.set(key, value);
+  }
+  try {
+    sessionStorage.setItem(storageKey(family), subset.toString());
+  } catch {
+    /* storage non disponibile (finestra privata, quota): si perde solo la memoria */
+  }
+}
 
 /** Navigazione temporale condivisa (rework UX/design, slice 1): granularita'
  * (giorno/settimana/mese/trimestre/semestre/anno) + avanti/indietro di un
@@ -86,6 +131,29 @@ export function usePeriodNavigator(options: UsePeriodNavigatorOptions = {}): Per
 
   const [searchParams, setSearchParams] = useSearchParams();
   const hasNewState = NEW_STATE_KEYS.some((key) => searchParams.has(key));
+  // Stato della famiglia da ripristinare: solo se l'URL non ha nulla (ne' stato
+  // nuovo ne' un vecchio ?period= da migrare).
+  const storedParams = !hasNewState && !searchParams.has("period") ? readStoredPeriod(options.family) : null;
+  const effective = storedParams ?? searchParams;
+  const hasState = hasNewState || storedParams !== null;
+
+  // Ripristino del periodo della famiglia: si scrive nell'URL (replace) cosi'
+  // resta condivisibile e coerente con il resto dell'app.
+  useEffect(() => {
+    if (!storedParams) return;
+    const next = new URLSearchParams(searchParams);
+    for (const key of NEW_STATE_KEYS) {
+      const value = storedParams.get(key);
+      if (value !== null) next.set(key, value);
+    }
+    setSearchParams(next, { replace: true });
+  }, [storedParams, searchParams, setSearchParams]);
+
+  const family = options.family;
+  const searchKey = searchParams.toString();
+  useEffect(() => {
+    if (family && hasNewState) writeStoredPeriod(family, new URLSearchParams(searchKey));
+  }, [family, hasNewState, searchKey]);
 
   // Migrazione one-shot da un vecchio `?period=<preset>` (mai eseguita se lo
   // stato nuovo e' gia' nell'URL) — MAI durante il render: setSearchParams
@@ -114,34 +182,41 @@ export function usePeriodNavigator(options: UsePeriodNavigatorOptions = {}): Per
   const migratedForThisRender = hasNewState ? null : migrateLegacyPeriodParams(searchParams);
 
   const granularity =
-    (searchParams.get("granularity") as Granularity | null) ??
+    (effective.get("granularity") as Granularity | null) ??
     (migratedForThisRender?.mode === "granular" ? migratedForThisRender.granularity : null) ??
     fallbackGranularity;
 
-  const urlMode = searchParams.get("mode");
+  const urlMode = effective.get("mode");
+  const rollingParam = effective.get("rolling") as RollingPreset | null;
+  const rolling: RollingPreset | null =
+    urlMode === "rolling" ? (rollingParam && ROLLING_PRESETS.includes(rollingParam) ? rollingParam : "3m") : null;
   const mode: PeriodMode =
-    urlMode === "custom" || migratedForThisRender?.mode === "custom"
-      ? "custom"
-      : urlMode === "all" || (options.allowAll && !hasNewState && !migratedForThisRender)
-        ? "all"
-        : "granular";
+    rolling !== null
+      ? "rolling"
+      : urlMode === "custom" || migratedForThisRender?.mode === "custom"
+        ? "custom"
+        : urlMode === "all" || (options.allowAll && !hasState && !migratedForThisRender)
+          ? "all"
+          : "granular";
 
   const anchorIso =
-    searchParams.get("anchor") ??
+    effective.get("anchor") ??
     (migratedForThisRender?.mode === "granular" ? migratedForThisRender.anchor : null) ??
     periodForAnchor(granularity, new Date()).date_from;
   const anchor = new Date(`${anchorIso}T00:00:00`);
 
   const customFrom =
-    searchParams.get("from") ?? (migratedForThisRender?.mode === "custom" ? migratedForThisRender.from : "");
+    effective.get("from") ?? (migratedForThisRender?.mode === "custom" ? migratedForThisRender.from : "");
   const customTo =
-    searchParams.get("to") ?? (migratedForThisRender?.mode === "custom" ? migratedForThisRender.to : "");
+    effective.get("to") ?? (migratedForThisRender?.mode === "custom" ? migratedForThisRender.to : "");
 
   const currentBucket = periodForAnchor(granularity, anchor);
   const currentPeriod: Period & { label: string } =
     mode === "all"
       ? { date_from: "", date_to: "", label: t("period.allPeriods") }
-      : mode === "custom" && customFrom && customTo
+      : mode === "rolling" && rolling
+        ? { ...resolveRolling(rolling), label: t(`period.rolling.${rolling}`) }
+        : mode === "custom" && customFrom && customTo
         ? { date_from: customFrom, date_to: customTo, label: t("period.customRange") }
         : {
             ...currentBucket,
@@ -156,12 +231,14 @@ export function usePeriodNavigator(options: UsePeriodNavigatorOptions = {}): Per
   const trendWindow: Period =
     mode === "all"
       ? { date_from: "", date_to: "" }
-      : mode === "custom" && customFrom && customTo
+      : mode === "rolling" && rolling
+        ? resolveRolling(rolling)
+        : mode === "custom" && customFrom && customTo
         ? { date_from: customFrom, date_to: customTo }
         : slidingWindow(granularity, anchor, trendWindowSize);
 
   const todayBucketStart = periodForAnchor(granularity, new Date()).date_from;
-  const isAtToday = mode === "all" ? true : currentBucket.date_from >= todayBucketStart;
+  const isAtToday = mode === "all" || mode === "rolling" ? true : currentBucket.date_from >= todayBucketStart;
 
   function updateParams(mutate: (params: URLSearchParams) => void) {
     const next = new URLSearchParams(searchParams);
@@ -175,6 +252,7 @@ export function usePeriodNavigator(options: UsePeriodNavigatorOptions = {}): Per
     params.set("anchor", periodForAnchor(nextGranularity, nextAnchor).date_from);
     params.delete("from");
     params.delete("to");
+    params.delete("rolling");
   }
 
   return {
@@ -186,6 +264,22 @@ export function usePeriodNavigator(options: UsePeriodNavigatorOptions = {}): Per
     anchor,
     customFrom,
     customTo,
+    rolling,
+    selectGranularity(next) {
+      updateParams((p) => setGranularityAndAnchor(p, next, new Date()));
+    },
+    selectBucket(next, date) {
+      updateParams((p) => setGranularityAndAnchor(p, next, date));
+    },
+    setRolling(preset) {
+      updateParams((p) => {
+        p.set("mode", "rolling");
+        p.set("rolling", preset);
+        p.delete("anchor");
+        p.delete("from");
+        p.delete("to");
+      });
+    },
     setGranularity(next) {
       updateParams((params) => setGranularityAndAnchor(params, next, anchor));
     },
@@ -212,6 +306,7 @@ export function usePeriodNavigator(options: UsePeriodNavigatorOptions = {}): Per
           params.delete("anchor");
           params.delete("from");
           params.delete("to");
+          params.delete("rolling");
         }
       });
     },
@@ -220,6 +315,7 @@ export function usePeriodNavigator(options: UsePeriodNavigatorOptions = {}): Per
         params.set("mode", "custom");
         params.set("from", from);
         params.set("to", to);
+        params.delete("rolling");
       });
     },
   };

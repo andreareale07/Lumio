@@ -76,13 +76,54 @@
     "granularityAriaLabel": "Granularity",
     "previousAriaLabel": "Previous period",
     "nextAriaLabel": "Next period",
-    "today": "Today",
     "customRange": "Custom range",
-    "backToGranular": "Back to period navigation",
-    "allPeriods": "Max",
+    "allPeriods": "All periods",
     "filterByPeriod": "Filter by period",
     "from": "From",
     "to": "To",
-    "apply": "Apply"
+    "apply": "Apply",
+    "pills": {
+      "month": "Month",
+      "year": "Year",
+      "3m": "3M",
+      "12m": "12M",
+      "all": "All"
+    },
+    "rolling": {
+      "3m": "Last 3 months",
+      "12m": "Last 12 months"
+    },
+    "allSpan": "from the first transaction to today",
+    "shortcuts": {
+      "currentQuarter": "{{label}} · quarter",
+      "previousQuarter": "Previous quarter"
+    },
+    "calendar": {
+      "title": "Calendar",
+      "pickTwo": "Pick two dates",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month"
+    },
+    "errors": {
+      "invalidFormat": "Invalid format: use dd/mm/yyyy.",
+      "future": "The date can't be in the future.",
+      "endBeforeStart": "The end date is before the start date."
+    }
+  },
+  "filters": {
+    "active": "Active filters",
+    "removeFilter": "Remove the {{name}} filter",
+    "clearAll": "Clear filters",
+    "add": "Filter",
+    "addTitle": "Add filter",
+    "pickerSearch": "Search {{name}}…",
+    "pickerEmpty": "No results.",
+    "remoteHint": "Showing {{shown}} of {{total}}. Type to search the rest.",
+    "deselect": "Clear",
+    "done": "Done",
+    "apply": "Apply",
+    "reset": "Reset",
+    "selectedCount_one": "{{count}} selected",
+    "selectedCount_other": "{{count}} selected"
   }
 }

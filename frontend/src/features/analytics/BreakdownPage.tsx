@@ -7,13 +7,12 @@ import { DrillDownDrawer } from "../../components/charts/DrillDownDrawer";
 import { LineComparisonChart } from "../../components/charts/LineComparisonChart";
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
 import { KpiCard } from "../../components/kpi/KpiCard";
-import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { BackLink } from "../../components/ui/BackLink";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { formatMoney, formatPercent, formatPeriodLabel, intlLocale } from "../../lib/format";
-import { GRANULARITY_ORDER, calculatePeriodComparison, previousPeriod, slidingWindow, type Granularity } from "../../lib/period";
+import { GRANULARITY_ORDER, PERIOD_FAMILY, calculatePeriodComparison, previousPeriod, slidingWindow, type Granularity } from "../../lib/period";
 import { mean, median, movingMedian } from "../../lib/stats";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { useTransactions } from "../transactions/api";
@@ -69,6 +68,7 @@ export function BreakdownPage({
   const { t } = useTranslation(["analytics", "dashboard"]);
   const { granularity, currentPeriod, anchor } = usePeriodNavigator({
     granularities: GRANULARITY_ORDER,
+    family: PERIOD_FAMILY,
   });
   const period = { date_from: currentPeriod.date_from, date_to: currentPeriod.date_to };
   const previousRange = previousPeriod(period.date_from, period.date_to);
@@ -258,17 +258,14 @@ export function BreakdownPage({
     drawerCashFlow.isLoading || drawerMerchants.isLoading || drawerPreviousCategory.isLoading || drawerTransactions.isLoading;
 
   // --- Top merchant / Top sorgenti -------------------------------------
-  const periodNav = <PeriodNavigator granularities={GRANULARITY_ORDER} />;
-  const toolbarPortal = usePageToolbar(periodNav);
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      {toolbarPortal}
       <BackLink to="/" label={t("navigation:items.dashboard")} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-lg font-semibold text-text">{title}</h1>
-        <div className="md:hidden">{periodNav}</div>
       </div>
+      <PeriodNavigator granularities={GRANULARITY_ORDER} family={PERIOD_FAMILY} />
 
       {summary.isError && <ErrorState message={t("breakdown.errorMessage")} onRetry={() => void summary.refetch()} />}
 

@@ -1,4 +1,6 @@
-import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useRef, useState } from "react";
+import type { PointerEvent } from "react";
+import { Area, AreaChart, CartesianGrid, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { formatCompactMoney, formatMoney, formatPercent } from "../../lib/format";
 import { useChartTheme } from "./chartTheme";
@@ -44,27 +46,65 @@ function tightDomain(data: TrendPoint[]): [number, number] | undefined {
   return [dataMin - padding, dataMax + padding];
 }
 
+// Margini del grafico: servono a ricavare l'indice del punto dalla posizione
+// del dito/mouse (l'area di tracciamento va da `Y_AXIS_WIDTH` a `width - RIGHT`).
+const Y_AXIS_WIDTH = 64;
+const RIGHT_MARGIN = 8;
+
 export function AreaTrendChart({
   data,
   currency,
   valueLabel = "Importo",
   format = "currency",
   yAxisDomain = "zero",
+  onActivePointChange,
 }: {
   data: TrendPoint[];
   currency?: string;
   valueLabel?: string;
   format?: "currency" | "percent";
   yAxisDomain?: "zero" | "tight";
+  /** Rende il grafico esplorabile (stile Trade Republic): trascinando il dito
+   * (o muovendo il mouse) sul grafico il chiamante riceve l'indice del punto
+   * sotto il dito, `null` quando si lascia. Il tooltip a riquadro si nasconde:
+   * e' l'intestazione della pagina a mostrare valore e data. Lo scorrimento
+   * verticale della pagina resta libero (`touch-pan-y`). */
+  onActivePointChange?: (index: number | null) => void;
 }) {
   const theme = useChartTheme();
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const explorable = onActivePointChange !== undefined;
   const isPercent = format === "percent";
   const formatValue = (value: number) => (isPercent ? formatPercent(value, { signed: true }) : formatMoney(value, currency!));
   const formatAxisValue = (value: number) => (isPercent ? formatPercent(value, { signed: true }) : formatCompactMoney(value, currency!));
 
+  const updateActive = (next: number | null) => {
+    setActiveIndex(next);
+    onActivePointChange?.(next);
+  };
+  const indexFromPointer = (event: PointerEvent<HTMLDivElement>): number | null => {
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    if (!rect || data.length === 0) return null;
+    const plotWidth = rect.width - Y_AXIS_WIDTH - RIGHT_MARGIN;
+    if (plotWidth <= 0) return null;
+    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left - Y_AXIS_WIDTH) / plotWidth));
+    return Math.round(ratio * (data.length - 1));
+  };
+  const activePoint = activeIndex !== null ? data[activeIndex] : undefined;
+
   return (
+    <div
+      ref={wrapperRef}
+      className={`h-full w-full ${explorable ? "touch-pan-y select-none" : ""}`}
+      onPointerDown={explorable ? (event) => updateActive(indexFromPointer(event)) : undefined}
+      onPointerMove={explorable ? (event) => updateActive(indexFromPointer(event)) : undefined}
+      onPointerUp={explorable ? () => updateActive(null) : undefined}
+      onPointerLeave={explorable ? () => updateActive(null) : undefined}
+      onPointerCancel={explorable ? () => updateActive(null) : undefined}
+    >
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+      <AreaChart data={data} margin={{ top: 8, right: RIGHT_MARGIN, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="lumio-area-fill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor={theme.primary} stopOpacity={0.35} />
@@ -78,11 +118,18 @@ export function AreaTrendChart({
           tickLine={false}
           axisLine={false}
           fontSize={12}
-          width={64}
+          width={Y_AXIS_WIDTH}
           tickFormatter={formatAxisValue}
           domain={yAxisDomain === "tight" ? tightDomain(data) : undefined}
         />
         {isPercent && <ReferenceLine y={0} stroke={theme.border} strokeDasharray="3 3" />}
+        {activePoint && (
+          <>
+            <ReferenceLine x={activePoint.label} stroke={theme.textMuted} strokeWidth={1} />
+            <ReferenceDot x={activePoint.label} y={activePoint.value} r={4} fill={theme.primary} stroke={theme.surface} />
+          </>
+        )}
+        {!explorable && (
         <Tooltip
           contentStyle={{
             background: theme.surface,
@@ -93,8 +140,10 @@ export function AreaTrendChart({
           labelStyle={{ color: theme.textMuted }}
           formatter={(value) => [formatValue(Number(value)), valueLabel] as [string, string]}
         />
+        )}
         <Area type="monotone" dataKey="value" stroke={theme.primary} strokeWidth={2} fill="url(#lumio-area-fill)" />
       </AreaChart>
     </ResponsiveContainer>
+    </div>
   );
 }

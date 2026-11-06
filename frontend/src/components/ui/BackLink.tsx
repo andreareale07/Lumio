@@ -7,7 +7,7 @@ import { Link } from "react-router-dom";
  * da §35 — non serve un `aria-label` aggiuntivo finché `label` non è vuoto. */
 export function BackLink({ to, label }: { to: string; label: string }) {
   return (
-    <Link to={to} className="flex items-center gap-1 text-sm text-text-muted hover:text-text">
+    <Link to={to} className="flex min-h-11 items-center gap-1 text-sm text-text-muted hover:text-text md:min-h-0">
       <ArrowLeft className="h-4 w-4" aria-hidden="true" /> {label}
     </Link>
   );

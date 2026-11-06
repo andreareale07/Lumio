@@ -3,18 +3,17 @@ import { ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { FilterBar } from "../../components/filters/FilterBar";
 import { PAGE_WIDTH_WIDE } from "../../components/layout/pageWidths";
 import { BackLink } from "../../components/ui/BackLink";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
-import { Select } from "../../components/ui/Select";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { formatQuantity, formatSignedMoney } from "../../lib/format";
 import { useAccounts } from "../accounts/api";
-import { AssetPicker } from "./AssetPicker";
-import { usePortfolio, useRealizedPositions } from "./api";
+import { useAssets, usePortfolio, useRealizedPositions } from "./api";
 
 const PAGE_SIZE = 25;
 
@@ -40,6 +39,7 @@ export function RealizedPositionsPage() {
   const accountId = searchParams.get("account") ?? "";
 
   const { data: accounts } = useAccounts();
+  const { data: assets } = useAssets();
   const portfolio = usePortfolio(portfolioId);
 
   const {
@@ -81,29 +81,32 @@ export function RealizedPositionsPage() {
         <p className="text-sm text-text-muted">{t("realizedPositionsPage.intro")}</p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-56">
-          <AssetPicker
-            label={t("realizedPositionsPage.filters.asset")}
-            value={assetId}
-            includeEmptyOption
-            onChange={(e) => updateFilter("asset", e.target.value)}
-          />
-        </div>
-        <Select
-          aria-label={t("realizedPositionsPage.filters.account")}
-          value={accountId}
-          onChange={(e) => updateFilter("account", e.target.value)}
-          className="w-auto"
-        >
-          <option value="">{t("realizedPositionsPage.filters.allAccounts")}</option>
-          {(accounts ?? []).map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.name}
-            </option>
-          ))}
-        </Select>
-      </div>
+      <FilterBar
+        selectFilters={[
+          {
+            key: "asset",
+            label: t("realizedPositionsPage.filters.asset"),
+            single: true,
+            values: assetId ? [assetId] : [],
+            options: (assets ?? []).map((a) => ({ value: a.id, label: a.display_name ?? a.symbol ?? a.name })),
+          },
+          {
+            key: "account",
+            label: t("realizedPositionsPage.filters.account"),
+            single: true,
+            values: accountId ? [accountId] : [],
+            options: (accounts ?? []).map((a) => ({ value: a.id, label: a.name })),
+          },
+        ]}
+        onSetFilterValues={(key, values) => updateFilter(key, values[0] ?? "")}
+        hasAnyFilter={!!(assetId || accountId)}
+        onClearAll={() => {
+          setOffset(0);
+          const next = new URLSearchParams(searchParams);
+          for (const key of ["asset", "account"]) next.delete(key);
+          setSearchParams(next);
+        }}
+      />
 
       {isLoading && <SkeletonRows rows={6} />}
       {isError && <ErrorState onRetry={() => void refetch()} />}

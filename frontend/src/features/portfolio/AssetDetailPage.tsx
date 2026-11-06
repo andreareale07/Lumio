@@ -14,6 +14,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
 import { SkeletonRows } from "../../components/ui/Skeleton";
+import { useRangeParam } from "../../lib/useRangeParam";
 import {
   formatDate,
   formatDateTime,
@@ -24,7 +25,7 @@ import {
   formatSignedMoney,
   formatTime,
 } from "../../lib/format";
-import type { AssetProfile, AssetTaxPreview, HistoryPreset, LotBreakdownRow } from "../../types/api";
+import { HISTORY_PRESETS, type AssetProfile, type AssetTaxPreview, type HistoryPreset, type LotBreakdownRow } from "../../types/api";
 import { useMarketDataProfiles } from "../settings/market-data/api";
 import { AssetTaxCard } from "../tax/AssetTaxCard";
 import {
@@ -53,7 +54,14 @@ export function AssetDetailPage() {
   // refresh, link condiviso — `state` non sopravvive a nessuno dei due).
   const backTo = (location.state as { from?: string; label?: string } | null)?.from ?? "/investments";
   const backLabel = (location.state as { from?: string; label?: string } | null)?.label ?? t("assetDetail.backFallback");
-  const [preset, setPreset] = useState<HistoryPreset>("3M");
+  const [preset, changePreset] = useRangeParam<HistoryPreset>("investments", HISTORY_PRESETS, "3M");
+  // Punto del grafico sotto il dito: l'intestazione mostra prezzo, variazione e
+  // data di quel punto (grafico esplorabile, stile Trade Republic).
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const setPreset = (next: HistoryPreset) => {
+    setActiveIndex(null);
+    changePreset(next);
+  };
   const [mergeOpen, setMergeOpen] = useState(false);
   const [expireOpen, setExpireOpen] = useState(false);
 
@@ -175,6 +183,17 @@ export function AssetDetailPage() {
       ? (currentPriceNative - periodStartPrice) / periodStartPrice
       : null;
 
+  // Punto sotto il dito sul grafico: prezzo, variazione (rispetto all'inizio
+  // dell'intervallo) e data di quel punto al posto di quelli attuali.
+  const scrubbedPoint = activeIndex !== null ? (points[activeIndex] ?? null) : null;
+  const shownPrice = scrubbedPoint ? scrubbedPoint.value : displayPrice;
+  const shownCurrency = scrubbedPoint ? historyCurrency : displayCurrency;
+  const shownChangePct = scrubbedPoint
+    ? periodStartPrice
+      ? (scrubbedPoint.value - periodStartPrice) / periodStartPrice
+      : null
+    : periodChangePct;
+
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -197,24 +216,29 @@ export function AssetDetailPage() {
             )}
           </div>
         </div>
-        {displayPrice !== null && (
+        {shownPrice !== null && (
           <div className="text-right">
             <p className="text-sm text-text-muted">{t("assetDetail.currentPrice")}</p>
             <div className="flex items-baseline justify-end gap-2">
               <span className="font-numeric text-2xl font-semibold text-text" title={nativeTooltip}>
-                {formatMoney(displayPrice, displayCurrency)}
+                {formatMoney(shownPrice, shownCurrency)}
               </span>
-              {periodChangePct !== null && (
+              {shownChangePct !== null && (
                 <span
                   className={`font-numeric text-sm font-medium ${
-                    periodChangePct >= 0 ? "text-success" : "text-danger"
+                    shownChangePct >= 0 ? "text-success" : "text-danger"
                   }`}
                 >
-                  {formatPercent(periodChangePct, { signed: true })}
+                  {formatPercent(shownChangePct, { signed: true })}
                 </span>
               )}
             </div>
-            {valuation.data?.price_is_live && (
+            {scrubbedPoint && (
+              <p className="text-xs text-text-muted" aria-live="polite">
+                {scrubbedPoint.label}
+              </p>
+            )}
+            {!scrubbedPoint && valuation.data?.price_is_live && (
               <p className="text-xs text-text-muted">
                 {valuation.data.price_is_stale && valuation.data.price_quoted_at
                   ? t("assetDetail.currentPriceStale", { value: formatDateTime(valuation.data.price_quoted_at) })
@@ -233,9 +257,12 @@ export function AssetDetailPage() {
         assetLabel={asset.display_name ?? asset.name}
       />
 
+      <div className="-mb-2 flex justify-end">
+        <RangeSelector value={preset} onChange={setPreset} />
+      </div>
+
       <ChartCard
         title={t("assetDetail.priceChart.title")}
-        action={<RangeSelector value={preset} onChange={setPreset} />}
         empty={!history.isLoading && (!history.data?.supports_history || points.length === 0)}
         emptyState={
           <EmptyState
@@ -264,6 +291,7 @@ export function AssetDetailPage() {
             currency={historyCurrency}
             valueLabel={t("assetDetail.priceChart.valueLabel")}
             yAxisDomain="tight"
+            onActivePointChange={setActiveIndex}
           />
         )}
       </ChartCard>

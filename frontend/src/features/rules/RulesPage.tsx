@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Plus, Search, Wand2 } from "lucide-react";
+import { Plus, Wand2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { FilterBar, type SelectFilter } from "../../components/filters/FilterBar";
 import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -10,9 +11,9 @@ import { Dialog } from "../../components/ui/Dialog";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { Pagination } from "../../components/ui/Pagination";
-import { Select } from "../../components/ui/Select";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { usePagedList } from "../../lib/usePagedList";
+import { useUrlListFilters } from "../../lib/useUrlListFilters";
 import { useCategories } from "../categories/api";
 import { useCategoryLabel } from "../categories/utils";
 import { useDeleteRule, useRuleSuggestions, useRules, useUpdateRule } from "./api";
@@ -26,7 +27,7 @@ import type { Rule } from "../../types/api";
 const PAGE_SIZE = 12;
 const SUGGESTIONS_COLLAPSED = 3;
 
-type StatusFilter = "all" | "active" | "inactive";
+type StatusValue = "active" | "inactive";
 
 export function RulesPage() {
   const { t } = useTranslation(["settings", "rules", "common"]);
@@ -43,8 +44,20 @@ export function RulesPage() {
   const [ruleToDelete, setRuleToDelete] = useState<Rule | null>(null);
   const [reclassOpen, setReclassOpen] = useState(false);
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<StatusFilter>("all");
+  // Ricerca e stato nell'URL (`?q=`, `?status=active`), stessa barra filtri di Movimenti.
+  const { query, setQuery, getValues, setValues, clearAll, hasAnyFilter: hasFilters } = useUrlListFilters(["status"]);
+  const statusValues = getValues("status").filter((value): value is StatusValue => value === "active" || value === "inactive");
+  const selectFilters: SelectFilter[] = [
+    {
+      key: "status",
+      label: t("items.rules.page.filter.label"),
+      values: statusValues,
+      options: [
+        { value: "active", label: t("items.rules.page.filter.active") },
+        { value: "inactive", label: t("items.rules.page.filter.inactive") },
+      ],
+    },
+  ];
   const [suggestionPrefill, setSuggestionPrefill] = useState<
     { name: string; field: "description" | "merchant"; operator: "contains" | "merchant_equals"; value: string; category_id: string }
     | null
@@ -62,7 +75,8 @@ export function RulesPage() {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return (rules ?? [])
-      .filter((rule) => (status === "all" ? true : status === "active" ? rule.is_active : !rule.is_active))
+      // Nessuno stato scelto (o entrambi) = tutte le regole.
+      .filter((rule) => statusValues.length === 0 || statusValues.includes(rule.is_active ? "active" : "inactive"))
       .filter(
         (rule) =>
           needle === "" ||
@@ -71,11 +85,10 @@ export function RulesPage() {
           categoryLabel(categories, rule.category_id).toLowerCase().includes(needle),
       )
       .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
-  }, [rules, query, status, categories, categoryLabel]);
+  }, [rules, query, statusValues.join(","), categories, categoryLabel]);
 
-  const paged = usePagedList(filtered, PAGE_SIZE, `${query}|${status}`);
+  const paged = usePagedList(filtered, PAGE_SIZE, `${query}|${statusValues.join(",")}`);
   const activeCount = (rules ?? []).filter((rule) => rule.is_active).length;
-  const hasFilters = query.trim() !== "" || status !== "all";
 
   const reclassifyButton = (
     <Button variant="secondary" size="sm" onClick={() => setReclassOpen(true)}>
@@ -168,49 +181,23 @@ export function RulesPage() {
 
       {!isLoading && !isError && rules && rules.length > 0 && (
         <section className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="relative min-w-52 flex-1">
-              <label htmlFor="rules-search" className="sr-only">
-                {t("items.rules.page.search.label")}
-              </label>
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
-              <input
-                id="rules-search"
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t("items.rules.page.search.placeholder", { count: rules.length })}
-                className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-text placeholder:text-text-muted"
-              />
-            </div>
-            <div className="w-44">
-              <Select
-                label={t("items.rules.page.filter.label")}
-                value={status}
-                onChange={(event) => setStatus(event.target.value as StatusFilter)}
-              >
-                <option value="all">{t("items.rules.page.filter.all")}</option>
-                <option value="active">{t("items.rules.page.filter.active")}</option>
-                <option value="inactive">{t("items.rules.page.filter.inactive")}</option>
-              </Select>
-            </div>
-          </div>
+          <FilterBar
+            search={{
+              id: "rules-search",
+              label: t("items.rules.page.search.label"),
+              placeholder: t("items.rules.page.search.placeholder", { count: rules.length }),
+              value: query,
+              onChange: setQuery,
+            }}
+            selectFilters={selectFilters}
+            onSetFilterValues={setValues}
+            hasAnyFilter={hasFilters}
+            onClearAll={clearAll}
+          />
 
           {filtered.length === 0 ? (
             <div className="flex flex-col items-start gap-2 rounded-lg border border-border p-4">
               <p className="text-sm text-text-muted">{t("items.rules.page.noResults")}</p>
-              {hasFilters && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setQuery("");
-                    setStatus("all");
-                  }}
-                >
-                  {t("items.rules.page.clearFilters")}
-                </Button>
-              )}
             </div>
           ) : (
             <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">

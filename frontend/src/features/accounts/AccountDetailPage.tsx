@@ -8,7 +8,6 @@ import { BarComparisonChart } from "../../components/charts/BarComparisonChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { DonutChart } from "../../components/charts/DonutChart";
 import { PeriodNavigator } from "../../components/filters/PeriodNavigator";
-import { usePageToolbar } from "../../components/layout/PageToolbarContext";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LinkButton } from "../../components/ui/LinkButton";
@@ -275,13 +274,9 @@ function AccountAnalyticsTab({ accountId, currency }: { accountId: string; curre
     (p) => p.income === 0 && p.expenses === 0,
   );
 
-  const periodNav = <PeriodNavigator granularities={["month", "quarter", "year"]} />;
-  const toolbarPortal = usePageToolbar(periodNav);
-
   return (
     <div className="flex flex-col gap-4">
-      {toolbarPortal}
-      <div className="md:hidden">{periodNav}</div>
+      <PeriodNavigator granularities={["month", "quarter", "year"]} />
 
       {history.isLoading && <Skeleton className="h-64 w-full" />}
       {history.data && (

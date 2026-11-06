@@ -14,6 +14,7 @@ import { Skeleton, SkeletonRows } from "../../components/ui/Skeleton";
 import { formatDate, formatMoney, formatPercent, formatSignedMoney } from "../../lib/format";
 import { buildDietzReturnSeries, modifiedDietzReturn, type DietzFlow } from "../../lib/modifiedDietz";
 import { trimLeadingEmpty } from "../../lib/trimSeries";
+import { useRangeParam } from "../../lib/useRangeParam";
 import { PORTFOLIO_HISTORY_PRESETS, type InvestmentTransaction, type PortfolioHistoryPreset } from "../../types/api";
 import {
   type PortfolioScope,
@@ -164,7 +165,14 @@ export function PortfolioSummaryBlock({ scope, belowCards }: { scope: PortfolioS
   // movimenti + storico prezzi (`compute_historical_series`), non da uno
   // snapshot precalcolato: funziona quindi anche per "Asset senza
   // portfolio", che non ha mai avuto una riga di snapshot propria.
-  const [preset, setPreset] = useState<PortfolioHistoryPreset>("6M");
+  const [preset, changePreset] = useRangeParam<PortfolioHistoryPreset>("investments", PORTFOLIO_HISTORY_PRESETS, "6M");
+  // Punto del grafico sotto il dito (grafico esplorabile): l'intestazione mostra
+  // il rendimento e la data di quel punto invece di quelli dell'intero intervallo.
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const setPreset = (next: PortfolioHistoryPreset) => {
+    setActiveIndex(null);
+    changePreset(next);
+  };
   // Il gain accanto a "Valore attuale" alterna fra percentuale e importo in
   // valuta al click — stesso valore, due formati, mai due sorgenti diverse.
   const [showGainAmount, setShowGainAmount] = useState(false);
@@ -242,6 +250,7 @@ export function PortfolioSummaryBlock({ scope, belowCards }: { scope: PortfolioS
     );
   }
 
+  const scrubbedPoint = activeIndex !== null ? (periodDietz.returnSeries[activeIndex] ?? null) : null;
   const marketValue = Number(v.market_value);
   const costBasis = Number(v.cost_basis);
   const realizedPl = Number(v.realized_pl);
@@ -263,29 +272,47 @@ export function PortfolioSummaryBlock({ scope, belowCards }: { scope: PortfolioS
           guadagno. Cliccabile: alterna fra percentuale e importo in
           valuta, stesso dato in due formati. */}
       <div>
-        <p className="text-sm text-text-muted">
-          {v.has_market_data ? t("summaryBlock.kpi.currentValue") : t("summaryBlock.kpi.costValue")}
-        </p>
-        <div className="flex items-baseline gap-2">
-          <span className="font-numeric text-2xl font-semibold text-text">{formatMoney(marketValue, v.currency)}</span>
-          {!periodDietz.isLoading && !periodDietz.isError && periodDietz.gain !== null && periodDietz.returnPct !== null && (
-            <button
-              type="button"
-              onClick={() => setShowGainAmount((show) => !show)}
-              title={t("summaryBlock.kpi.gainToggleHint")}
-              className={`font-numeric text-sm font-medium underline decoration-dotted underline-offset-2 hover:opacity-70 ${periodDietz.returnPct >= 0 ? "text-success" : "text-danger"}`}
-            >
-              {showGainAmount
-                ? formatSignedMoney(periodDietz.gain, v.currency)
-                : formatPercent(periodDietz.returnPct, { signed: true })}
-            </button>
-          )}
+        <div className="flex flex-wrap items-end justify-between gap-x-4">
+          <div>
+            <p className="text-sm text-text-muted">
+              {v.has_market_data ? t("summaryBlock.kpi.currentValue") : t("summaryBlock.kpi.costValue")}
+            </p>
+            <div className="flex items-baseline gap-2">
+              <span className="font-numeric text-2xl font-semibold text-text">{formatMoney(marketValue, v.currency)}</span>
+              {scrubbedPoint ? (
+                <span
+                  className={`font-numeric text-sm font-medium ${scrubbedPoint.value >= 0 ? "text-success" : "text-danger"}`}
+                >
+                  {formatPercent(scrubbedPoint.value, { signed: true })}
+                </span>
+              ) : (
+                !periodDietz.isLoading &&
+                !periodDietz.isError &&
+                periodDietz.gain !== null &&
+                periodDietz.returnPct !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setShowGainAmount((show) => !show)}
+                    title={t("summaryBlock.kpi.gainToggleHint")}
+                    className={`font-numeric text-sm font-medium underline decoration-dotted underline-offset-2 hover:opacity-70 ${periodDietz.returnPct >= 0 ? "text-success" : "text-danger"}`}
+                  >
+                    {showGainAmount
+                      ? formatSignedMoney(periodDietz.gain, v.currency)
+                      : formatPercent(periodDietz.returnPct, { signed: true })}
+                  </button>
+                )
+              )}
+            </div>
+            <p className="min-h-4 text-xs text-text-muted" aria-live="polite">
+              {scrubbedPoint ? scrubbedPoint.label : ""}
+            </p>
+          </div>
+          <RangeSelector value={preset} onChange={setPreset} presets={PORTFOLIO_HISTORY_PRESETS} />
         </div>
       </div>
 
       <ChartCard
         title={t("summaryBlock.returnChart.title")}
-        action={<RangeSelector value={preset} onChange={setPreset} presets={PORTFOLIO_HISTORY_PRESETS} />}
         empty={periodDietz.returnSeries.length === 0}
         emptyState={
           <EmptyState
@@ -298,7 +325,12 @@ export function PortfolioSummaryBlock({ scope, belowCards }: { scope: PortfolioS
         tableHeaders={t("summaryBlock.returnChart.tableHeaders", { returnObjects: true }) as string[]}
         tableRows={periodDietz.returnSeries.map((p) => [p.label, formatPercent(p.value, { signed: true })])}
       >
-        <AreaTrendChart data={periodDietz.returnSeries} format="percent" valueLabel={t("summaryBlock.returnChart.valueLabel")} />
+        <AreaTrendChart
+          data={periodDietz.returnSeries}
+          format="percent"
+          valueLabel={t("summaryBlock.returnChart.valueLabel")}
+          onActivePointChange={setActiveIndex}
+        />
       </ChartCard>
 
       {/* Le card restano — "Valore attuale" e' l'unica salita in testata

@@ -23,9 +23,10 @@ export const buttonVariantClasses: Record<ButtonVariant, string> = {
 };
 
 export const buttonSizeClasses: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-sm gap-1.5",
-  md: "h-10 px-4 text-sm gap-2",
-  icon: "h-8 w-8 p-0",
+  // 44px su smartphone (bersaglio di tocco minimo), compatti da `md` in su.
+  sm: "h-11 px-3 text-sm gap-1.5 md:h-8",
+  md: "h-11 px-4 text-sm gap-2 md:h-10",
+  icon: "h-11 w-11 p-0 md:h-8 md:w-8",
 };
 
 // La variante "link" fissa la propria altezza/padding (h-auto p-0): le

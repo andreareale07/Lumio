@@ -38,6 +38,24 @@ di prodotto).
   (`list_filters`). Liste lunghe: ricerca nel picker (appare oltre 6 voci); i merchant sono
   remoti (`GET /transactions/merchants?q=`: piu' frequenti con conteggi + "N su totale").
 - Non fatto: "piu' usate" e raggruppamento per le categorie (solo ricerca), importo, viste salvate.
+- **Componente condiviso (2026-11-06):** `components/filters/FilterBar.tsx` per OGNI lista (Movimenti, Regole,
+  Import, Tipi transazione, Eventi realizzati, Utile realizzato): ricerca opzionale, filtri rapidi, chip,
+  "+ Filtro", "Azzera filtri", riepilogo. Mobile: pannelli = `BottomSheet` con "Azzera"/"Applica · N" (la
+  scelta si applica solo all'Applica, bozza locale), niente autofocus nel picker, righe da 44px, chip bassi
+  ma con area di tocco ~44px; desktop: popover con applicazione immediata. `single: true` per filtri a
+  valore singolo (si applica e chiude al tocco). Stato nell'URL con `lib/useUrlListFilters` (`q` + parametri
+  ripetuti, `replace` per la ricerca); Tipi transazione (piu' tabelle per pagina) resta con stato locale.
+
+## Selettore di periodo (decisione 2026-11-06, dopo mockup a confronto)
+- Scelte comuni sempre a vista come testo (Mese, Anno, 3M, 12M, Tutto), nessun bordo; calendario in un
+  pannello (bottom sheet su mobile, popover su desktop) con scorciatoie per trimestre, date digitabili e
+  calendario. "Anno" e' gia' "da inizio anno": niente scorciatoia doppia. Frecce solo dove ha senso
+  (mese/anno/trimestre); periodo attivo sempre scritto in chiaro con le date.
+- Periodo ricordato solo dentro una famiglia di pagine con contesto comune (Analisi; Investimenti da fare),
+  non tra pagine senza nesso (Movimenti e dettaglio conto restano a se').
+- Preset di grafici di prezzo/portfolio (da fare): solo testo, senza bordi, attivo scuro e sottolineato, in
+  alto accanto al valore (stile Trade Republic); set completo 1G 1S 1M 3M 6M 1A 5A Max.
+- Bersagli di tocco 44px su mobile (area invisibile ammessa), calendario con inizio/fine non solo a colore.
 
 ## Azioni
 - Le azioni primarie di una pagina vanno **sempre nella toolbar** (`usePageToolbar`):
@@ -67,9 +85,25 @@ di prodotto).
   "provare", "confrontare", "tornare").
 - Le funzioni da utente esperto (integrazioni) restano nascoste nell'esperienza base.
 
+## Mobile first (priorita' dichiarata dall'utente, 2026-11-06)
+- "Deve funzionare anche e soprattutto da smartphone." Ogni nuovo controllo (filtri, periodo,
+  selettori, pannelli) si progetta e si verifica a ~375px prima che su desktop: tocco >= 44px,
+  nessuna dipendenza dall'hover, pannelli che restano nello schermo (valutare bottom sheet),
+  attenzione alla tastiera virtuale. Verificare col browser integrato (`resize_window`
+  preset mobile), non solo ragionando sul layout.
+
+- Checklist di rifinitura (2026-11-06): nessuno scroll orizzontale a 375px; bersagli >= 44px (anche con area
+  invisibile); input a 16px; ogni popover ancorato a un pulsante vicino al bordo diventa bottom sheet o
+  `FloatingPanel` (clampato nello schermo); azioni di pagina: la principale a tutta larghezza, le altre in
+  griglia 2x2 con etichette che vanno a capo. Audit rapido: script JS nel browser che conta gli elementi
+  interattivi <40px e gli elementi oltre `innerWidth` per ogni rotta.
+
 ## Metodo
 - Per scelte di layout importanti l'utente ha apprezzato un mockup a confronto prima
   dell'implementazione (Dashboard, Vista B).
+- Per ogni redesign di UI ricorrente (filtri, selettori, navigazione) l'utente vuole: ricerca
+  online delle best practice con fonti, mockup interattivi a confronto (2-3 alternative),
+  scelte motivate, e solo dopo l'implementazione (funzionato per i filtri di Movimenti).
 - Se l'utente chiede di essere interrogato con domande di chiarimento, va fatto fino a
   esaurirle, prima di proporre.
 

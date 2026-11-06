@@ -119,7 +119,11 @@ describe("RulesPage", () => {
     await screen.findByText("Regola 01");
     expect(screen.getByText("20 regole (18 attive)")).toBeInTheDocument();
 
-    await userEvent.selectOptions(screen.getByLabelText("Stato"), "inactive");
+    // Filtro di stato dalla barra condivisa (su smartphone: bottom sheet con Applica).
+    await userEvent.click(screen.getByRole("button", { name: /Filtro/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Stato" }));
+    await userEvent.click(screen.getByRole("button", { name: "Disattivate" }));
+    await userEvent.click(screen.getByRole("button", { name: "Applica · 1" }));
 
     const rows = await screen.findAllByRole("listitem");
     expect(rows).toHaveLength(2);
@@ -127,7 +131,7 @@ describe("RulesPage", () => {
     expect(within(rows[1]).getByText("Regola 17")).toBeInTheDocument();
   });
 
-  it("senza risultati lo dice e offre di azzerare i filtri", async () => {
+  it("senza risultati lo dice e la barra filtri offre di azzerarli", async () => {
     stubApi({ ...BASE_ROUTES, "/rules": makeRules(20) });
     renderPage();
     await screen.findByText("Regola 01");
@@ -135,7 +139,7 @@ describe("RulesPage", () => {
     await userEvent.type(screen.getByRole("searchbox", { name: "Cerca nelle regole" }), "zzz");
     expect(await screen.findByText("Nessuna regola corrisponde alla ricerca.")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Azzera i filtri" }));
+    await userEvent.click(screen.getByRole("button", { name: "Azzera filtri" }));
     expect(await screen.findByText("Regola 01")).toBeInTheDocument();
   });
 

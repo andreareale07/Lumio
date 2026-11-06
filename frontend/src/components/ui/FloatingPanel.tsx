@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { createPortal } from "react-dom";
 
@@ -29,6 +29,23 @@ interface FloatingPanelProps {
 export function FloatingPanel({ open, anchorRef, onClose, align = "center", children, className = "" }: FloatingPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left?: number; right?: number } | null>(null);
+  // Spostamento orizzontale per tenere il pannello dentro lo schermo (con un
+  // margine): serve su smartphone e quando l'anchor e' vicino a un bordo.
+  const [shiftX, setShiftX] = useState(0);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setShiftX(0);
+      return;
+    }
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const margin = 8;
+    let delta = 0;
+    if (rect.left < margin) delta = margin - rect.left;
+    else if (rect.right > window.innerWidth - margin) delta = window.innerWidth - margin - rect.right;
+    if (delta !== 0) setShiftX((current) => current + delta);
+  }, [open, position]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -78,7 +95,7 @@ export function FloatingPanel({ open, anchorRef, onClose, align = "center", chil
         top: position.top,
         left: position.left,
         right: position.right,
-        transform: align === "center" ? "translateX(-50%)" : undefined,
+        transform: `${align === "center" ? "translateX(-50%) " : ""}translateX(${shiftX}px)`,
       }}
       className={`z-50 rounded-lg border border-border bg-surface shadow-lg ${className}`}
     >
