@@ -35,3 +35,6 @@ operativamente.
 ## Produzione
 Nessun accesso a istanze di produzione. Il deploy Proxmox lo fa l'utente seguendo
 `docs/DEPLOY_PROXMOX.md`.
+- Dal 2026-10-31 (detto dall'utente): in produzione l'app gira in un **container LXC**
+  Proxmox (non in una VM come raccomanda la guida). Non sono noti CTID, percorso, file
+  compose in uso: chiederli prima di dare comandi di aggiornamento, non assumere `/opt/lumio`.
