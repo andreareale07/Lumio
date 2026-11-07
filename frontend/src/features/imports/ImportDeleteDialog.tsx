@@ -49,6 +49,12 @@ export function ImportDeleteDialog({ importRecord, onClose }: ImportDeleteDialog
         </p>
       )}
 
+      {importRecord?.file_type === "open_banking" && (
+        <p role="note" className="mt-2 text-sm text-text-muted">
+          {t("deleteDialog.openBanking")}
+        </p>
+      )}
+
       {deleteImport.isError && (
         <p role="alert" className="mt-2 text-sm text-danger">
           {friendlyErrorMessage(deleteImport.error, t("deleteDialog.error"))}

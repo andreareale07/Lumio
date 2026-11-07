@@ -1,4 +1,4 @@
-import { ChevronDown, Landmark, RefreshCw } from "lucide-react";
+import { AlertTriangle, ChevronDown, Landmark, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -23,6 +23,7 @@ interface Props {
   onDisconnect: () => void;
   onImportAccount: (account: BankConnectionAccount) => void;
   onToggleAccount: (account: BankConnectionAccount, enabled: boolean) => void;
+  onAccountDetails: (account: BankConnectionAccount) => void;
 }
 
 function AccountRow({
@@ -30,11 +31,13 @@ function AccountRow({
   pending,
   onImport,
   onToggle,
+  onDetails,
 }: {
   account: BankConnectionAccount;
   pending: boolean;
   onImport: () => void;
   onToggle: (enabled: boolean) => void;
+  onDetails: () => void;
 }) {
   const { t } = useTranslation("settings");
   const mapped = account.financial_account_id !== null;
@@ -51,6 +54,18 @@ function AccountRow({
           <p className="text-sm text-text-muted">
             {t("items.bankConnections.page.connection.imported", { count: account.transactions_imported })}
           </p>
+        )}
+        {mapped && (
+          <button
+            type="button"
+            onClick={onDetails}
+            className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-primary hover:underline md:min-h-0"
+          >
+            {(account.balance_snapshot?.continuity_gaps ?? 0) > 0 && (
+              <AlertTriangle className="h-4 w-4 text-danger" aria-hidden="true" />
+            )}
+            {t("items.bankConnections.page.connection.syncDetails")}
+          </button>
         )}
       </div>
       {mapped ? (
@@ -100,6 +115,7 @@ export function ConnectionCard({
   onDisconnect,
   onImportAccount,
   onToggleAccount,
+  onAccountDetails,
 }: Props) {
   const { t } = useTranslation("settings");
   const statusKey = statusKeyOf(connection);
@@ -193,6 +209,7 @@ export function ConnectionCard({
                 pending={accountPending === account.id}
                 onImport={() => onImportAccount(account)}
                 onToggle={(enabled) => onToggleAccount(account, enabled)}
+                onDetails={() => onAccountDetails(account)}
               />
             ))}
           </ul>

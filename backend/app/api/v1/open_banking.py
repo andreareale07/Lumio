@@ -48,6 +48,7 @@ from app.schemas.open_banking import (
 )
 from app.services import bank_sync_service, open_banking_service
 from app.services.audit_log_service import log_event
+from app.services.import_deletion import reset_open_banking_cursor
 from app.worker.queue import enqueue_bank_sync
 
 router = APIRouter(prefix="/open-banking", tags=["open-banking"])
@@ -94,6 +95,22 @@ async def _require_credential(db: AsyncSession, user: User):
     return credential
 
 
+def _account_out(a: BankConnectionAccount) -> ConnectionAccountOut:
+    return ConnectionAccountOut(
+        id=a.id,
+        name=a.name,
+        product=a.product,
+        iban_masked=open_banking_service.mask_iban(a.iban),
+        currency=a.currency,
+        enabled=a.enabled,
+        financial_account_id=a.financial_account_id,
+        last_sync_at=a.last_sync_at,
+        transactions_imported=a.transactions_imported,
+        last_sync_stats=a.last_sync_stats,
+        balance_snapshot=a.balance_snapshot,
+    )
+
+
 def _connection_out(
     connection: BankConnection, accounts: list[BankConnectionAccount], sync_running: bool
 ) -> ConnectionOut:
@@ -117,20 +134,7 @@ def _connection_out(
         last_sync_at=connection.last_sync_at,
         last_error=connection.last_error,
         sync_running=sync_running,
-        accounts=[
-            ConnectionAccountOut(
-                id=a.id,
-                name=a.name,
-                product=a.product,
-                iban_masked=open_banking_service.mask_iban(a.iban),
-                currency=a.currency,
-                enabled=a.enabled,
-                financial_account_id=a.financial_account_id,
-                last_sync_at=a.last_sync_at,
-                transactions_imported=a.transactions_imported,
-            )
-            for a in accounts
-        ],
+        accounts=[_account_out(a) for a in accounts],
     )
 
 
@@ -410,6 +414,7 @@ async def update_connection_account(
     if payload.create_account and payload.financial_account_id is not None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Scegli un conto esistente oppure creane uno")
 
+    previous_financial_account_id = account.financial_account_id
     if payload.create_account:
         lumio_account = await open_banking_service.create_lumio_account_from_bank_account(
             db, workspace_id, connection, account
@@ -428,6 +433,17 @@ async def update_connection_account(
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Conto Lumio non trovato")
         account.financial_account_id = target.id
 
+    if previous_financial_account_id is not None and account.financial_account_id != previous_financial_account_id:
+        # Il cursore descriveva il conto Lumio precedente: col nuovo conto la prossima
+        # sync deve rileggere tutto lo storico, e i contatori ripartono da zero.
+        await reset_open_banking_cursor(
+            db, workspace_id, previous_financial_account_id, zero_counter=True, clear_tombstones=True
+        )
+        account.last_booked_date = None
+        account.transactions_imported = 0
+        account.last_sync_stats = None
+        account.balance_snapshot = None
+
     if payload.enabled is not None:
         if payload.enabled and account.financial_account_id is None:
             raise HTTPException(
@@ -436,17 +452,7 @@ async def update_connection_account(
         account.enabled = payload.enabled
 
     await db.flush()
-    out = ConnectionAccountOut(
-        id=account.id,
-        name=account.name,
-        product=account.product,
-        iban_masked=open_banking_service.mask_iban(account.iban),
-        currency=account.currency,
-        enabled=account.enabled,
-        financial_account_id=account.financial_account_id,
-        last_sync_at=account.last_sync_at,
-        transactions_imported=account.transactions_imported,
-    )
+    out = _account_out(account)
     await db.commit()
     return out
 
@@ -474,6 +480,56 @@ async def sync_connection(
 
     # Nessun `_job_id` fisso (arq ignorerebbe i rilanci per un'ora): il doppio
     # click e' coperto dal lock Redis e dalla pausa minima controllati sopra.
+    await enqueue_bank_sync(
+        connection.id,
+        user.id,
+        psu_ip=client_ip(request),
+        psu_user_agent=clean_user_agent(request.headers.get("user-agent")),
+    )
+    return SyncQueuedOut()
+
+
+@router.post(
+    "/connections/{connection_id}/accounts/{account_id}/resync-history",
+    response_model=SyncQueuedOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def resync_account_history(
+    connection_id: uuid.UUID,
+    account_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(get_current_user),
+    workspace_id: uuid.UUID = Depends(get_current_workspace_id),
+    db: AsyncSession = Depends(get_db),
+) -> SyncQueuedOut:
+    """"Rileggi storico": azzera il cursore del conto (e i movimenti eliminati a
+    mano) e accoda una sync che rilegge tutto cio' che la banca concede. E' la via
+    di recupero esplicita dopo qualunque errore. Rispetta il lock della sync e il
+    backoff dopo un 429, ma non l'intervallo minimo tra letture automatiche."""
+    connection = await open_banking_service.get_connection(db, user.id, connection_id)
+    if connection is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Connessione non trovata")
+    if connection.status != "active" or (connection.valid_until and connection.valid_until <= datetime.now(UTC)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Autorizzazione scaduta: ricollega la banca")
+    account = next(
+        (a for a in await open_banking_service.list_accounts_of(db, connection.id) if a.id == account_id), None
+    )
+    if account is None or account.owner_user_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Conto non trovato")
+    if account.financial_account_id is None or not account.enabled:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Conto non attivo: abbinalo e attivalo prima")
+    if await bank_sync_service.is_sync_running(connection.id):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Sincronizzazione gia' in corso")
+    if await bank_sync_service.is_rate_limited(connection.id):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "La banca ha limitato le letture: riprova tra qualche ora"
+        )
+    if not await bank_sync_service.try_start_manual_sync(connection.id):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Attendi qualche secondo prima di sincronizzare di nuovo")
+
+    await reset_open_banking_cursor(db, workspace_id, account.financial_account_id, clear_tombstones=True)
+    account.last_booked_date = None
+    await db.commit()
     await enqueue_bank_sync(
         connection.id,
         user.id,

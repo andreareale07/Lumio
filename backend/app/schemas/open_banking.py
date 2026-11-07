@@ -68,6 +68,9 @@ class ConnectionAccountOut(BaseModel):
     financial_account_id: uuid.UUID | None
     last_sync_at: datetime | None
     transactions_imported: int
+    # Diagnostica dell'ultima sync (SOLO conteggi) e saldo dichiarato dalla banca.
+    last_sync_stats: dict | None = None
+    balance_snapshot: dict | None = None
 
 
 class ConnectionOut(BaseModel):

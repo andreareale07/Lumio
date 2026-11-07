@@ -26,6 +26,23 @@ from app.models.transaction import Transaction
 from app.models.transaction_type_mapping import TransactionTypeMapping
 from app.parsers import get_parser
 
+# Il canale Open Banking non ha un `BankParser` registrato: e' un "parser logico"
+# riconosciuto dal tipo di import. Il suo default dipende solo dal segno.
+OPEN_BANKING_PARSER_TYPE = "open_banking"
+
+
+def _scope_to_parser(query, parser_type: str):
+    """Restringe una query su `Transaction` alle righe del parser indicato."""
+    query = query.join(
+        Import,
+        and_(Import.id == Transaction.import_id, Import.workspace_id == Transaction.workspace_id),
+    )
+    if parser_type == OPEN_BANKING_PARSER_TYPE:
+        return query.where(Import.file_type == "open_banking")
+    return query.join(BankParserRow, BankParserRow.id == Import.bank_parser_id).where(
+        BankParserRow.parser_type == parser_type
+    )
+
 
 @dataclass
 class TypeCount:
@@ -60,20 +77,25 @@ async def list_used_parser_types(db: AsyncSession, workspace_id: uuid.UUID) -> l
         .where(Import.workspace_id == workspace_id)
         .distinct()
     )
-    return [row[0] for row in result.all()]
+    used = [row[0] for row in result.all()]
+    has_open_banking = await db.scalar(
+        select(func.count())
+        .select_from(Import)
+        .where(Import.workspace_id == workspace_id, Import.file_type == "open_banking")
+    )
+    if has_open_banking:
+        used.append(OPEN_BANKING_PARSER_TYPE)
+    return used
 
 
 async def list_observed_labels(db: AsyncSession, workspace_id: uuid.UUID, parser_type: str) -> list[LabelInfo]:
     counts_result = await db.execute(
-        select(Transaction.source_type_raw, Transaction.transaction_type, func.count().label("n"))
-        .join(
-            Import,
-            and_(Import.id == Transaction.import_id, Import.workspace_id == Transaction.workspace_id),
+        _scope_to_parser(
+            select(Transaction.source_type_raw, Transaction.transaction_type, func.count().label("n")),
+            parser_type,
         )
-        .join(BankParserRow, BankParserRow.id == Import.bank_parser_id)
         .where(
             Transaction.workspace_id == workspace_id,
-            BankParserRow.parser_type == parser_type,
             Transaction.source_type_raw.is_not(None),
         )
         .group_by(Transaction.source_type_raw, Transaction.transaction_type)
@@ -176,17 +198,10 @@ async def reapply_mapping(
     etichetta: se il suo tipo attuale coincide col default del parser
     ricalcolato per la SUA direzione, si aggiorna; altrimenti si assume
     una correzione manuale e si salta (vedi docstring di modulo)."""
-    parser = get_parser(parser_type)
+    parser = None if parser_type == OPEN_BANKING_PARSER_TYPE else get_parser(parser_type)
     result = await db.execute(
-        select(Transaction)
-        .join(
-            Import,
-            and_(Import.id == Transaction.import_id, Import.workspace_id == Transaction.workspace_id),
-        )
-        .join(BankParserRow, BankParserRow.id == Import.bank_parser_id)
-        .where(
+        _scope_to_parser(select(Transaction), parser_type).where(
             Transaction.workspace_id == workspace_id,
-            BankParserRow.parser_type == parser_type,
             Transaction.source_type_raw == source_type_raw,
         )
     )
@@ -195,7 +210,10 @@ async def reapply_mapping(
     updated = 0
     skipped = 0
     for transaction in transactions:
-        default = parser.default_transaction_type(source_type_raw, transaction.direction)
+        if parser is None:
+            default = "expense" if transaction.direction == "debit" else "income"
+        else:
+            default = parser.default_transaction_type(source_type_raw, transaction.direction)
         if transaction.transaction_type == default:
             transaction.transaction_type = new_type
             updated += 1

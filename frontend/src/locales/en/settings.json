@@ -350,7 +350,9 @@
           "persist_failed": "Some transactions could not be saved. We'll retry at the next sync.",
           "not_configured": "The application ID is not configured yet.",
           "key_unreadable": "The stored key can no longer be read: delete the credentials and generate them again.",
-          "generic": "The last sync did not complete successfully."
+          "generic": "The last sync did not complete successfully.",
+          "incomplete_fetch": "The bank returned the transactions only in part: nothing was lost, we will retry at the next sync.",
+          "parse_error": "A bank response could not be read: the account was skipped. See \"Sync details\"."
         },
         "lastErrorsShort": {
           "authorization_expired": "Authorization expired",
@@ -362,7 +364,9 @@
           "persist_failed": "Partially saved",
           "not_configured": "Setup incomplete",
           "key_unreadable": "Key unreadable",
-          "generic": "Sync failed"
+          "generic": "Sync failed",
+          "incomplete_fetch": "Bank error",
+          "parse_error": "Bank error"
         },
         "credentials": {
           "title": "Enable Banking credentials",
@@ -517,6 +521,50 @@
             "deleteLabel": "Also delete the transactions imported from this bank",
             "deleteWarning": "This can't be undone. Transactions entered by hand or imported from PDF and CSV are not touched.",
             "confirmDelete": "Unlink and delete"
+          },
+          "syncDetails": "Sync details"
+        },
+        "diagnostics": {
+          "title": "Sync details · {{account}}",
+          "untitled": "Unnamed account",
+          "noData": "No read recorded for this account yet: sync to see the details.",
+          "lastRead": "Last read: {{value}}.",
+          "windowLongest": "Full history granted by the bank.",
+          "windowFrom": "Window from {{date}}.",
+          "read": "Transactions read from the bank",
+          "imported": "New transactions imported",
+          "alreadyKnown": "Already present",
+          "inReview": "To review (possible duplicates)",
+          "tombstoned": "Deleted by hand, not re-imported",
+          "foreignCurrency": "In a different currency than the account, not imported",
+          "idReused": "With an identifier reused by the bank (imported)",
+          "discarded": {
+            "malformed": "Unreadable",
+            "status_skipped": "Cancelled or scheduled",
+            "invalid_amount": "No valid amount",
+            "invalid_currency": "Invalid currency",
+            "zero_amount": "Zero amount",
+            "no_date": "No date",
+            "not_booked": "Not booked yet"
+          },
+          "technical": "Technical details",
+          "flags": {
+            "external_id_missing": "No identifier",
+            "external_id_placeholder": "Placeholder identifier",
+            "indicator_missing": "No debit/credit indicator"
+          },
+          "subCodes": "Sub-codes",
+          "pages_one": "{{count}} page read",
+          "pages_other": "{{count}} pages read",
+          "balanceGap_one": "The running balance does not add up at {{count}} point: transactions may be missing or duplicated. Try \"Re-read history\".",
+          "balanceGap_other": "The running balance does not add up at {{count}} points: transactions may be missing or duplicated. Try \"Re-read history\".",
+          "resync": {
+            "title": "Re-read history",
+            "body": "Restarts the read from the beginning and also brings back transactions you deleted by hand. Transactions already present are not duplicated.",
+            "limits": "Banks may return only the last 90 days; Intesa, BPM, BPER and MPS grant a single read of the full history (source: Enable Banking documentation). If the bank no longer grants it, older transactions cannot come back.",
+            "action": "Re-read history…",
+            "confirm": "Re-read history",
+            "error": "Could not start the re-read."
           }
         }
       }

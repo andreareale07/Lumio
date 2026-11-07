@@ -350,7 +350,9 @@
           "persist_failed": "Alcuni movimenti non sono stati salvati. Riproveremo alla prossima sincronizzazione.",
           "not_configured": "L'application ID non è ancora configurato.",
           "key_unreadable": "La chiave salvata non è più leggibile: elimina le credenziali e generale di nuovo.",
-          "generic": "L'ultima sincronizzazione non è andata a buon fine."
+          "generic": "L'ultima sincronizzazione non è andata a buon fine.",
+          "incomplete_fetch": "La banca ha restituito i movimenti solo in parte: nessun movimento è stato perso, riproveremo alla prossima sincronizzazione.",
+          "parse_error": "Una risposta della banca non è leggibile: il conto è stato saltato. Dettagli in \"Dettagli sync\"."
         },
         "lastErrorsShort": {
           "authorization_expired": "Autorizzazione scaduta",
@@ -362,7 +364,9 @@
           "persist_failed": "Salvataggio parziale",
           "not_configured": "Configurazione incompleta",
           "key_unreadable": "Chiave non leggibile",
-          "generic": "Sincronizzazione non riuscita"
+          "generic": "Sincronizzazione non riuscita",
+          "incomplete_fetch": "Errore della banca",
+          "parse_error": "Errore della banca"
         },
         "credentials": {
           "title": "Credenziali Enable Banking",
@@ -517,6 +521,50 @@
             "deleteLabel": "Elimina anche i movimenti importati da questa banca",
             "deleteWarning": "Non si può annullare. I movimenti inseriti a mano o importati da PDF e CSV non vengono toccati.",
             "confirmDelete": "Scollega ed elimina"
+          },
+          "syncDetails": "Dettagli sync"
+        },
+        "diagnostics": {
+          "title": "Dettagli sincronizzazione · {{account}}",
+          "untitled": "Conto senza nome",
+          "noData": "Nessuna lettura registrata per questo conto: sincronizza per vedere i dettagli.",
+          "lastRead": "Ultima lettura: {{value}}.",
+          "windowLongest": "Storico completo concesso dalla banca.",
+          "windowFrom": "Finestra dal {{date}}.",
+          "read": "Movimenti letti dalla banca",
+          "imported": "Nuovi movimenti importati",
+          "alreadyKnown": "Già presenti",
+          "inReview": "Da verificare (possibili duplicati)",
+          "tombstoned": "Eliminati a mano, non reimportati",
+          "foreignCurrency": "In valuta diversa dal conto, non importati",
+          "idReused": "Con identificativo riusato dalla banca (importati)",
+          "discarded": {
+            "malformed": "Non leggibili",
+            "status_skipped": "Annullati o programmati",
+            "invalid_amount": "Senza importo valido",
+            "invalid_currency": "Valuta non valida",
+            "zero_amount": "Importo zero",
+            "no_date": "Senza data",
+            "not_booked": "Non ancora contabilizzati"
+          },
+          "technical": "Dettagli tecnici",
+          "flags": {
+            "external_id_missing": "Senza identificativo",
+            "external_id_placeholder": "Identificativo segnaposto",
+            "indicator_missing": "Senza indicatore dare/avere"
+          },
+          "subCodes": "Sotto-codici",
+          "pages_one": "{{count}} pagina letta",
+          "pages_other": "{{count}} pagine lette",
+          "balanceGap_one": "Il saldo dopo movimento non quadra in {{count}} punto: potrebbero mancare o essere doppi dei movimenti. Prova \"Rileggi storico\".",
+          "balanceGap_other": "Il saldo dopo movimento non quadra in {{count}} punti: potrebbero mancare o essere doppi dei movimenti. Prova \"Rileggi storico\".",
+          "resync": {
+            "title": "Rileggi storico",
+            "body": "Fa ripartire la lettura dall'inizio e fa tornare anche i movimenti che avevi eliminato a mano. I movimenti già presenti non vengono duplicati.",
+            "limits": "Le banche possono restituire solo gli ultimi 90 giorni; Intesa, BPM, BPER e MPS concedono una sola lettura dello storico completo (fonte: documentazione Enable Banking). Se la banca non lo concede più, i movimenti più vecchi non potranno tornare.",
+            "action": "Rileggi storico…",
+            "confirm": "Rileggi storico",
+            "error": "Non è stato possibile avviare la rilettura."
           }
         }
       }

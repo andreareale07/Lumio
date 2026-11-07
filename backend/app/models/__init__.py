@@ -23,7 +23,12 @@ from app.models.investment_transaction import InvestmentTransaction
 from app.models.job_run import JobRun
 from app.models.market_data_profile import MarketDataProfile
 from app.models.net_worth_snapshot import NetWorthSnapshot
-from app.models.open_banking import BankConnection, BankConnectionAccount, OpenBankingCredential
+from app.models.open_banking import (
+    BankConnection,
+    BankConnectionAccount,
+    BankTransactionTombstone,
+    OpenBankingCredential,
+)
 from app.models.push_device import PushDevice
 from app.models.portfolio import Portfolio
 from app.models.portfolio_account import PortfolioAccount
@@ -53,6 +58,7 @@ __all__ = [
     "Bank",
     "BankConnection",
     "BankConnectionAccount",
+    "BankTransactionTombstone",
     "BankParser",
     "Category",
     "Classification",

@@ -22,7 +22,7 @@ import unicodedata
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_parser import BankParser as BankParserRow
@@ -175,6 +175,33 @@ async def reapply_internal_transfer_detection(db: AsyncSession, workspace_id: uu
         if counterparty is None or not await is_internal_transfer(db, workspace_id, counterparty):
             continue
         default_type = parser.default_transaction_type(transaction.source_type_raw or "", transaction.direction)
+        if transaction.transaction_type == default_type:
+            transaction.transaction_type = "transfer"
+            updated += 1
+        else:
+            skipped += 1
+
+    # Canale Open Banking: nessun `BankParserRow`, ma la controparte (IBAN/nome) e'
+    # gia' persistita sulla riga. Stesso criterio: si applica solo se il tipo
+    # attuale e' ancora il default per segno (altrimenti e' una correzione manuale).
+    open_banking = await db.execute(
+        select(Transaction)
+        .join(
+            Import,
+            and_(Import.id == Transaction.import_id, Import.workspace_id == Transaction.workspace_id),
+        )
+        .where(
+            Transaction.workspace_id == workspace_id,
+            Import.file_type == "open_banking",
+            Transaction.transaction_type != "transfer",
+            or_(Transaction.counterparty_iban.is_not(None), Transaction.counterparty_name.is_not(None)),
+        )
+    )
+    for transaction in open_banking.scalars().all():
+        counterparty = TransferCounterparty(name=transaction.counterparty_name, iban=transaction.counterparty_iban)
+        if not await is_internal_transfer(db, workspace_id, counterparty):
+            continue
+        default_type = "expense" if transaction.direction == "debit" else "income"
         if transaction.transaction_type == default_type:
             transaction.transaction_type = "transfer"
             updated += 1

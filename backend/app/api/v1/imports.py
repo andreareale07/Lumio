@@ -51,7 +51,7 @@ from app.services.ai_classification_trigger import prepare_ai_classification_tri
 from app.services.audit_log_service import log_event
 from app.services.classification_loader import load_pipeline_context
 from app.services.csv_import import MappingConfig, ParsedRow, collapse_whitespace, detect_mapping
-from app.services.import_deletion import delete_import_transactions
+from app.services.import_deletion import delete_import_transactions, reset_open_banking_cursor
 from app.services.import_paths import import_dir_prefix, original_file_path
 from app.services.system_settings_service import get_setting_value
 from app.services.transaction_persistence import finalize_prepared_transactions, prepare_transaction_row
@@ -642,7 +642,13 @@ async def delete_import(
         metadata={"deleted_transactions_count": deleted_count},
     )
     file_type = import_row.file_type
+    open_banking_account_id = import_row.financial_account_id if file_type == "open_banking" else None
     await db.delete(import_row)
+    if open_banking_account_id is not None:
+        # I movimenti eliminati devono poter tornare: il cursore della sync riparte
+        # da zero (dedup assorbe cio' che esiste ancora) e il contatore si riallinea.
+        await db.flush()
+        await reset_open_banking_cursor(db, workspace_id, open_banking_account_id)
     await db.commit()
 
     # I dati finanziari nel DB sono la parte critica e sono gia' stati
@@ -749,6 +755,7 @@ def _review_item_to_parsed_row(item: TransactionReviewItem) -> ParsedRow:
         balance_after=item.balance_after,
         counterparty_name=item.counterparty_name,
         counterparty_iban=item.counterparty_iban,
+        external_id=item.external_id,
     )
 
 

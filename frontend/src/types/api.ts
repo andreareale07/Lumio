@@ -286,7 +286,7 @@ export interface AIModelListResult {
   message: string;
 }
 
-export type ImportFileType = "csv" | "pdf";
+export type ImportFileType = "csv" | "pdf" | "open_banking";
 export type ImportStatus =
   | "uploaded"
   | "queued"
@@ -1522,6 +1522,37 @@ export interface BankConnectionAccount {
   financial_account_id: Uuid | null;
   last_sync_at: IsoDateTime | null;
   transactions_imported: number;
+  /** Diagnostica dell'ultima sync: solo conteggi, mai causali, importi o nomi. */
+  last_sync_stats?: BankSyncStats | null;
+  balance_snapshot?: BankBalanceSnapshot | null;
+}
+
+export interface BankSyncFetchStats {
+  strategy: "window" | "longest";
+  date_from: string | null;
+  pages: number;
+  raw_count: number;
+  accepted: number;
+  discarded: Record<string, number>;
+  status_counts: Record<string, number>;
+  sub_codes: Record<string, number>;
+  flags: Record<string, number>;
+  repeated_external_ids: number;
+}
+
+export interface BankSyncStats {
+  /** Codice dell'errore che ha interrotto la lettura di questo conto, se c'e' stato. */
+  error?: string;
+  fetch?: BankSyncFetchStats;
+  persist?: Record<string, number>;
+  at?: IsoDateTime;
+}
+
+export interface BankBalanceSnapshot {
+  at: IsoDateTime;
+  rows_with_balance: number;
+  /** Salti sospetti nel saldo dopo movimento: possibili movimenti mancanti o duplicati. */
+  continuity_gaps: number;
 }
 
 export type BankConnectionStatus = "pending" | "active" | "expired" | "revoked" | "error";

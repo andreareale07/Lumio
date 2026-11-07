@@ -107,8 +107,9 @@ class Settings(BaseSettings):
     # bank_sync_service.effective_interval_seconds).
     open_banking_sync_interval_hours: int = 8
     # Finestra di riconciliazione: ogni sync riparte da questi giorni prima
-    # dell'ultimo movimento importato, per recepire contabilizzazioni tardive.
-    open_banking_reconcile_days: int = 7
+    # dell'ultimo movimento importato, per recepire contabilizzazioni tardive
+    # (addebiti SDD e carte possono arrivare con booking_date di settimane prima).
+    open_banking_reconcile_days: int = 30
     open_banking_sync_job_timeout_seconds: int = 900
 
     @model_validator(mode="after")

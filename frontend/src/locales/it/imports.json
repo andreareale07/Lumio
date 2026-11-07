@@ -55,7 +55,8 @@
     "transactionsCount_other": "Verranno eliminate {{count}} transazioni collegate a questo import.",
     "irreversible": "L'operazione non è reversibile.",
     "error": "Impossibile eliminare l'import.",
-    "confirm": "Elimina"
+    "confirm": "Elimina",
+    "openBanking": "Per le importazioni da banca: eliminando questo import i movimenti potranno tornare alla prossima sincronizzazione, ma le banche possono restituire solo gli ultimi 90 giorni (Intesa, BPM, BPER e MPS concedono una sola lettura dello storico). I movimenti più vecchi potrebbero non tornare."
   },
   "fileViewer": {
     "title": "File originale — {{filename}}",

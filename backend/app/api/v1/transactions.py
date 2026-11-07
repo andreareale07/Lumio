@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +15,8 @@ from app.db.session import get_db
 from app.models.category import Category
 from app.models.classification import Classification
 from app.models.financial_account import FinancialAccount
+from app.models.import_ import Import
+from app.models.open_banking import BankTransactionTombstone
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.transactions import (
@@ -428,6 +431,22 @@ async def delete_transaction(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     transaction = await _get_transaction_or_404(db, workspace_id, transaction_id)
+    if transaction.external_id and transaction.import_id is not None:
+        # Movimento arrivato da Open Banking eliminato a mano: la finestra di
+        # sovrapposizione della sync lo riporterebbe indietro. Tombstone minima.
+        file_type = await db.scalar(
+            select(Import.file_type).where(Import.workspace_id == workspace_id, Import.id == transaction.import_id)
+        )
+        if file_type == "open_banking":
+            await db.execute(
+                pg_insert(BankTransactionTombstone)
+                .values(
+                    workspace_id=workspace_id,
+                    financial_account_id=transaction.financial_account_id,
+                    external_id=transaction.external_id,
+                )
+                .on_conflict_do_nothing(constraint="uq_bank_transaction_tombstones_account_ext")
+            )
     await db.delete(transaction)
     await db.commit()
 

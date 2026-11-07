@@ -104,6 +104,9 @@ class TransactionReviewItem(Base):
     balance_after: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     counterparty_name: Mapped[str | None] = mapped_column(String, nullable=True)
     counterparty_iban: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Id della banca (canale Open Banking): la sync non riaccoda la riga finche'
+    # esiste una review, pendente o decisa, per questo id.
+    external_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
     new_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     candidate_existing_transaction_id: Mapped[uuid.UUID | None] = mapped_column(

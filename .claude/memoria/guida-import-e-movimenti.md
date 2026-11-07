@@ -59,4 +59,7 @@ Spec: `docs/SPEC.md`, `docs/SPEC_DEDUP_TRANSACTION.md`.
 Terzo canale accanto a CSV e PDF (scheda `task-open-banking.md`): ogni sincronizzazione crea un `Import` con `file_type='open_banking'`
 e passa dalla stessa pipeline (`_insert_transactions_and_complete`). `transactions.external_id` (id della banca, indice parziale NON unique)
 e' la chiave primaria di dedup quando c'e'; senza, vale il fingerprint. `ParsedRow.external_id` lo porta fino a `prepare_transaction_row`.
-`services/import_deletion.py` e' l'unico punto che elimina le transazioni di un import (usato da `DELETE /imports/{id}` e dallo scollegamento).
+`services/import_deletion.py` e' l'unico punto che elimina le transazioni di un import (usato da `DELETE /imports/{id}` e dallo scollegamento);
+ospita anche `reset_open_banking_cursor` (eliminare un import OB fa ripartire la sync dallo storico). `external_id` e' prova di duplicato solo con stesso
+importo/valuta/data; un movimento OB che combacia con uno senza `external_id` (PDF/CSV) va sempre in REVIEW; le REVIEW portano `external_id` e non
+vengono riaccodate. Etichette OB mappabili come un parser (`open_banking`). Dettagli e limiti: `task-open-banking.md`.

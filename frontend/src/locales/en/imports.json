@@ -55,7 +55,8 @@
     "transactionsCount_other": "{{count}} transactions linked to this import will be deleted.",
     "irreversible": "This action cannot be undone.",
     "error": "Couldn't delete the import.",
-    "confirm": "Delete"
+    "confirm": "Delete",
+    "openBanking": "For bank imports: deleting this import lets the transactions come back at the next sync, but banks may return only the last 90 days (Intesa, BPM, BPER and MPS grant a single read of the full history). Older transactions might not come back."
   },
   "fileViewer": {
     "title": "Original file — {{filename}}",

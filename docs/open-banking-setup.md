@@ -107,9 +107,21 @@ Sincronizzazione automatica: ogni connessione si aggiorna al massimo ogni
 `OPEN_BANKING_SYNC_INTERVAL_HOURS` ore (default 8, minimo 6). Dopo un errore
 temporaneo Lumio ritenta con attesa crescente; se la banca limita le richieste
 l'attesa è più lunga. A ogni sincronizzazione vengono riletti gli ultimi
-`OPEN_BANKING_RECONCILE_DAYS` giorni (default 7) e i movimenti già presenti non
-vengono duplicati (identificativo della banca, poi controllo a impronta come per
-i file). I casi ambigui finiscono in "da rivedere", come negli import.
+`OPEN_BANKING_RECONCILE_DAYS` giorni (default 30, per intercettare addebiti SDD e
+carte contabilizzati in ritardo) e i movimenti già presenti non vengono duplicati:
+l'identificativo della banca vale solo se coincidono anche importo, valuta e data;
+poi controllo a impronta come per i file. I casi ambigui (e un movimento della
+banca che combacia per importo e data con uno importato da PDF/CSV) finiscono in
+"da rivedere", come negli import, e non vengono riproposti a ogni sincronizzazione.
+
+Recupero e diagnostica: in "Dettagli sync" di ogni conto trovi cosa ha letto
+l'ultima sincronizzazione (solo conteggi, mai importi o causali) e il pulsante
+"Rileggi storico", che azzera il cursore e rilegge tutto ciò che la banca concede
+(fa tornare anche i movimenti eliminati a mano). Eliminare un import da banca fa
+ripartire la lettura dallo storico: le banche possono restituire solo gli ultimi
+90 giorni, e Intesa, BPM, BPER e MPS concedono una sola lettura dello storico
+completo. Il cursore non avanza mai su una lettura parziale o su un salvataggio
+non riuscito.
 
 Il consenso dura al massimo 180 giorni (meno per alcune banche). Prima della
 scadenza compare un avviso in tutta l'app; **Rinnova autorizzazione** ripete il

@@ -8,13 +8,18 @@ import re
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
+import httpx
 import jwt
 import pytest
 from cryptography import x509
 
 from app.openbanking import enable_banking
-from app.openbanking.base import PsuContext
-from app.openbanking.enable_banking import EnableBankingConnector, normalize_transaction
+from app.openbanking.base import FetchStats, PsuContext
+from app.openbanking.enable_banking import (
+    EnableBankingConnector,
+    normalize_transaction,
+    normalize_transaction_ex,
+)
 from app.openbanking.errors import (
     AuthorizationExpiredError,
     OpenBankingAuthError,
@@ -125,8 +130,9 @@ def test_row_without_any_date_or_amount_is_skipped():
     assert normalize_transaction(_tx(transaction_amount={})) is None
 
 
-def test_missing_entry_reference_falls_back_to_transaction_id_then_none():
-    assert normalize_transaction(_tx(entry_reference=None, transaction_id="tid-9")).external_id == "tid-9"
+def test_transaction_id_is_never_used_as_external_id():
+    # Per la documentazione `transaction_id` puo' cambiare tra una lettura e l'altra.
+    assert normalize_transaction(_tx(entry_reference=None, transaction_id="tid-9")).external_id is None
     assert normalize_transaction(_tx(entry_reference=None)).external_id is None
 
 
@@ -353,3 +359,106 @@ async def test_revoke_propagates_other_errors(connector, httpx_mock):
     httpx_mock.add_response(url=f"{BASE}/sessions/sess-1", method="DELETE", status_code=400, json={})
     with pytest.raises(OpenBankingError):
         await connector.revoke("sess-1")
+
+
+# ---- normalizzazione tollerante (hardening) -------------------------------------------
+
+
+@pytest.mark.parametrize("placeholder", ["0", "000", "", "null", "N/A"])
+def test_placeholder_entry_reference_is_not_an_external_id(placeholder):
+    tx = normalize_transaction(_tx(entry_reference=placeholder))
+    assert tx.external_id is None
+    assert "external_id_placeholder" in tx.flags or "external_id_missing" in tx.flags
+
+
+@pytest.mark.parametrize(
+    "amount,expected",
+    [("1.234,56", "1234.56"), ("12,5", "12.5"), ("1,234", "1234"), (" 7.00 ", "7.00"), ("1,234.50", "1234.50")],
+)
+def test_amount_accepts_comma_and_thousands_separators(amount, expected):
+    tx = normalize_transaction(_tx(transaction_amount={"currency": "EUR", "amount": amount}, credit_debit_indicator="CRDT"))
+    assert tx.amount == Decimal(expected)
+
+
+@pytest.mark.parametrize(
+    "overrides,reason",
+    [
+        ({"transaction_amount": {"currency": "EUR", "amount": "0.00"}}, "zero_amount"),
+        ({"transaction_amount": {"currency": "EUR", "amount": "abc"}}, "invalid_amount"),
+        ({"transaction_amount": "12.00"}, "invalid_amount"),
+        ({"transaction_amount": {"currency": "EURO", "amount": "1.00"}}, "invalid_currency"),
+        ({"transaction_amount": {"currency": "e1", "amount": "1.00"}}, "invalid_currency"),
+        ({"booking_date": None, "value_date": None, "transaction_date": None}, "no_date"),
+        ({"status": "CNCL"}, "status_skipped"),
+    ],
+)
+def test_unusable_rows_are_discarded_with_a_reason(overrides, reason):
+    tx, why = normalize_transaction_ex(_tx(**overrides))
+    assert tx is None and why == reason
+
+
+def test_malformed_payloads_never_raise():
+    for raw in (None, "x", [], 5, {"transaction_amount": []}):
+        tx, why = normalize_transaction_ex(raw)
+        assert tx is None and why is not None
+    tx = normalize_transaction(
+        _tx(creditor="Mario", creditor_account=["x"], bank_transaction_code="POS",
+            balance_after_transaction="12", remittance_information={"a": 1})
+    )
+    assert tx is not None and tx.counterparty_name is None and tx.balance_after is None
+
+
+def test_missing_indicator_falls_back_to_the_amount_sign():
+    credit = normalize_transaction(_tx(credit_debit_indicator=None))
+    assert credit.amount == Decimal("12.30") and "indicator_missing" in credit.flags
+    debit = normalize_transaction(_tx(credit_debit_indicator="??", transaction_amount={"currency": "EUR", "amount": "-4.00"}))
+    assert debit.amount == Decimal("-4.00")
+
+
+def test_bank_code_and_sub_code_are_kept():
+    tx = normalize_transaction(_tx(bank_transaction_code={"description": "Pagamento POS", "code": "PMNT", "sub_code": "CCRD"}))
+    assert tx.bank_code == "PMNT" and tx.bank_sub_code == "CCRD"
+
+
+async def test_stats_count_discards_statuses_and_sub_codes_without_values(connector, httpx_mock):
+    httpx_mock.add_response(
+        url=re.compile(rf"{re.escape(BASE)}/accounts/acc-1/transactions.*"),
+        json={
+            "transactions": [
+                _tx(entry_reference="a", bank_transaction_code={"description": "x", "sub_code": "UPCT"}),
+                _tx(entry_reference="b", transaction_amount={"currency": "EUR", "amount": "0"}),
+                _tx(entry_reference="c", status="PDNG"),
+                "garbage",
+            ]
+        },
+    )
+    stats = FetchStats()
+    result = await connector.get_transactions("acc-1", stats=stats)
+    assert [t.external_id for t in result] == ["a"]
+    data = stats.as_dict()
+    assert data["raw_count"] == 4 and data["accepted"] == 1
+    assert data["discarded"] == {"zero_amount": 1, "not_booked": 1, "malformed": 1}
+    assert data["sub_codes"] == {"UPCT": 1} and data["status_counts"]["PDNG"] == 1
+    assert "Supermercato" not in str(data) and "12.30" not in str(data)
+
+
+async def test_repeated_continuation_key_is_an_incomplete_fetch(connector, httpx_mock):
+    pattern = re.compile(rf"{re.escape(BASE)}/accounts/acc-1/transactions.*")
+    httpx_mock.add_response(url=pattern, json={"transactions": [_tx(entry_reference="a")], "continuation_key": "k"})
+    httpx_mock.add_response(url=pattern, json={"transactions": [_tx(entry_reference="b")], "continuation_key": "k"})
+    with pytest.raises(OpenBankingError) as info:
+        await connector.get_transactions("acc-1")
+    assert info.value.code == "incomplete_fetch"
+
+
+async def test_page_limit_is_an_incomplete_fetch_not_a_silent_truncation(connector, httpx_mock, monkeypatch):
+    monkeypatch.setattr(enable_banking, "_MAX_PAGES", 2)
+    counter = iter(range(100))
+
+    def reply(request):
+        return httpx.Response(200, json={"transactions": [], "continuation_key": f"k{next(counter)}"})
+
+    httpx_mock.add_callback(reply, url=re.compile(rf"{re.escape(BASE)}/accounts/acc-1/transactions.*"))
+    with pytest.raises(OpenBankingError) as info:
+        await connector.get_transactions("acc-1")
+    assert info.value.code == "incomplete_fetch"

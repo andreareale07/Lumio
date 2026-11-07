@@ -18,6 +18,7 @@ from app.schemas.accounts import (
 )
 from app.services.account_service import create_financial_account
 from app.services.currency_service import currency_exists
+from app.services.import_deletion import reset_open_banking_cursor
 from app.services.transfer_recognition import archive_previous_iban, reapply_internal_transfer_detection
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -123,6 +124,9 @@ async def delete_account(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     account = await _get_account_or_404(db, workspace_id, account_id)
+    # La FK SET NULL scollega il conto bancario ma lascerebbe un cursore orfano:
+    # riabbinandolo a un altro conto la sync salterebbe lo storico.
+    await reset_open_banking_cursor(db, workspace_id, account.id, zero_counter=True)
     await db.delete(account)
     await db.commit()
 

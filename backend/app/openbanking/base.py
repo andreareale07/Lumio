@@ -73,6 +73,49 @@ class NormalizedTransaction:
     reference: str | None
     bank_transaction_code: str | None
     raw: dict[str, Any]
+    # Codice e sotto-codice della banca (ISO 20022) e segnalazioni della
+    # normalizzazione (id mancante/placeholder, indicatore assente, campi presenti):
+    # servono solo alla diagnostica, mai mostrati.
+    bank_code: str | None = None
+    bank_sub_code: str | None = None
+    flags: tuple[str, ...] = ()
+
+
+@dataclass
+class FetchStats:
+    """Statistiche di una lettura dalla banca: SOLO conteggi e metadati della
+    richiesta, mai causali, importi o nomi (diagnostica sicura da conservare)."""
+
+    strategy: str = "window"
+    date_from: str | None = None
+    pages: int = 0
+    raw_count: int = 0
+    accepted: int = 0
+    discarded: dict[str, int] = field(default_factory=dict)
+    status_counts: dict[str, int] = field(default_factory=dict)
+    sub_codes: dict[str, int] = field(default_factory=dict)
+    flag_counts: dict[str, int] = field(default_factory=dict)
+    repeated_external_ids: int = 0
+
+    def discard(self, reason: str) -> None:
+        self.discarded[reason] = self.discarded.get(reason, 0) + 1
+
+    def bump(self, bucket: dict[str, int], key: str) -> None:
+        bucket[key] = bucket.get(key, 0) + 1
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "strategy": self.strategy,
+            "date_from": self.date_from,
+            "pages": self.pages,
+            "raw_count": self.raw_count,
+            "accepted": self.accepted,
+            "discarded": dict(self.discarded),
+            "status_counts": dict(self.status_counts),
+            "sub_codes": dict(self.sub_codes),
+            "flags": dict(self.flag_counts),
+            "repeated_external_ids": self.repeated_external_ids,
+        }
 
 
 @dataclass
@@ -112,6 +155,7 @@ class BankConnector(Protocol):
         date_to: date | None = None,
         longest: bool = False,
         psu: PsuContext | None = None,
+        stats: FetchStats | None = None,
     ) -> list[NormalizedTransaction]: ...
 
     async def revoke(self, session_id: str) -> None: ...

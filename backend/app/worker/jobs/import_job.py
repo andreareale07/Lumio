@@ -262,6 +262,7 @@ def _build_review_item(
         balance_after=row.balance_after,
         counterparty_name=row.counterparty_name,
         counterparty_iban=row.counterparty_iban,
+        external_id=row.external_id,
         new_fingerprint=outcome.fingerprint,
         candidate_existing_transaction_id=outcome.candidate_existing_transaction_id,
         status=status,
@@ -277,7 +278,10 @@ async def _insert_transactions_and_complete(
     workspace_id: uuid.UUID,
     financial_account_id: uuid.UUID,
     rows: list[ParsedRow],
-) -> None:
+) -> bool:
+    """`True` se le righe sono state persistite, `False` se l'import non era piu'
+    in `parsing` (cancellato/annullato nel frattempo): il chiamante che avanza un
+    cursore (sync Open Banking) non deve darlo per scritto."""
     # Insert delle transazioni + aggiornamento import in un'unica transazione
     # DB, un solo commit: e' cio' che rende un eventuale retry sicuro — non
     # esiste stato parzialmente committato da riconciliare (SPEC §58).
@@ -286,7 +290,7 @@ async def _insert_transactions_and_complete(
     async with rls_session(user_uuid) as db:
         import_row = await db.get(Import, import_uuid)
         if import_row is None or import_row.status != "parsing":
-            return
+            return False
 
         # Pipeline di classificazione deterministica (regole utente -> tipo
         # transazione, vedi app/services/classification_pipeline.py),
@@ -438,3 +442,4 @@ async def _insert_transactions_and_complete(
     # da ricostruire, si salta l'accodamento per intero.
     if import_completed and backfill_period_start is not None:
         await enqueue_snapshot_backfill(workspace_id, user_uuid, date_from=backfill_period_start)
+    return True

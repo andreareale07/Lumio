@@ -14,7 +14,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -155,7 +155,42 @@ class BankConnectionAccount(Base):
     # Cursore di sync incrementale: ultima data contabile importata.
     last_booked_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     transactions_imported: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    # Diagnostica dell'ultima sync: SOLO conteggi (mai causali, importi, nomi).
+    last_sync_stats: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Ultimo saldo dichiarato dalla banca + esito del controllo su balance_after.
+    balance_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class BankTransactionTombstone(Base):
+    """Id della banca di un movimento eliminato a mano: la sync non lo reimporta.
+
+    Serve perche' la finestra di sovrapposizione (30 giorni) rilegge movimenti
+    gia' visti. Svuotata da "Rileggi storico" e dall'eliminazione/cambio del
+    conto Lumio abbinato; la cancellazione di un intero import NON ne crea.
+    """
+
+    __tablename__ = "bank_transaction_tombstones"
+    __mapper_args__ = {"eager_defaults": True}
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "financial_account_id"],
+            ["financial_accounts.workspace_id", "financial_accounts.id"],
+            ondelete="CASCADE",
+            name="fk_bank_transaction_tombstones_workspace_account",
+        ),
+        UniqueConstraint("financial_account_id", "external_id", name="uq_bank_transaction_tombstones_account_ext"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    financial_account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    external_id: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

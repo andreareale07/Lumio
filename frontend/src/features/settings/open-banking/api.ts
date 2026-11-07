@@ -114,6 +114,18 @@ export function useSyncConnection() {
   });
 }
 
+/** "Rileggi storico": azzera il cursore del conto e accoda una sync che rilegge tutto. */
+export function useResyncHistory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ connectionId, accountId }: { connectionId: Uuid; accountId: Uuid }) =>
+      api.post<{ status: "queued" }>(
+        `/open-banking/connections/${connectionId}/accounts/${accountId}/resync-history`,
+      ),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: bankConnectionsKey }),
+  });
+}
+
 export function useDisconnectBank() {
   const queryClient = useQueryClient();
   return useMutation({

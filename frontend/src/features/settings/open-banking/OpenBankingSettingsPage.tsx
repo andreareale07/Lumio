@@ -18,10 +18,12 @@ import {
   useDeleteCredentials,
   useDisconnectBank,
   useOpenBankingStatus,
+  useResyncHistory,
   useSyncConnection,
   useUpdateBankAccount,
 } from "./api";
 import { needsRenewal } from "./bankStatus";
+import { AccountDetailsSheet } from "./AccountDetailsSheet";
 import { ConnectBankDialog } from "./ConnectBankDialog";
 import type { BankChoice } from "./ConnectBankDialog";
 import { ConnectionCard } from "./ConnectionCard";
@@ -63,6 +65,7 @@ export function OpenBankingSettingsPage() {
   const connectionList = connections.data ?? [];
 
   const syncConnection = useSyncConnection();
+  const resyncHistory = useResyncHistory();
   const disconnectBank = useDisconnectBank();
   const deleteCredentials = useDeleteCredentials();
   const updateAccount = useUpdateBankAccount();
@@ -74,6 +77,12 @@ export function OpenBankingSettingsPage() {
   const closeConnect = useCallback(() => setConnectOpen(false), []);
   const closeRenew = useCallback(() => setRenewBank(null), []);
   const closeMapping = useCallback(() => setMapping(null), []);
+  const [details, setDetails] = useState<{ connectionId: string; accountId: string } | null>(null);
+  const [resyncError, setResyncError] = useState<string | null>(null);
+  const closeDetails = useCallback(() => {
+    setDetails(null);
+    setResyncError(null);
+  }, []);
   // Elenco compatto: ogni banca e' una riga espandibile. Si aprono da sole la
   // banca appena collegata, quella che richiede un rinnovo, una in sincronizzazione
   // e l'unica banca quando ce n'e' una sola.
@@ -170,22 +179,39 @@ export function OpenBankingSettingsPage() {
     return () => clearTimeout(timer);
   }, [snapshots]);
 
+  const trackSync = (connection: BankConnection) =>
+    setSnapshots((previous) => ({
+      ...previous,
+      [connection.id]: {
+        lastSyncAt: connection.last_sync_at,
+        lastError: connection.last_error,
+        imported: importedTotal(connection),
+        seenRunning: false,
+      },
+    }));
+
   const startSync = async (connection: BankConnection) => {
     setSyncError(null);
     setOutcomes((previous) => Object.fromEntries(Object.entries(previous).filter(([id]) => id !== connection.id)));
     try {
       await syncConnection.mutateAsync(connection.id);
-      setSnapshots((previous) => ({
-        ...previous,
-        [connection.id]: {
-          lastSyncAt: connection.last_sync_at,
-          lastError: connection.last_error,
-          imported: importedTotal(connection),
-          seenRunning: false,
-        },
-      }));
+      trackSync(connection);
     } catch (error) {
       setSyncError(friendlyErrorMessage(error, t("settings:items.bankConnections.page.connection.syncStartError")));
+    }
+  };
+
+  const startResync = async (connection: BankConnection, account: BankConnectionAccount) => {
+    setResyncError(null);
+    try {
+      await resyncHistory.mutateAsync({ connectionId: connection.id, accountId: account.id });
+      setOutcomes((previous) => Object.fromEntries(Object.entries(previous).filter(([id]) => id !== connection.id)));
+      trackSync(connection);
+      closeDetails();
+      // Il cursore e' stato azzerato (i movimenti eliminati a mano tornano): riallinea le altre pagine.
+      void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== "open-banking" });
+    } catch (error) {
+      setResyncError(friendlyErrorMessage(error, t("settings:items.bankConnections.page.diagnostics.resync.error")));
     }
   };
 
@@ -215,6 +241,8 @@ export function OpenBankingSettingsPage() {
       t("settings:items.bankConnections.page.errorCodes.generic")
     : null;
   const credential = status.data?.credential ?? null;
+  const detailsConnection = connectionList.find((connection) => connection.id === details?.connectionId) ?? null;
+  const detailsAccount = detailsConnection?.accounts.find((account) => account.id === details?.accountId) ?? null;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
@@ -316,6 +344,7 @@ export function OpenBankingSettingsPage() {
                 onDisconnect={() => setDisconnecting(connection)}
                 onImportAccount={(account) => setMapping({ connection, account })}
                 onToggleAccount={(account, enabled) => void toggleAccount(connection, account, enabled)}
+                onAccountDetails={(account) => setDetails({ connectionId: connection.id, accountId: account.id })}
               />
               ))}
             </div>
@@ -351,6 +380,13 @@ export function OpenBankingSettingsPage() {
         </>
       )}
 
+      <AccountDetailsSheet
+        account={detailsAccount}
+        loading={resyncHistory.isPending}
+        error={resyncError}
+        onClose={closeDetails}
+        onResync={() => detailsConnection && detailsAccount && void startResync(detailsConnection, detailsAccount)}
+      />
       <ConnectBankDialog open={connectOpen} onClose={closeConnect} />
       {renewBank && (
         <ConnectBankDialog open onClose={closeRenew} initialBank={renewBank} />

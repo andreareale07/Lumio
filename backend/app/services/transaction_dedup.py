@@ -29,7 +29,7 @@ import unicodedata
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Literal, Protocol
 
@@ -225,6 +225,80 @@ async def _fetch_core_key_candidates(
     return grouped
 
 
+# Doppio canale (PDF/CSV + Open Banking): lo stesso movimento arriva con data,
+# tipo e descrizione diversi, quindi ne' il fingerprint ne' la core key lo
+# riconoscono. Si confrontano solo importo, valuta e data (+- tolleranza).
+CROSS_CHANNEL_DATE_TOLERANCE_DAYS = 3
+
+
+async def _apply_cross_channel_review(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    financial_account_id: uuid.UUID,
+    rows: list[DedupCandidateRow],
+    fingerprints: list[str],
+    outcomes: list["RowDedupOutcome | None"],
+    indices: list[int],
+) -> None:
+    """Le righe con `external_id` (Open Banking) risultate NEW ma che combaciano per
+    importo/valuta/data con un movimento esistente SENZA `external_id` (PDF, CSV,
+    manuale) non diventano mai un duplicato automatico ne' un insert silenzioso:
+    vanno in REVIEW (o seguono la decisione gia' presa dall'utente)."""
+    tolerance = timedelta(days=CROSS_CHANNEL_DATE_TOLERANCE_DAYS)
+    dates = [rows[i].transaction_date for i in indices]
+    result = await db.execute(
+        select(
+            Transaction.id,
+            Transaction.dedup_fingerprint,
+            Transaction.balance_after,
+            Transaction.created_at,
+            Transaction.transaction_date,
+            Transaction.amount,
+            Transaction.currency,
+        ).where(
+            Transaction.workspace_id == workspace_id,
+            Transaction.financial_account_id == financial_account_id,
+            Transaction.external_id.is_(None),
+            Transaction.transaction_date >= min(dates) - tolerance,
+            Transaction.transaction_date <= max(dates) + tolerance,
+        )
+    )
+    existing = result.all()
+    if not existing:
+        return
+    for index in indices:
+        row = rows[index]
+        amount = canonical_amount_decimal(row.amount)
+        currency = row.currency.strip().upper()
+        candidates = [
+            _CoreKeyCandidate(
+                id=e.id, dedup_fingerprint=e.dedup_fingerprint, balance_after=e.balance_after, created_at=e.created_at
+            )
+            for e in existing
+            if e.amount == amount
+            and e.currency.strip().upper() == currency
+            and abs(e.transaction_date - row.transaction_date) <= tolerance
+        ]
+        if not candidates:
+            continue
+        candidate = _pick_best_candidate(candidates, row.balance_after)
+        fp = fingerprints[index]
+        decision = await _find_dedup_decision(db, workspace_id, financial_account_id, candidate.id, fp)
+        if decision is not None:
+            outcomes[index] = RowDedupOutcome(
+                index=index,
+                fingerprint=fp,
+                outcome="new" if decision.decision == "confirmed_distinct" else "duplicate",
+                candidate_existing_transaction_id=candidate.id,
+                auto_resolved=True,
+                dedup_decision_id=decision.id,
+            )
+        else:
+            outcomes[index] = RowDedupOutcome(
+                index=index, fingerprint=fp, outcome="review", candidate_existing_transaction_id=candidate.id
+            )
+
+
 def _pick_best_candidate(
     candidates: list[_CoreKeyCandidate], new_balance_after: Decimal | None
 ) -> _CoreKeyCandidate:
@@ -349,6 +423,14 @@ async def run_transaction_dedup(
                     outcome="review",
                     candidate_existing_transaction_id=candidate.id,
                 )
+
+    cross_channel = [
+        i
+        for i, o in enumerate(outcomes)
+        if o is not None and o.outcome == "new" and not o.auto_resolved and getattr(rows[i], "external_id", None)
+    ]
+    if cross_channel:
+        await _apply_cross_channel_review(db, workspace_id, financial_account_id, rows, fingerprints, outcomes, cross_channel)
 
     final_outcomes = [o for o in outcomes if o is not None]
     assert len(final_outcomes) == len(rows)

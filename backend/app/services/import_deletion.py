@@ -7,12 +7,64 @@ Non fa commit e non elimina la riga `imports` (lo decide il chiamante).
 """
 import uuid
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.import_ import Import
 from app.models.investment_transaction import InvestmentTransaction
+from app.models.open_banking import BankConnectionAccount, BankTransactionTombstone
 from app.models.transaction import Transaction
 from app.services.position_service import recompute_position
+
+
+async def reset_open_banking_cursor(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    financial_account_id: uuid.UUID,
+    *,
+    zero_counter: bool = False,
+    clear_tombstones: bool = False,
+) -> None:
+    """Fa ripartire la sync Open Banking dei conti bancari abbinati al conto Lumio.
+
+    Il cursore (`last_booked_date`) deve sempre rispecchiare cio' che e' davvero
+    nel database: dopo l'eliminazione di un import (o il cambio/eliminazione del
+    conto abbinato) la prossima sync deve rileggere tutto lo storico (`longest`);
+    il dedup assorbe cio' che esiste ancora. `zero_counter` azzera il contatore
+    (conto cambiato o eliminato), altrimenti lo ricalcola dagli import
+    open_banking rimasti. `clear_tombstones` svuota anche i movimenti eliminati
+    a mano ("Rileggi storico" li fa tornare).
+
+    La tabella dei conti bancari e' owner-only: se la connessione e' di un altro
+    membro del workspace la RLS non mostra la riga e l'UPDATE non la tocca. Non
+    fa commit.
+    """
+    remaining = 0
+    if not zero_counter:
+        remaining = (
+            await db.scalar(
+                select(func.coalesce(func.sum(Import.transactions_imported), 0)).where(
+                    Import.workspace_id == workspace_id,
+                    Import.financial_account_id == financial_account_id,
+                    Import.file_type == "open_banking",
+                )
+            )
+        ) or 0
+    await db.execute(
+        update(BankConnectionAccount)
+        .where(
+            BankConnectionAccount.workspace_id == workspace_id,
+            BankConnectionAccount.financial_account_id == financial_account_id,
+        )
+        .values(last_booked_date=None, transactions_imported=remaining)
+    )
+    if clear_tombstones:
+        await db.execute(
+            delete(BankTransactionTombstone).where(
+                BankTransactionTombstone.workspace_id == workspace_id,
+                BankTransactionTombstone.financial_account_id == financial_account_id,
+            )
+        )
 
 
 async def delete_import_transactions(db: AsyncSession, workspace_id: uuid.UUID, import_id: uuid.UUID) -> int:

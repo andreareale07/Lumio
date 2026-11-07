@@ -21,9 +21,10 @@ Il numero massimo di conti per applicazione e il comportamento reale delle banch
   (nascosta nella pagina stessa); scollegamento in foglio con riepilogo dell'impatto + casella "elimina anche i movimenti".
 
 ## Scelte non ovvie
+- (2026-11-07, vedi la sezione "Blindatura" sotto) il cursore e' recuperabile e mai avanti al persistito.
 - Ogni sync crea un `Import` con `file_type='open_banking'` e passa da `_insert_transactions_and_complete` (dedup, REVIEW,
   classificazione, trasferimenti): `external_id` della banca come chiave primaria, fingerprint come rete di sicurezza.
-- Solo movimenti **BOOK** (i pending non hanno id stabile). Primo giro `strategy=longest`, poi `last_booked_date - 7 giorni`.
+- Solo movimenti **BOOK** (i pending non hanno id stabile). Primo giro `strategy=longest`, poi `last_booked_date - 30 giorni` (`OPEN_BANKING_RECONCILE_DAYS`, era 7).
 - Stato della sync **per connessione** (`bank_connections.last_sync_at/last_error`), NON in `job_runs`: nessun nuovo job_kind.
   Lock e backoff su Redis (`bank_sync:lock:*`, `bank_sync:attempt:*`); intervallo minimo 6 ore (limite ~4 letture/giorno senza utente).
 - Il cron non ha identita' RLS: usa `list_active_bank_connections()` (SECURITY DEFINER + GRANT SELECT a `lumio_rls_helper`).
@@ -85,6 +86,40 @@ Terzo giro (2026-11-07, dopo il commit `bcc9797`):
 Non corretto (decisioni aperte): log di errore nginx con la query (non redigibile; abbassare `error_log` a `crit` toglierebbe anche la diagnostica dei 502),
 CSP non provata col Picker Google, nessuna retention dei dati, vite/esbuild (solo dev server), 5 deprecazioni Starlette (`HTTP_422_UNPROCESSABLE_ENTITY` -> `..._CONTENT`).
 
+## Blindatura dei dati della sync (2026-11-07, migration 0047, non committata)
+Audit del codice + ricerca (doc Enable Banking, issue Firefly III/Actual/Sure): falle di perdita dati, duplicati, dati sbagliati non rilevabili.
+- **Cursore** (`bank_connection_accounts.last_booked_date`): avanza solo a persistenza confermata (`_insert_transactions_and_complete` ora
+  restituisce bool; `False` -> `SyncPersistError`), mai oltre oggi, mai se l'import e' sparito nel frattempo, mai su lettura parziale
+  (`incomplete_fetch`: limite pagine o `continuation_key` ripetuta).
+- **Recuperabile**: `import_deletion.reset_open_banking_cursor` (cursore a NULL + contatore ricalcolato) chiamato da `DELETE /imports/{id}` (solo
+  `file_type='open_banking'`), cambio conto abbinato (PATCH), eliminazione conto Lumio, "Rileggi storico"
+  (`POST /open-banking/connections/{id}/accounts/{account_id}/resync-history`: lock Redis, 429 se la banca ha limitato, niente intervallo minimo).
+  Limite: la tabella dei conti bancari e' owner-only, quindi se a eliminare l'import e' un ALTRO membro del workspace l'UPDATE non vede la riga.
+- **Dedup**: `external_id` = solo `entry_reference` (mai `transaction_id`, instabile per doc); placeholder ("0", zeri, "null") -> NULL.
+  L'id e' prova di duplicato solo con stesso importo/valuta e data entro 5 giorni; altrimenti riga distinta (`id_reused_distinct`).
+  Doppio canale: riga OB senza match esatto ma con importo/valuta/data+-3gg di un movimento SENZA `external_id` -> sempre REVIEW
+  (`transaction_dedup._apply_cross_channel_review`).
+- **REVIEW non riaccodate**: `transaction_review_items.external_id`; la sync salta gli id con review pendente o decisa (`review_known`).
+- **Tombstone** (`bank_transaction_tombstones`, RLS workspace): `DELETE /transactions/{id}` di un movimento OB la crea; svuotata da "Rileggi storico"
+  e dal cambio/eliminazione conto. Eliminare un intero import NON ne crea e non le svuota.
+- **Normalizzazione tollerante**: `normalize_transaction_ex` ritorna (movimento, motivo di scarto); sotto-oggetti validati, importi con virgola,
+  indicatore assente -> segno dell'importo (segnalato `indicator_missing`), valuta non ISO/importo 0 scartati e contati, valuta diversa da quella
+  del conto non importata (`foreign_currency`), `status != booked` scartato.
+- **Tipi e trasferimenti**: parser logico `open_banking` (`OPEN_BANKING_PARSER_TYPE`): `source_type_raw` = descrizione (+ codice) della banca,
+  mappature per etichetta e `reapply_*` funzionano anche sulle righe OB (join su `Import.file_type`, non su `BankParserRow`).
+- **Diagnostica**: `last_sync_stats` (JSONB, SOLO conteggi: letti/importati/duplicati/review/scartati per motivo, flag id, sub_code, finestra, pagine)
+  e `balance_snapshot` (saldo CLBD/ITAV + `continuity_gaps` da `count_balance_gaps`, euristica senza ordine); esposti da `GET /connections`,
+  mostrati in "Dettagli sync" (`AccountDetailsSheet.tsx`). L'ancoraggio del saldo al patrimonio di Lumio NON e' fatto.
+- **Resilienza**: errore per conto isolato (`parse_error`, `incomplete_fetch`), 403 non ferma gli altri conti (401 si), `WRONG_TRANSACTIONS_PERIOD`
+  -> rilettura `longest`, chiave `attempt` non consumata se la sync e' saltata, backoff per classe di errore, rinnovo con IBAN normalizzato.
+- **Mock**: `backend/scripts/mock_enable_banking.py` ha scenari-banca (`MOCK_SCENARIO` o `POST /__scenario/<nome>`).
+- Test nuovi: `test_open_banking_hardening.py`, `test_rls_bank_transaction_tombstones.py`, estesi `test_open_banking_connector.py`; frontend
+  `AccountDetailsSheet.test.tsx`. Suite OB lenta (~3 s/test: registrazione utente): lanciare i file mirati.
+- **Protocollo col primo conto reale**: due sync consecutive, confrontare le statistiche (stabilita' di `entry_reference`, `booking_date`,
+  flag), poi tarare. Nessuna banca italiana e' mai stata provata.
+
 ## Non fatto / da verificare
 Collegamento con conti reali (Poste, ecc.), E2E Playwright dedicati, notifica fuori dall'app (email/push), movimenti pending,
-"rileggi lo storico" dopo aver eliminato un import open_banking (il cursore non riparte).
+ancoraggio del saldo bancario al patrimonio di Lumio, pairing automatico delle due gambe di un trasferimento tra conti propri.
+Test `test_open_banking_state_keys.py::test_production_accepts_strong_key_and_development_is_lenient` fallisce con `OPEN_BANKING_REDIRECT_URI`
+http nell'ambiente (come in `ci.yml`): non legato alla blindatura, da verificare.

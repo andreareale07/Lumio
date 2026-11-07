@@ -656,7 +656,7 @@ class _FakeConnector:
     async def revoke(self, session_id):
         self.revoked.append(session_id)
 
-    async def get_transactions(self, uid, *, date_from=None, date_to=None, longest=False, psu=None):
+    async def get_transactions(self, uid, *, date_from=None, date_to=None, longest=False, psu=None, stats=None):
         self.calls.append({"uid": uid, "date_from": date_from, "longest": longest, "psu": psu})
         if self.error is not None:
             raise self.error
@@ -720,7 +720,7 @@ async def test_sync_is_idempotent_and_only_new_rows_are_added(client, httpx_mock
 
     # Dopo il primo giro la sync riparte con la finestra di riconciliazione.
     assert fake.calls[1]["longest"] is False
-    assert fake.calls[1]["date_from"] == date(2026, 3, 2) - timedelta(days=7)
+    assert fake.calls[1]["date_from"] == date(2026, 3, 2) - timedelta(days=30)
 
 
 async def test_rows_without_external_id_fall_back_to_fingerprint_dedup(client, httpx_mock, monkeypatch):

@@ -27,6 +27,7 @@ from app.openbanking.errors import OpenBankingError
 from app.openbanking.keys import generate_keypair
 from app.schemas.accounts import FinancialAccountCreate
 from app.services.account_service import create_financial_account
+from app.services.iban_utils import normalize_iban
 from app.services.import_deletion import delete_import_transactions
 
 # Soglia oltre la quale la UI propone di rinnovare il consenso.
@@ -218,17 +219,22 @@ async def apply_session(
                 BankConnection.aspsp_country == connection.aspsp_country,
                 BankConnection.id != connection.id,
                 BankConnection.status != "pending",
-            )
+            ).order_by(BankConnection.created_at.desc(), BankConnection.id)
         )
     ).all()
+    # Chiave = IBAN normalizzato (maiuscole, senza spazi): la banca puo' cambiare
+    # formato tra un consenso e l'altro. Ordine deterministico: vince la
+    # connessione piu' recente.
     previous_by_iban: dict[str, BankConnectionAccount] = {}
     for old in previous:
-        for old_account in await list_accounts_of(db, old.id):
+        for old_account in sorted(await list_accounts_of(db, old.id), key=lambda a: (a.created_at, a.id)):
             if old_account.iban:
-                previous_by_iban.setdefault(old_account.iban, old_account)
+                previous_by_iban.setdefault(normalize_iban(old_account.iban), old_account)
 
     for provider_account in session.accounts:
-        inherited = previous_by_iban.get(provider_account.iban) if provider_account.iban else None
+        inherited = (
+            previous_by_iban.get(normalize_iban(provider_account.iban)) if provider_account.iban else None
+        )
         db.add(
             BankConnectionAccount(
                 workspace_id=connection.workspace_id,
