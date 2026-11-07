@@ -6,10 +6,53 @@ Lumio ha due modi di usarla da telefono:
 2. **App nativa (Capacitor)**: lo stesso frontend React dentro un guscio Android. Alla prima apertura chiede
    l'indirizzo del tuo server. Aggiunge blocco con impronta/volto, haptics e notifiche push.
 
-## Cosa serve per compilare l'APK
-- Android Studio (include SDK e JDK) con un telefono in modalita' sviluppatore (o un emulatore).
-- Da `frontend/`: `npm install`, poi `npm run android:sync` e `npm run android:open`.
-- In Android Studio: **Run** sul telefono, oppure *Build → Generate Signed App Bundle / APK* per un APK da installare.
+## Compilare l'APK
+
+Due strade, con lo stesso risultato (APK di debug, installabile sul proprio telefono):
+
+- **Locale** (sotto): senza Android Studio, in circa un minuto dopo la prima volta.
+- **GitHub**: Actions → *Build APK Android* → Run workflow, poi scarichi l'artefatto `lumio-debug-apk`.
+
+> Le due strade usano chiavi di debug diverse: un APK compilato in locale non si installa "sopra" uno compilato
+> da GitHub (e viceversa). Se Android rifiuta l'aggiornamento, disinstalla prima l'app. Scegli una strada per telefono.
+
+### Build locale senza Android Studio
+
+**Cosa installare (una volta sola, in `C:\Android`, senza amministratore e senza toccare le variabili d'ambiente):**
+
+| Cosa | Da dove | Dimensione |
+|---|---|---|
+| JDK 21 (Temurin), zip | `https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse` | ~200 MB |
+| Android command-line tools, zip | `https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip` | ~150 MB |
+| Componenti SDK: `platform-tools`, `platforms;android-36`, `build-tools;36.0.0` | `sdkmanager` (scaricati da Google, con accettazione delle licenze) | ~1 GB |
+| Gradle 8.14 e librerie del progetto | scaricati dal wrapper alla prima build | ~500 MB |
+
+Passi (PowerShell):
+
+1. Estrai lo zip del JDK in `C:\Android\jdk-21` (la cartella deve contenere `bin\java.exe`).
+2. Estrai lo zip delle command-line tools in `C:\Android\sdk\cmdline-tools\latest` (deve contenere `bin\sdkmanager.bat`).
+3. Installa i componenti e accetta le licenze:
+   ```powershell
+   $env:JAVA_HOME = 'C:\Android\jdk-21'
+   C:\Android\sdk\cmdline-tools\latest\bin\sdkmanager.bat --sdk_root=C:\Android\sdk --licenses
+   C:\Android\sdk\cmdline-tools\latest\bin\sdkmanager.bat --sdk_root=C:\Android\sdk "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+   ```
+4. Per installare direttamente sul telefono: sul telefono attiva *Opzioni sviluppatore* e *Debug USB*, collegalo con
+   il cavo e accetta la richiesta di autorizzazione.
+
+**Come si compila (da `frontend/`):**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-apk.ps1            # compila
+powershell -ExecutionPolicy Bypass -File .\scripts\build-apk.ps1 -Install   # compila e installa sul telefono
+```
+L'APK esce in `frontend\android\app\build\outputs\apk\debug\app-debug.apk`. Lo script fa: build web, `cap sync`,
+Gradle `assembleDebug` e, con `-Install`, `adb install -r`. Se gli strumenti sono altrove, usa `-ToolsRoot D:\percorso`
+o la variabile `LUMIO_ANDROID_ROOT`.
+
+**Problemi noti**
+- `Unable to establish loopback connection` (Gradle/Java): succede solo in alcuni ambienti isolati (sandbox,
+  alcuni strumenti di sicurezza). Dal terminale normale di Windows non si presenta.
+- Android Studio non serve; se lo installi, `npm run android:open` lo apre sul progetto.
 
 ## Server
 - Meglio HTTPS con dominio stabile. Con `http://` (LAN) l'app funziona ma avvisa se l'host e' pubblico.
