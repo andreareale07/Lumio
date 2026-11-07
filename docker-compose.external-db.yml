@@ -20,10 +20,18 @@
 services:
   redis:
     image: redis:7-alpine
+    environment:
+      # Password OPZIONALE di Redis: se impostata, `REDIS_URL` deve diventare
+      # redis://:<password>@redis:6379/0. Vuota = nessuna autenticazione.
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - sh
+      - -c
+      - 'if [ -n "$$REDIS_PASSWORD" ]; then exec redis-server --requirepass "$$REDIS_PASSWORD"; else exec redis-server; fi'
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", 'if [ -n "$$REDIS_PASSWORD" ]; then redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping; else redis-cli ping; fi | grep -q PONG']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -34,7 +42,7 @@ services:
       context: ./backend
     env_file: .env
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     depends_on:
       redis:
         condition: service_healthy

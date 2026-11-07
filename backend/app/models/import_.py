@@ -44,7 +44,7 @@ IMPORT_STATUSES = (
 )
 # Milestone 05: secondo canale oltre al CSV di M04. Default 'csv' per le
 # righe gia' esistenti (nessun backfill esplicito necessario).
-FILE_TYPES = ("csv", "pdf")
+FILE_TYPES = ("csv", "pdf", "open_banking")
 # Classificazione AI disaccoppiata dal job di import (vedi migration 0019):
 # None = import ancora in corso o creato prima di questa feature; "skipped"
 # = nessuna AI attiva o nessuna transazione da classificare dopo le regole.

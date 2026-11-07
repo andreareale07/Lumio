@@ -306,6 +306,221 @@
         }
       }
     },
+    "bankConnections": {
+      "label": "Conti bancari collegati",
+      "description": "Importa automaticamente saldi e movimenti dalla tua banca.",
+      "pageDescription": "Collega la tua banca per importare i movimenti senza scaricare e caricare file. È un'integrazione opzionale: l'import da PDF e CSV continua a funzionare allo stesso modo.",
+      "notice": {
+        "expiring_one": "L'autorizzazione di {{banks}} sta per scadere: rinnovala per non interrompere la sincronizzazione.",
+        "expiring_other": "{{count}} autorizzazioni bancarie stanno per scadere ({{banks}}): rinnovale per non interrompere la sincronizzazione.",
+        "expired_one": "L'autorizzazione di {{banks}} è scaduta: la sincronizzazione è ferma finché non la rinnovi.",
+        "expired_other": "{{count}} autorizzazioni bancarie sono scadute o in scadenza ({{banks}}): rinnovale per riprendere la sincronizzazione.",
+        "action": "Gestisci"
+      },
+      "page": {
+        "loadError": "Non siamo riusciti a caricare lo stato dei conti bancari.",
+        "connectButton": "Collega una banca",
+        "connectedBanner": "Banca collegata. Ora scegli quali conti importare e avvia la prima sincronizzazione.",
+        "errorCodes": {
+          "invalid_state": "La richiesta di collegamento non è valida o è scaduta. Riprova.",
+          "authorization_denied": "Il collegamento è stato annullato o negato dalla banca. Nessun dato è stato condiviso.",
+          "authorization_failed": "Non è stato possibile completare il collegamento con la banca. Riprova.",
+          "generic": "Si è verificato un errore durante il collegamento della banca."
+        },
+        "redirectMissing": {
+          "title": "Indirizzo di ritorno non configurato",
+          "body": "Imposta OPEN_BANKING_REDIRECT_URI nel file .env (l'indirizzo pubblico HTTPS di Lumio seguito da /api/v1/open-banking/callback) e riavvia i servizi: senza, la banca non può riportarti in Lumio."
+        },
+        "empty": {
+          "title": "Nessuna banca collegata",
+          "description": "Collega la tua banca per importare automaticamente i movimenti."
+        },
+        "privacy": {
+          "readOnly": "Lumio legge solo saldi e movimenti in sola lettura: non può disporre pagamenti. Password, PIN e codici si inseriscono solo sul sito della banca.",
+          "local": "I dati restano sul tuo server. Puoi scollegare la banca in qualsiasi momento: l'autorizzazione viene revocata presso la banca.",
+          "personalUse": "Il servizio gratuito di Enable Banking è per uso personale e conti intestati a te. Per i conti aziendali usa l'import da PDF o CSV."
+        },
+        "lastErrors": {
+          "authorization_expired": "L'autorizzazione della banca è scaduta: rinnovala per riprendere.",
+          "rate_limited": "La banca ha limitato le richieste. Riproveremo più tardi in automatico.",
+          "provider_unavailable": "Il servizio Open Banking non è raggiungibile al momento. Riproveremo in automatico.",
+          "provider_error": "La banca ha restituito un errore. Riproveremo alla prossima sincronizzazione.",
+          "auth_failed": "Enable Banking ha rifiutato le credenziali. Controlla l'application ID e il certificato caricato.",
+          "credentials_missing": "Le credenziali Open Banking non sono più disponibili: configurale di nuovo.",
+          "persist_failed": "Alcuni movimenti non sono stati salvati. Riproveremo alla prossima sincronizzazione.",
+          "not_configured": "L'application ID non è ancora configurato.",
+          "key_unreadable": "La chiave salvata non è più leggibile: elimina le credenziali e generale di nuovo.",
+          "generic": "L'ultima sincronizzazione non è andata a buon fine."
+        },
+        "lastErrorsShort": {
+          "authorization_expired": "Autorizzazione scaduta",
+          "rate_limited": "Limite della banca",
+          "provider_unavailable": "Servizio non raggiungibile",
+          "provider_error": "Errore della banca",
+          "auth_failed": "Credenziali rifiutate",
+          "credentials_missing": "Credenziali mancanti",
+          "persist_failed": "Salvataggio parziale",
+          "not_configured": "Configurazione incompleta",
+          "key_unreadable": "Chiave non leggibile",
+          "generic": "Sincronizzazione non riuscita"
+        },
+        "credentials": {
+          "title": "Credenziali Enable Banking",
+          "applicationId": "Application ID: {{id}}",
+          "download": "Scarica certificato",
+          "delete": "Elimina credenziali",
+          "deleteError": "Non è stato possibile eliminare le credenziali.",
+          "deleteDialog": {
+            "title": "Eliminare le credenziali?",
+            "body": "Verranno revocate tutte le autorizzazioni presso le banche e rimossi i collegamenti. I movimenti già importati restano in Lumio.",
+            "confirm": "Elimina"
+          }
+        },
+        "setup": {
+          "stepLabel": "Passo {{current}} di {{total}}",
+          "back": "Indietro",
+          "next": "Avanti",
+          "done": "Fatto, avanti",
+          "title": "Prima configurazione",
+          "description": "Enable Banking è il servizio gratuito che legge i conti per conto tuo. Ogni persona registra la propria applicazione: ci vogliono pochi minuti e si fa una volta sola.",
+          "copy": "Copia",
+          "copied": "Copiato",
+          "step1": {
+            "title": "Genera il tuo certificato",
+            "description": "Lumio crea una chiave privata che resta sul tuo server e non viene mai mostrata. A te serve solo il certificato pubblico da caricare nel passo successivo.",
+            "generate": "Genera certificato",
+            "error": "Non è stato possibile generare il certificato. Riprova.",
+            "certificateLabel": "Certificato (parte pubblica)",
+            "download": "Scarica certificato"
+          },
+          "step2": {
+            "title": "Registra la tua applicazione su Enable Banking",
+            "createAccount": "Crea un account gratuito sul <strong>Control Panel</strong> di Enable Banking.",
+            "registerApp": "Registra una nuova applicazione scegliendo l'ambiente <strong>Production</strong>.",
+            "uploadCertificate": "Carica il certificato del passo 1 e annota l'<strong>Application ID</strong> che ricevi.",
+            "redirectUrl": "Come indirizzo di ritorno (<strong>Redirect URL</strong>) inserisci esattamente quello qui sotto.",
+            "linkAccounts": "Attiva l'applicazione in <strong>modalità ristretta</strong> collegando almeno uno dei tuoi conti dal Control Panel.",
+            "redirectLabel": "Indirizzo di ritorno (Redirect URL)",
+            "openPanel": "Apri il Control Panel di Enable Banking"
+          },
+          "step3": {
+            "description": "Copia l'ID che Enable Banking ti ha assegnato quando hai registrato l'applicazione.",
+            "title": "Incolla l'Application ID",
+            "label": "Application ID",
+            "placeholder": "Incolla qui l'ID ricevuto",
+            "save": "Salva",
+            "invalid": "L'ID non sembra valido: usa solo lettere, numeri, trattini e punti (almeno 8 caratteri).",
+            "error": "Non è stato possibile salvare l'ID. Riprova."
+          }
+        },
+        "connect": {
+          "title": "Collega una banca",
+          "confirmTitle": "Collega {{bank}}",
+          "country": "Paese",
+          "search": "Cerca la tua banca",
+          "count_one": "{{count}} banca disponibile",
+          "count_other": "{{count}} banche disponibili",
+          "noResults": "Nessuna banca trovata. Prova con un altro nome o un altro paese.",
+          "loadError": "Non siamo riusciti a caricare l'elenco delle banche.",
+          "retry": "Riprova",
+          "beta": "Beta",
+          "intro": "Stai per lasciare Lumio e passare al sito della tua banca. Cosa succede:",
+          "points": {
+            "login": "Accedi con le tue credenziali direttamente sul sito o nell'app della banca: Lumio non le vede mai.",
+            "readOnly": "Autorizzi la sola lettura di conti, saldi e movimenti. Non è possibile disporre pagamenti.",
+            "consent": "L'autorizzazione dura al massimo {{days}} giorni, poi andrà rinnovata.",
+            "revoke": "Puoi scollegare la banca quando vuoi da questa pagina."
+          },
+          "back": "Indietro",
+          "cancel": "Annulla",
+          "go": "Vai alla banca",
+          "startError": "Non è stato possibile avviare il collegamento. Riprova."
+        },
+        "mapDialog": {
+          "title": "Importa «{{name}}»",
+          "description": "Scegli dove salvare i movimenti di questo conto: in un nuovo conto Lumio o in uno già esistente.",
+          "select": "Conto Lumio",
+          "createNew": "Crea un nuovo conto",
+          "existingGroup": "Conti esistenti",
+          "save": "Importa",
+          "cancel": "Annulla",
+          "saveError": "Non è stato possibile abbinare il conto. Riprova."
+        },
+        "connection": {
+          "status": {
+            "active": "Attiva",
+            "expiring": "In scadenza",
+            "expired": "Scaduta",
+            "revoked": "Revocata",
+            "error": "Errore",
+            "pending": "In attesa"
+          },
+          "validUntil_one": "Autorizzazione valida fino al {{date}} ({{count}} giorno rimasto)",
+          "validUntil_other": "Autorizzazione valida fino al {{date}} ({{count}} giorni rimasti)",
+          "lastSync": "Ultima sincronizzazione: {{value}}",
+          "lastSyncShort": "sync {{value}}",
+          "statusLine": {
+            "upToDate": "Aggiornata {{value}}",
+            "neverSynced": "Mai sincronizzata",
+            "expiring_one": "Scade tra {{count}} giorno",
+            "expiring_other": "Scade tra {{count}} giorni",
+            "expired": "Autorizzazione scaduta",
+            "revoked": "Autorizzazione revocata",
+            "error": "Collegamento non riuscito",
+            "renew": "Rinnova",
+            "retry": "Riprova"
+          },
+          "syncDoneShort_one": "Sincronizzata: {{count}} nuovo movimento",
+          "syncDoneShort_other": "Sincronizzata: {{count}} nuovi movimenti",
+          "syncNoNewShort": "Sincronizzata: nessun nuovo movimento",
+          "neverSynced": "mai eseguita",
+          "unnamedAccount": "Conto senza nome",
+          "imported_one": "{{count}} movimento importato",
+          "imported_other": "{{count}} movimenti importati",
+          "importOn": "Importazione attiva",
+          "importOff": "Importazione sospesa",
+          "importAccount": "Importa questo conto",
+          "expiredHint": "L'autorizzazione è scaduta e i movimenti non si aggiornano più. Rinnovala per riprendere: abbinamenti e storico restano.",
+          "expiringHint_one": "L'autorizzazione scade tra {{count}} giorno. Rinnovala ora per non interrompere la sincronizzazione.",
+          "expiringHint_other": "L'autorizzazione scade tra {{count}} giorni. Rinnovala ora per non interrompere la sincronizzazione.",
+          "renew": "Rinnova autorizzazione",
+          "accountsTitle_one": "{{count}} conto",
+          "accountsTitle_other": "{{count}} conti",
+          "noAccounts": "La banca non ha condiviso nessun conto.",
+          "chooseAccounts": "Scegli quali conti importare in Lumio.",
+          "syncing": "Sincronizzazione in corso…",
+          "syncDone_one": "Sincronizzazione completata: {{count}} nuovo movimento.",
+          "syncDone_other": "Sincronizzazione completata: {{count}} nuovi movimenti.",
+          "syncNoNew": "Sincronizzazione completata: nessun nuovo movimento.",
+          "viewTransactions": "Vedi i movimenti",
+          "disconnect": "Scollega",
+          "syncNow": "Sincronizza ora",
+          "syncDisabled": "Attiva almeno un conto per poter sincronizzare.",
+          "syncStartError": "Non è stato possibile avviare la sincronizzazione.",
+          "toggleError": "Non è stato possibile aggiornare il conto.",
+          "disconnectError": "Non è stato possibile scollegare la banca.",
+          "disconnected": "{{bank}} scollegata.",
+          "disconnectedDeleted_one": "{{bank}} scollegata. {{count}} movimento eliminato.",
+          "disconnectedDeleted_other": "{{bank}} scollegata. {{count}} movimenti eliminati.",
+          "notRevoked": "Non è stato possibile revocare il consenso presso la banca: scadrà da solo.",
+          "disconnectDialog": {
+            "title": "Scollegare {{bank}}?",
+            "impact": {
+              "revoke": "L'autorizzazione viene revocata presso la banca.",
+              "stopSync": "La sincronizzazione si ferma.",
+              "keep_one": "{{count}} movimento già importato resta in Lumio.",
+              "keep_other": "{{count}} movimenti già importati restano in Lumio.",
+              "delete_one": "{{count}} movimento importato da questa banca verrà eliminato.",
+              "delete_other": "{{count}} movimenti importati da questa banca verranno eliminati.",
+              "mappings": "Gli abbinamenti ai conti Lumio si perdono (i conti restano)."
+            },
+            "deleteLabel": "Elimina anche i movimenti importati da questa banca",
+            "deleteWarning": "Non si può annullare. I movimenti inseriti a mano o importati da PDF e CSV non vengono toccati.",
+            "confirmDelete": "Scollega ed elimina"
+          }
+        }
+      }
+    },
     "integrations": {
       "label": "Integrazioni",
       "description": "Esporta i tuoi dati finanziari su Google Sheets.",

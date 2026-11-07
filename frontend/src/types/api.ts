@@ -20,6 +20,10 @@ export interface Me extends User {
    * direzione (nav, pagina, endpoint) — l'istanza gira con
    * GOOGLE_ENABLED=false, stato di default. */
   google_enabled: boolean;
+  /** Come google_enabled: false quando l'istanza gira con
+   * OPEN_BANKING_ENABLED=false (default) — nessuna superficie Open Banking.
+   * Opzionale per non rompere le fixture dei test esistenti. */
+  open_banking_enabled?: boolean;
   /** Sistema di valute: valuta di riferimento del workspace, letta una
    * volta al login/refresh (stesso pattern di google_enabled) — default
    * dei form di creazione conto/asset, mai il valore convertito al posto
@@ -1476,4 +1480,70 @@ export interface AIRunEvent {
 export interface AIRunEventList {
   items: AIRunEvent[];
   total: number;
+}
+
+// --- Open Banking (connettore Enable Banking) -------------------------------
+
+export interface OpenBankingCredential {
+  provider: string;
+  /** false finche' l'utente non ha incollato l'application ID. */
+  configured: boolean;
+  application_id: string | null;
+  /** Solo la parte pubblica: la chiave privata non lascia mai il server. */
+  certificate_pem: string;
+  created_at: IsoDateTime;
+}
+
+export interface OpenBankingStatus {
+  redirect_uri: string;
+  redirect_uri_configured: boolean;
+  credential: OpenBankingCredential | null;
+}
+
+export interface BankInstitution {
+  name: string;
+  country: string;
+  logo_url: string | null;
+  beta: boolean;
+  maximum_consent_validity_days: number | null;
+}
+
+export interface BankConnectionAccount {
+  id: Uuid;
+  name: string | null;
+  product: string | null;
+  iban_masked: string | null;
+  currency: string | null;
+  enabled: boolean;
+  financial_account_id: Uuid | null;
+  last_sync_at: IsoDateTime | null;
+  transactions_imported: number;
+}
+
+export type BankConnectionStatus = "pending" | "active" | "expired" | "revoked" | "error";
+
+export interface BankConnection {
+  id: Uuid;
+  aspsp_name: string;
+  aspsp_country: string;
+  status: BankConnectionStatus;
+  valid_until: IsoDateTime | null;
+  days_until_expiry: number | null;
+  expiring_soon: boolean;
+  last_sync_at: IsoDateTime | null;
+  last_error: string | null;
+  sync_running: boolean;
+  accounts: BankConnectionAccount[];
+}
+
+export interface BankAccountUpdate {
+  enabled?: boolean;
+  financial_account_id?: Uuid | null;
+  create_account?: boolean;
+}
+
+export interface BankDisconnectResult {
+  deleted_transactions: number;
+  /** false se la revoca presso la banca non e' riuscita (il consenso scade da solo). */
+  revoked_at_bank: boolean;
 }

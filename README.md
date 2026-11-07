@@ -67,8 +67,41 @@ coerente del tuo patrimonio.
 
 - **Google Sheets** — export dei dati su fogli di tua proprietà (richiede un
   progetto Google Cloud tuo, un client OAuth per istanza)
+- **Open Banking** (Enable Banking) — importa automaticamente i movimenti dai
+  tuoi conti personali, in sola lettura. Gratuito per uso personale, con la tua
+  applicazione e le tue credenziali: vedi
+  [Open Banking](#open-banking-opzionale) più sotto
 - Provider AI: Anthropic, OpenAI, Ollama (locale), endpoint custom, oppure
   nessuno
+
+---
+
+## Open Banking (opzionale)
+
+Collega la tua banca per importare i movimenti senza scaricare e caricare file.
+È **opzionale**: con `OPEN_BANKING_ENABLED=false` (default) Lumio funziona al
+100% con l'import da PDF e CSV.
+
+- **Provider**: [Enable Banking](https://enablebanking.com), regolato come AISP.
+  Lumio legge solo conti, saldi e movimenti (sola lettura) e non può disporre
+  pagamenti. Password, PIN e codici si inseriscono solo sul sito della banca.
+- **Costo**: gratuito, ma **solo per uso personale con conti intestati a te**.
+  Ogni persona registra la _propria_ applicazione (nessuna credenziale è inclusa
+  in Lumio e non si possono condividere). Conti aziendali: usa PDF/CSV. Dettagli
+  e fonti: [`docs/open-banking-costs.md`](docs/open-banking-costs.md).
+- **Banche**: l'elenco arriva dal provider quando scegli il paese. Poste
+  Italiane (BancoPosta e Postepay), Intesa Sanpaolo e UniCredit sono citate dalla
+  documentazione del provider ma **non sono state verificate con conti reali**:
+  vedi [`docs/open-banking-coverage.md`](docs/open-banking-coverage.md).
+  Trade Republic resta un import manuale da PDF.
+- **Configurazione e messa in produzione**:
+  [`docs/open-banking-setup.md`](docs/open-banking-setup.md).
+- **Limiti**: il consenso dura al massimo 180 giorni (poi si rinnova), molte
+  banche limitano le letture in background a circa 4 al giorno, i movimenti in
+  sospeso non vengono importati, lo storico dipende dalla banca.
+- **Sicurezza**: la chiave privata è cifrata a riposo, non lascia mai il server
+  e le credenziali sono visibili solo a chi le ha create (RLS). Nessun token
+  arriva al browser; il callback verifica uno `state` firmato e monouso.
 
 ---
 
@@ -286,6 +319,7 @@ docs/             specifiche e roadmap
 | [`docs/SPEC_PRODUCT.md`](docs/SPEC_PRODUCT.md) | Visione di prodotto e requisiti funzionali |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Milestone e Definition of Done |
 | [`docs/DEPLOY_PROXMOX.md`](docs/DEPLOY_PROXMOX.md) | Deploy self-hosted, backup, HTTPS |
+| [`docs/open-banking-setup.md`](docs/open-banking-setup.md) · [`coverage`](docs/open-banking-coverage.md) · [`costs`](docs/open-banking-costs.md) | Open Banking: configurazione, banche, costi |
 | [`docs/SPEC_TAX_REGIME.md`](docs/SPEC_TAX_REGIME.md) | Motore fiscale a lotti |
 | [`docs/SPEC_DEDUP_TRANSACTION.md`](docs/SPEC_DEDUP_TRANSACTION.md) | Deduplicazione dei movimenti |
 | [`docs/SPEC_STOCK_PRICE.md`](docs/SPEC_STOCK_PRICE.md) | Market data e quotazioni |

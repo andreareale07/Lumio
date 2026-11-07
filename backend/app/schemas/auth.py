@@ -30,6 +30,9 @@ class MeResponse(UserOut):
     # nascondere nav/pagina Google Sheets senza una request che fallisce
     # quando l'istanza gira con GOOGLE_ENABLED=false.
     google_enabled: bool
+    # Come google_enabled: da settings, permette al frontend di nascondere la
+    # sezione Conti bancari quando l'istanza gira con OPEN_BANKING_ENABLED=false.
+    open_banking_enabled: bool = False
     # Sistema di valute: letta una volta al login/refresh (stesso pattern
     # di google_enabled), cosi' ogni pagina che ne ha bisogno (default dei
     # form, picker) non deve fare una chiamata dedicata.

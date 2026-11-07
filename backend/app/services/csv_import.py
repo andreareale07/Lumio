@@ -115,6 +115,9 @@ class ParsedRow(BaseModel):
     merchant: str | None = None
     counterparty_name: str | None = None
     counterparty_iban: str | None = None
+    # Identificativo assegnato dalla banca (solo canale Open Banking, vedi
+    # Transaction.external_id): resta None per CSV/PDF.
+    external_id: str | None = None
 
 
 def _normalize_amount(raw: str, config: MappingConfig) -> Decimal:

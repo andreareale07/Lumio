@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 
+import { BankConnectionsNotice } from "../../features/settings/open-banking/BankConnectionsNotice";
 import { MobileNav } from "./MobileNav";
 import { PageToolbarContext } from "./PageToolbarContext";
 import { Sidebar } from "./Sidebar";
@@ -20,6 +21,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-h-0 flex-1">
         <Sidebar />
         <main className="min-w-0 flex-1 overflow-y-auto p-4 pb-20 md:pb-4">
+          <BankConnectionsNotice />
           <PageToolbarContext.Provider value={toolbarSlot}>{children}</PageToolbarContext.Provider>
         </main>
       </div>

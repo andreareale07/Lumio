@@ -15,10 +15,10 @@ services:
       POSTGRES_APP_USER: ${POSTGRES_APP_USER}
       POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
     ports:
-      # Comodo per pytest/psql/GUI locali durante lo sviluppo. Non e' un
-      # rischio nuovo: rimane dietro il ruolo applicativo non-superuser +
-      # RLS; un power user che non lo desidera puo' rimuovere la riga.
-      - "5432:5432"
+      # Comodo per pytest/psql/GUI locali durante lo sviluppo. Solo loopback:
+      # senza 127.0.0.1 il database sarebbe raggiungibile da tutta la rete
+      # (Wi-Fi, ospiti) con la sola password a proteggerlo.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/postgres-init:/docker-entrypoint-initdb.d:ro
@@ -31,12 +31,23 @@ services:
 
   redis:
     image: redis:7-alpine
+    environment:
+      # Password OPZIONALE di Redis. Se la imposti nel .env, `REDIS_URL` deve
+      # diventare redis://:<password>@redis:6379/0 (stessa password). Vuota =
+      # nessuna autenticazione (comportamento storico).
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - sh
+      - -c
+      - 'if [ -n "$$REDIS_PASSWORD" ]; then exec redis-server --requirepass "$$REDIS_PASSWORD"; else exec redis-server; fi'
     ports:
-      - "6379:6379"
+      # Solo loopback: Redis non ha autenticazione, chi lo raggiunge legge e
+      # manipola la coda dei job (e i lock di sincronizzazione bancaria).
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", 'if [ -n "$$REDIS_PASSWORD" ]; then redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping; else redis-cli ping; fi | grep -q PONG']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -47,7 +58,9 @@ services:
       context: ./backend
     env_file: .env
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      # Solo loopback: l'API raggiunta direttamente aggira nginx (header di
+      # sicurezza, IP reale del client). Il traffico normale passa dal frontend.
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy

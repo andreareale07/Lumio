@@ -60,6 +60,7 @@ async def _build_token_response(db: AsyncSession, user: User) -> TokenResponse:
             **UserOut.model_validate(user).model_dump(),
             workspace_id=workspace_id,
             google_enabled=get_settings().google_enabled,
+            open_banking_enabled=get_settings().open_banking_enabled,
             base_currency=await resolve_currency(db, workspace_id),
         ),
     )
@@ -105,6 +106,7 @@ async def register(
             **UserOut.model_validate(user).model_dump(),
             workspace_id=workspace.id,
             google_enabled=get_settings().google_enabled,
+            open_banking_enabled=get_settings().open_banking_enabled,
             base_currency=workspace.base_currency,
         ),
     )
@@ -182,5 +184,6 @@ async def me(
         **UserOut.model_validate(user).model_dump(),
         workspace_id=workspace_id,
         google_enabled=get_settings().google_enabled,
+        open_banking_enabled=get_settings().open_banking_enabled,
         base_currency=await resolve_currency(db, workspace_id),
     )

@@ -18,6 +18,7 @@ from app.api.v1 import (
     investment_transactions,
     jobs,
     maintenance,
+    open_banking,
     portfolios,
     positions,
     rules,
@@ -65,3 +66,8 @@ api_router.include_router(tax.router)
 # non solo rifiutano la richiesta.
 if get_settings().google_enabled:
     api_router.include_router(integrations_google.router)
+
+# Open Banking: stesso isolamento (con OPEN_BANKING_ENABLED=false gli endpoint
+# non esistono, 404): l'app funziona al 100% con import PDF/CSV.
+if get_settings().open_banking_enabled:
+    api_router.include_router(open_banking.router)

@@ -1,4 +1,4 @@
-import { Activity, Coins, FolderTree, Link2, ListChecks, Percent, Sparkles, LineChart, Tags, Wand2, Wrench } from "lucide-react";
+import { Activity, Coins, FolderTree, Landmark, Link2, ListChecks, Percent, Sparkles, LineChart, Tags, Wand2, Wrench } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
 export interface SettingsPageLink {
@@ -11,6 +11,8 @@ export interface SettingsPageLink {
    * stesso gating già applicato oggi a livello di route (`RequireGoogleEnabled`
    * in AppRouter), qui replicato solo per la visibilità nell'hub. */
   requiresGoogle?: boolean;
+  /** Come `requiresGoogle`, per `user.open_banking_enabled`. */
+  requiresOpenBanking?: boolean;
 }
 
 export interface SettingsGroup {
@@ -46,6 +48,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     groupKey: "dataIntegrations",
     items: [
       { to: "/settings/market-data", icon: LineChart, itemKey: "marketData" },
+      { to: "/settings/bank-connections", icon: Landmark, itemKey: "bankConnections", requiresOpenBanking: true },
       { to: "/settings/integrations", icon: Link2, itemKey: "integrations", requiresGoogle: true },
     ],
   },

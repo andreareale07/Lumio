@@ -24,6 +24,7 @@ GOOGLE_SHEETS_EXPORT_FUNCTION = "google_sheets_export_job"
 RECLASSIFICATION_FUNCTION = "reclassify_workspace_job"
 SNAPSHOT_BACKFILL_FUNCTION = "snapshot_backfill_job"
 POSITIONS_RECOMPUTE_FUNCTION = "positions_recompute_job"
+BANK_SYNC_FUNCTION = "bank_sync_job"
 
 
 async def get_arq_pool() -> ArqRedis:
@@ -174,6 +175,21 @@ async def enqueue_google_sheets_export(workspace_id: uuid.UUID, user_id: uuid.UU
     router), non serve l'idempotenza di arq per quello."""
     pool = await get_arq_pool()
     job = await pool.enqueue_job(GOOGLE_SHEETS_EXPORT_FUNCTION, str(workspace_id), str(user_id), options)
+    return job.job_id if job is not None else ""
+
+
+async def enqueue_bank_sync(
+    connection_id: uuid.UUID,
+    user_id: uuid.UUID,
+    psu_ip: str | None = None,
+    psu_user_agent: str | None = None,
+) -> str:
+    """Sincronizzazione manuale di una connessione Open Banking. Nessun
+    `_job_id` fisso (stesso motivo di `enqueue_reclassification`); il doppio
+    click e' coperto dal lock Redis di `bank_sync_service`, controllato dal
+    router prima di accodare."""
+    pool = await get_arq_pool()
+    job = await pool.enqueue_job(BANK_SYNC_FUNCTION, str(connection_id), str(user_id), psu_ip, psu_user_agent)
     return job.job_id if job is not None else ""
 
 

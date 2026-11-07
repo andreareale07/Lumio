@@ -22,6 +22,7 @@ Tienile aggiornate: se scopri un fatto nuovo non ovvio dal codice, o uno scritto
 | Import, parser, dedup, trasferimenti, tipi transazione | `guida-import-e-movimenti.md` |
 | Portfolio, prezzi, rendimenti, fiscalita' | `guida-investimenti-e-fiscalita.md` |
 | AI, Google Sheets | `guida-ai-e-integrazioni.md` |
+| Open Banking, connettori bancari, sync automatica | `task-open-banking.md`, `guida-import-e-movimenti.md` |
 | Docker, deploy, `.env`, istanza locale | `guida-deploy.md` |
 
 Manutenzione della memoria:
@@ -66,4 +67,5 @@ Manutenzione della memoria:
 - Al 2026-10-30: E2E Playwright non risultano rieseguiti dopo il dedup engine (2 golden-path rotti al 2026-08-21); test dedicati del motore a lotti da verificare (esiste `test_tax_calc.py`).
 - Al 2026-10-30: da pulire con ok dell'utente: 5 worktree `agent-*` orfani su `2280394`, cartelle `db/postgres-init;C/` e `backend/features/settings/` (artefatti di path), `Lumio.tar.gz`.
 - Al 2026-11-06: filtri di Movimenti rifatti (commit `2fe1506`, verificati solo su desktop); prossima attivita' richiesta: revisione globale di filtri e periodo, mobile first (scheda `task-*`).
+- Al 2026-11-07: Open Banking (Enable Banking) committato con analisi di sicurezza e correzioni, mai provato con conti reali: vedi scheda `task-open-banking.md` e `docs/open-banking-setup.md` (migration 0044 da applicare con backup; con `APP_ENV=production` serve `SECRET_KEY` da almeno 32 caratteri).
 - Richiesto dall'utente dopo M12, non pianificato: ruolo admin di istanza con "Impostazioni istanza" (config fuori da `.env`, audit log) e restyle menu Impostazioni.

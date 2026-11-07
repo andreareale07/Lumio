@@ -77,7 +77,8 @@ async def _clean_tables():
                 "workspace_tax_residences, financial_account_tax_regimes, "
                 "asset_tax_classifications, tax_loss_opening_balances, "
                 "tax_realized_event_overrides, "
-                "google_integrations, audit_log CASCADE"
+                "google_integrations, "
+                "open_banking_credentials, bank_connections, bank_connection_accounts, audit_log CASCADE"
             )
         )
         # La policy INSERT su categories/currencies richiede workspace_id NOT

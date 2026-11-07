@@ -23,6 +23,7 @@ import { RulesPage } from "../../features/rules/RulesPage";
 import { AISettingsPage } from "../../features/settings/ai/AISettingsPage";
 import { CurrencySettingsPage } from "../../features/settings/currency/CurrencySettingsPage";
 import { IntegrationsSettingsPage } from "../../features/settings/integrations/IntegrationsSettingsPage";
+import { OpenBankingSettingsPage } from "../../features/settings/open-banking/OpenBankingSettingsPage";
 import { AIEngineSettingsPage } from "../../features/settings/ai-engine/AIEngineSettingsPage";
 import { JobsSettingsPage } from "../../features/settings/jobs/JobsSettingsPage";
 import { MaintenanceSettingsPage } from "../../features/settings/maintenance/MaintenanceSettingsPage";
@@ -50,6 +51,14 @@ function Protected({ children }: { children: ReactNode }) {
 function RequireGoogleEnabled({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   if (!user?.google_enabled) return <Navigate to="/" replace />;
+  return children;
+}
+
+/** Come `RequireGoogleEnabled`: con `OPEN_BANKING_ENABLED=false` un link
+ * diretto a `/settings/bank-connections` non deve raggiungere la pagina. */
+function RequireOpenBankingEnabled({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  if (!user?.open_banking_enabled) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -100,6 +109,14 @@ export function AppRouter() {
               <RequireGoogleEnabled>
                 <IntegrationsSettingsPage />
               </RequireGoogleEnabled>
+            }
+          />
+          <Route
+            path="bank-connections"
+            element={
+              <RequireOpenBankingEnabled>
+                <OpenBankingSettingsPage />
+              </RequireOpenBankingEnabled>
             }
           />
         </Route>

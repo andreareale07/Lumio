@@ -133,6 +133,11 @@ class Transaction(Base):
     # legittimamente identiche devono poter coesistere, il matching e' per
     # occorrenze, non per esistenza del fingerprint.
     dedup_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Identificativo assegnato dalla banca/provider (Open Banking, migration
+    # 0044), NULL per PDF/CSV. Indice parziale NON unique: un id del provider
+    # non e' garantito stabile tra pending e booked, quindi il motore di
+    # dedup resta la rete di sicurezza.
+    external_id: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'confirmed'"))
     # Due soli scrittori (SPEC §43, "8 da verificare"): la pipeline di
     # classificazione la alza quando lo score della Classification appena

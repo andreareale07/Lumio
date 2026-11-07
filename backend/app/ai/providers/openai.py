@@ -78,7 +78,7 @@ class OpenAIClassifier:
         try:
             raw_text = body["choices"][0]["message"]["content"]
         except (KeyError, IndexError) as exc:
-            raise AIProviderError(f"risposta OpenAI inattesa: {body}") from exc
+            raise AIProviderError("risposta OpenAI inattesa") from exc
         return parse_response(raw_text, categories)
 
     async def test_connection(self) -> None:

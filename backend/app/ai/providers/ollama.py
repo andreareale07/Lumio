@@ -11,6 +11,8 @@ ripiega su `format: "json"`, sempre supportato.
 """
 import httpx
 
+from app.core.outbound import guarded_client
+
 from app.ai.base import AIClassificationResult, AIProviderError, CategoryOption, ClassifiableTransaction
 from app.ai.prompt import build_prompt, parse_response, response_schema
 from app.core.config import get_settings
@@ -29,7 +31,7 @@ class OllamaClassifier:
         settings = get_settings()
         prompt = build_prompt(transaction, categories, language)
         try:
-            async with httpx.AsyncClient(timeout=settings.ai_classify_timeout_seconds) as client:
+            async with guarded_client(timeout=settings.ai_classify_timeout_seconds) as client:
                 response = await client.post(
                     f"{self.endpoint}/api/generate",
                     json={
@@ -58,7 +60,7 @@ class OllamaClassifier:
     async def test_connection(self) -> None:
         settings = get_settings()
         try:
-            async with httpx.AsyncClient(timeout=settings.ai_test_timeout_seconds) as client:
+            async with guarded_client(timeout=settings.ai_test_timeout_seconds) as client:
                 response = await client.get(f"{self.endpoint}/api/tags")
                 response.raise_for_status()
         except httpx.HTTPError as exc:
@@ -67,7 +69,7 @@ class OllamaClassifier:
     async def list_models(self) -> list[str]:
         settings = get_settings()
         try:
-            async with httpx.AsyncClient(timeout=settings.ai_test_timeout_seconds) as client:
+            async with guarded_client(timeout=settings.ai_test_timeout_seconds) as client:
                 response = await client.get(f"{self.endpoint}/api/tags")
                 response.raise_for_status()
         except httpx.HTTPError as exc:

@@ -17,7 +17,10 @@ export function SettingsHubPage() {
 
   const groups = SETTINGS_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.requiresGoogle || user?.google_enabled),
+    items: group.items.filter(
+      (item) =>
+        (!item.requiresGoogle || user?.google_enabled) && (!item.requiresOpenBanking || user?.open_banking_enabled),
+    ),
   })).filter((group) => group.items.length > 0);
 
   return (

@@ -23,6 +23,7 @@ from app.models.investment_transaction import InvestmentTransaction
 from app.models.job_run import JobRun
 from app.models.market_data_profile import MarketDataProfile
 from app.models.net_worth_snapshot import NetWorthSnapshot
+from app.models.open_banking import BankConnection, BankConnectionAccount, OpenBankingCredential
 from app.models.portfolio import Portfolio
 from app.models.portfolio_account import PortfolioAccount
 from app.models.portfolio_snapshot import PortfolioSnapshot
@@ -49,6 +50,8 @@ __all__ = [
     "AssetTaxClassification",
     "AuditLog",
     "Bank",
+    "BankConnection",
+    "BankConnectionAccount",
     "BankParser",
     "Category",
     "Classification",
@@ -65,6 +68,7 @@ __all__ = [
     "JobRun",
     "MarketDataProfile",
     "NetWorthSnapshot",
+    "OpenBankingCredential",
     "Portfolio",
     "PortfolioAccount",
     "PortfolioSnapshot",

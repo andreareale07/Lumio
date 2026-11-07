@@ -51,6 +51,11 @@ jobs:
       GOOGLE_CLIENT_SECRET: ci-client-secret
       GOOGLE_REDIRECT_URI: http://localhost:5173/api/v1/integrations/google/callback
       GOOGLE_PICKER_API_KEY: ci-picker-key
+      # Stesso motivo per tests/test_open_banking_api.py: il router Open
+      # Banking si monta una sola volta all'import. Le chiamate al provider
+      # sono mockate (httpx_mock / connettore finto), nessun traffico reale.
+      OPEN_BANKING_ENABLED: "true"
+      OPEN_BANKING_REDIRECT_URI: http://localhost:5173/api/v1/open-banking/callback
 
     defaults:
       run:

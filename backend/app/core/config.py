@@ -1,6 +1,15 @@
 from functools import lru_cache
 
+from urllib.parse import urlsplit
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_SECRET_KEY_MIN_LENGTH = 32
+# Frammenti dei valori di esempio: se il valore li contiene e' quello copiato
+# da `.env.example`, quindi noto a chiunque.
+_SECRET_KEY_PLACEHOLDERS = ("change-me", "changeme", "ci-secret-key", "secret")
+_OPEN_BANKING_HOSTS = ("api.enablebanking.com",)
 
 
 class Settings(BaseSettings):
@@ -61,6 +70,62 @@ class Settings(BaseSettings):
     # per il widget Google Picker lato frontend (selezione cartella Drive).
     google_picker_api_key: str = ""
     google_export_job_timeout_seconds: int = 120
+
+    # --- Open Banking (connettore Enable Banking) ---
+    # Opzionale come Google: con False nessun endpoint esiste (404) e l'app
+    # funziona al 100% con import PDF/CSV. Nessuna credenziale d'istanza:
+    # l'application ID e la chiave privata sono per UTENTE (i Terms di Enable
+    # Banking permettono la produzione gratuita solo per uso personale con
+    # conti propri, mai credenziali condivise), salvate cifrate nel DB.
+    open_banking_enabled: bool = False
+    # URL pubblico (HTTPS) del callback, da registrare identico nel Control
+    # Panel di Enable Banking: https://<dominio>/api/v1/open-banking/callback
+    open_banking_redirect_uri: str = ""
+    open_banking_base_url: str = "https://api.enablebanking.com"
+    # Solo per chi ha un accordo con indirizzi diversi: in produzione la base URL
+    # e' limitata a Enable Banking (vedi `_check_production_security`).
+    open_banking_allow_custom_base_url: bool = False
+    open_banking_http_timeout_seconds: float = 30.0
+    # Intervallo minimo tra due sincronizzazioni automatiche della stessa
+    # connessione. Molte banche limitano a 4 accessi al giorno senza l'utente
+    # presente: sotto le 6 ore il valore viene riportato a 6 (vedi
+    # bank_sync_service.effective_interval_seconds).
+    open_banking_sync_interval_hours: int = 8
+    # Finestra di riconciliazione: ogni sync riparte da questi giorni prima
+    # dell'ultimo movimento importato, per recepire contabilizzazioni tardive.
+    open_banking_reconcile_days: int = 7
+    open_banking_sync_job_timeout_seconds: int = 900
+
+    @model_validator(mode="after")
+    def _check_production_security(self) -> "Settings":
+        """Con `APP_ENV=production` l'app non parte con una configurazione che
+        renderebbe inutile la cifratura: `SECRET_KEY` firma i JWT e deriva la
+        chiave che protegge le chiavi bancarie e le API key nel DB."""
+        if self.app_env != "production":
+            return self
+        key = self.secret_key.strip().lower()
+        if len(key) < _SECRET_KEY_MIN_LENGTH or any(p in key for p in _SECRET_KEY_PLACEHOLDERS):
+            raise ValueError(
+                "SECRET_KEY non sicuro per APP_ENV=production: servono almeno "
+                f"{_SECRET_KEY_MIN_LENGTH} caratteri casuali e non il valore di esempio "
+                "(genera: python -c \"import secrets; print(secrets.token_urlsafe(64))\"). "
+                "Attenzione: cambiare la chiave dopo il primo avvio rende illeggibili "
+                "i segreti gia' cifrati (chiavi bancarie, API key AI)."
+            )
+        if self.open_banking_enabled and self.open_banking_redirect_uri:
+            if not self.open_banking_redirect_uri.startswith("https://"):
+                raise ValueError("OPEN_BANKING_REDIRECT_URI deve essere HTTPS in produzione")
+        if not self.open_banking_base_url.startswith("https://"):
+            raise ValueError("OPEN_BANKING_BASE_URL deve essere HTTPS in produzione")
+        # L'API firmata con la tua chiave privata va solo a Enable Banking: un
+        # indirizzo diverso (variabile manomessa) riceverebbe i JWT firmati.
+        host = (urlsplit(self.open_banking_base_url).hostname or "").lower()
+        if not self.open_banking_allow_custom_base_url and host not in _OPEN_BANKING_HOSTS:
+            raise ValueError(
+                "OPEN_BANKING_BASE_URL non e' un host di Enable Banking: se e' voluto "
+                "imposta OPEN_BANKING_ALLOW_CUSTOM_BASE_URL=true"
+            )
+        return self
 
     # --- Riclassificazione (rework pipeline di classificazione) ---
     # Puo' scorrere l'intero storico di un workspace (potenzialmente

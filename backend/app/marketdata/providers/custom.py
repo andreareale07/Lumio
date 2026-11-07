@@ -10,6 +10,8 @@ from decimal import Decimal, InvalidOperation
 
 import httpx
 
+from app.core.outbound import guarded_client
+
 from app.marketdata.base import AssetProfile, AssetRef, FxQuote, MarketDataProviderError, PricePoint, Quote
 
 _TIMEOUT = 10.0
@@ -51,7 +53,7 @@ class CustomProvider:
             raise MarketDataProviderError("Endpoint non configurato")
         params = {"apikey": self.api_key} if self.api_key else None
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            async with guarded_client(timeout=_TIMEOUT) as client:
                 response = await client.get(self._url(symbol), params=params)
                 response.raise_for_status()
                 return response

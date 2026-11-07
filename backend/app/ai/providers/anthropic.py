@@ -79,7 +79,7 @@ class AnthropicClassifier:
             (block for block in content if isinstance(block, dict) and block.get("type") == "text"), None
         )
         if text_block is None:
-            raise AIProviderError(f"risposta Anthropic senza contenuto utile: {body}")
+            raise AIProviderError("risposta Anthropic senza contenuto utile")
         return parse_response(text_block["text"], categories)
 
     async def test_connection(self) -> None:

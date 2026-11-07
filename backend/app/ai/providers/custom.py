@@ -13,6 +13,8 @@ libero) che rischiare una richiesta che il server non sa interpretare.
 """
 import httpx
 
+from app.core.outbound import guarded_client
+
 from app.ai.base import AIClassificationResult, AIProviderError, CategoryOption, ClassifiableTransaction
 from app.ai.http_retry import post_with_retry
 from app.ai.prompt import build_messages, parse_response
@@ -40,7 +42,7 @@ class CustomClassifier:
             {"role": "user", "content": bundle.user},
         ]
         try:
-            async with httpx.AsyncClient(timeout=settings.ai_classify_timeout_seconds) as client:
+            async with guarded_client(timeout=settings.ai_classify_timeout_seconds) as client:
                 response = await post_with_retry(
                     client,
                     f"{self.endpoint}/chat/completions",
@@ -55,13 +57,13 @@ class CustomClassifier:
         try:
             raw_text = body["choices"][0]["message"]["content"]
         except (KeyError, IndexError) as exc:
-            raise AIProviderError(f"risposta del server personalizzato inattesa: {body}") from exc
+            raise AIProviderError("risposta del server personalizzato inattesa") from exc
         return parse_response(raw_text, categories)
 
     async def test_connection(self) -> None:
         settings = get_settings()
         try:
-            async with httpx.AsyncClient(timeout=settings.ai_test_timeout_seconds) as client:
+            async with guarded_client(timeout=settings.ai_test_timeout_seconds) as client:
                 response = await client.get(f"{self.endpoint}/models", headers=self._headers())
                 response.raise_for_status()
         except httpx.HTTPError as exc:
@@ -76,7 +78,7 @@ class CustomClassifier:
         # opzionale su un provider che promette solo `/chat/completions`.
         settings = get_settings()
         try:
-            async with httpx.AsyncClient(timeout=settings.ai_test_timeout_seconds) as client:
+            async with guarded_client(timeout=settings.ai_test_timeout_seconds) as client:
                 response = await client.get(f"{self.endpoint}/models", headers=self._headers())
                 response.raise_for_status()
                 body = response.json()

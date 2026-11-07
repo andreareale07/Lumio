@@ -306,6 +306,221 @@
         }
       }
     },
+    "bankConnections": {
+      "label": "Linked bank accounts",
+      "description": "Automatically import balances and transactions from your bank.",
+      "pageDescription": "Link your bank to import transactions without downloading and uploading files. It is an optional integration: PDF and CSV import keep working exactly as before.",
+      "notice": {
+        "expiring_one": "The authorization for {{banks}} is about to expire: renew it to keep syncing.",
+        "expiring_other": "{{count}} bank authorizations are about to expire ({{banks}}): renew them to keep syncing.",
+        "expired_one": "The authorization for {{banks}} has expired: syncing is paused until you renew it.",
+        "expired_other": "{{count}} bank authorizations have expired or are expiring ({{banks}}): renew them to resume syncing.",
+        "action": "Manage"
+      },
+      "page": {
+        "loadError": "We couldn't load the status of your bank accounts.",
+        "connectButton": "Link a bank",
+        "connectedBanner": "Bank linked. Now choose which accounts to import and start the first sync.",
+        "errorCodes": {
+          "invalid_state": "The link request is not valid or has expired. Please try again.",
+          "authorization_denied": "The link was cancelled or denied by the bank. No data was shared.",
+          "authorization_failed": "We couldn't complete the link with the bank. Please try again.",
+          "generic": "Something went wrong while linking the bank."
+        },
+        "redirectMissing": {
+          "title": "Return address not configured",
+          "body": "Set OPEN_BANKING_REDIRECT_URI in the .env file (the public HTTPS address of Lumio followed by /api/v1/open-banking/callback) and restart the services: without it the bank cannot send you back to Lumio."
+        },
+        "empty": {
+          "title": "No bank linked",
+          "description": "Link your bank to import transactions automatically."
+        },
+        "privacy": {
+          "readOnly": "Lumio only reads balances and transactions (read-only): it cannot make payments. Passwords, PINs and codes are entered only on the bank's own site.",
+          "local": "Your data stays on your server. You can unlink the bank at any time: the authorization is revoked at the bank.",
+          "personalUse": "Enable Banking's free service is for personal use and accounts held in your name. For business accounts use PDF or CSV import."
+        },
+        "lastErrors": {
+          "authorization_expired": "The bank authorization has expired: renew it to resume.",
+          "rate_limited": "The bank limited the requests. We'll retry automatically later.",
+          "provider_unavailable": "The Open Banking service is unreachable right now. We'll retry automatically.",
+          "provider_error": "The bank returned an error. We'll retry at the next sync.",
+          "auth_failed": "Enable Banking rejected the credentials. Check the application ID and the uploaded certificate.",
+          "credentials_missing": "The Open Banking credentials are no longer available: set them up again.",
+          "persist_failed": "Some transactions could not be saved. We'll retry at the next sync.",
+          "not_configured": "The application ID is not configured yet.",
+          "key_unreadable": "The stored key can no longer be read: delete the credentials and generate them again.",
+          "generic": "The last sync did not complete successfully."
+        },
+        "lastErrorsShort": {
+          "authorization_expired": "Authorization expired",
+          "rate_limited": "Bank rate limit",
+          "provider_unavailable": "Service unreachable",
+          "provider_error": "Bank error",
+          "auth_failed": "Credentials rejected",
+          "credentials_missing": "Credentials missing",
+          "persist_failed": "Partially saved",
+          "not_configured": "Setup incomplete",
+          "key_unreadable": "Key unreadable",
+          "generic": "Sync failed"
+        },
+        "credentials": {
+          "title": "Enable Banking credentials",
+          "applicationId": "Application ID: {{id}}",
+          "download": "Download certificate",
+          "delete": "Delete credentials",
+          "deleteError": "The credentials could not be deleted.",
+          "deleteDialog": {
+            "title": "Delete the credentials?",
+            "body": "All bank authorizations will be revoked and the links removed. Transactions already imported stay in Lumio.",
+            "confirm": "Delete"
+          }
+        },
+        "setup": {
+          "stepLabel": "Step {{current}} of {{total}}",
+          "back": "Back",
+          "next": "Next",
+          "done": "Done, next",
+          "title": "First-time setup",
+          "description": "Enable Banking is the free service that reads your accounts on your behalf. Everyone registers their own application: it takes a few minutes and is done once.",
+          "copy": "Copy",
+          "copied": "Copied",
+          "step1": {
+            "title": "Generate your certificate",
+            "description": "Lumio creates a private key that stays on your server and is never shown. You only need the public certificate to upload in the next step.",
+            "generate": "Generate certificate",
+            "error": "The certificate could not be generated. Please try again.",
+            "certificateLabel": "Certificate (public part)",
+            "download": "Download certificate"
+          },
+          "step2": {
+            "title": "Register your application on Enable Banking",
+            "createAccount": "Create a free account on the Enable Banking <strong>Control Panel</strong>.",
+            "registerApp": "Register a new application choosing the <strong>Production</strong> environment.",
+            "uploadCertificate": "Upload the certificate from step 1 and note the <strong>Application ID</strong> you receive.",
+            "redirectUrl": "As the return address (<strong>Redirect URL</strong>) enter exactly the one below.",
+            "linkAccounts": "Activate the application in <strong>restricted mode</strong> by linking at least one of your accounts from the Control Panel.",
+            "redirectLabel": "Return address (Redirect URL)",
+            "openPanel": "Open the Enable Banking Control Panel"
+          },
+          "step3": {
+            "description": "Copy the ID Enable Banking gave you when you registered the application.",
+            "title": "Paste the Application ID",
+            "label": "Application ID",
+            "placeholder": "Paste the ID you received",
+            "save": "Save",
+            "invalid": "The ID doesn't look valid: use only letters, digits, dashes and dots (at least 8 characters).",
+            "error": "The ID could not be saved. Please try again."
+          }
+        },
+        "connect": {
+          "title": "Link a bank",
+          "confirmTitle": "Link {{bank}}",
+          "country": "Country",
+          "search": "Search for your bank",
+          "count_one": "{{count}} bank available",
+          "count_other": "{{count}} banks available",
+          "noResults": "No bank found. Try another name or another country.",
+          "loadError": "We couldn't load the list of banks.",
+          "retry": "Retry",
+          "beta": "Beta",
+          "intro": "You are about to leave Lumio and go to your bank's site. What happens:",
+          "points": {
+            "login": "You sign in with your credentials directly on the bank's site or app: Lumio never sees them.",
+            "readOnly": "You authorize read-only access to accounts, balances and transactions. Payments cannot be made.",
+            "consent": "The authorization lasts at most {{days}} days, then it must be renewed.",
+            "revoke": "You can unlink the bank at any time from this page."
+          },
+          "back": "Back",
+          "cancel": "Cancel",
+          "go": "Go to the bank",
+          "startError": "The link could not be started. Please try again."
+        },
+        "mapDialog": {
+          "title": "Import “{{name}}”",
+          "description": "Choose where to save this account's transactions: in a new Lumio account or an existing one.",
+          "select": "Lumio account",
+          "createNew": "Create a new account",
+          "existingGroup": "Existing accounts",
+          "save": "Import",
+          "cancel": "Cancel",
+          "saveError": "The account could not be matched. Please try again."
+        },
+        "connection": {
+          "status": {
+            "active": "Active",
+            "expiring": "Expiring",
+            "expired": "Expired",
+            "revoked": "Revoked",
+            "error": "Error",
+            "pending": "Pending"
+          },
+          "validUntil_one": "Authorization valid until {{date}} ({{count}} day left)",
+          "validUntil_other": "Authorization valid until {{date}} ({{count}} days left)",
+          "lastSync": "Last sync: {{value}}",
+          "lastSyncShort": "sync {{value}}",
+          "statusLine": {
+            "upToDate": "Up to date {{value}}",
+            "neverSynced": "Never synced",
+            "expiring_one": "Expires in {{count}} day",
+            "expiring_other": "Expires in {{count}} days",
+            "expired": "Authorization expired",
+            "revoked": "Authorization revoked",
+            "error": "Link failed",
+            "renew": "Renew",
+            "retry": "Retry"
+          },
+          "syncDoneShort_one": "Synced: {{count}} new transaction",
+          "syncDoneShort_other": "Synced: {{count}} new transactions",
+          "syncNoNewShort": "Synced: no new transactions",
+          "neverSynced": "never",
+          "unnamedAccount": "Unnamed account",
+          "imported_one": "{{count}} transaction imported",
+          "imported_other": "{{count}} transactions imported",
+          "importOn": "Import on",
+          "importOff": "Import paused",
+          "importAccount": "Import this account",
+          "expiredHint": "The authorization has expired and transactions are no longer updated. Renew it to resume: matches and history are kept.",
+          "expiringHint_one": "The authorization expires in {{count}} day. Renew it now to avoid interrupting the sync.",
+          "expiringHint_other": "The authorization expires in {{count}} days. Renew it now to avoid interrupting the sync.",
+          "renew": "Renew authorization",
+          "accountsTitle_one": "{{count}} account",
+          "accountsTitle_other": "{{count}} accounts",
+          "noAccounts": "The bank did not share any account.",
+          "chooseAccounts": "Choose which accounts to import into Lumio.",
+          "syncing": "Syncing…",
+          "syncDone_one": "Sync complete: {{count}} new transaction.",
+          "syncDone_other": "Sync complete: {{count}} new transactions.",
+          "syncNoNew": "Sync complete: no new transactions.",
+          "viewTransactions": "View transactions",
+          "disconnect": "Unlink",
+          "syncNow": "Sync now",
+          "syncDisabled": "Turn on at least one account to be able to sync.",
+          "syncStartError": "The sync could not be started.",
+          "toggleError": "The account could not be updated.",
+          "disconnectError": "The bank could not be unlinked.",
+          "disconnected": "{{bank}} unlinked.",
+          "disconnectedDeleted_one": "{{bank}} unlinked. {{count}} transaction deleted.",
+          "disconnectedDeleted_other": "{{bank}} unlinked. {{count}} transactions deleted.",
+          "notRevoked": "The consent could not be revoked at the bank: it will expire on its own.",
+          "disconnectDialog": {
+            "title": "Unlink {{bank}}?",
+            "impact": {
+              "revoke": "The authorization is revoked at the bank.",
+              "stopSync": "Syncing stops.",
+              "keep_one": "{{count}} transaction already imported stays in Lumio.",
+              "keep_other": "{{count}} transactions already imported stay in Lumio.",
+              "delete_one": "{{count}} transaction imported from this bank will be deleted.",
+              "delete_other": "{{count}} transactions imported from this bank will be deleted.",
+              "mappings": "Matches to Lumio accounts are lost (the accounts stay)."
+            },
+            "deleteLabel": "Also delete the transactions imported from this bank",
+            "deleteWarning": "This can't be undone. Transactions entered by hand or imported from PDF and CSV are not touched.",
+            "confirmDelete": "Unlink and delete"
+          }
+        }
+      }
+    },
     "integrations": {
       "label": "Integrations",
       "description": "Export your financial data to Google Sheets.",

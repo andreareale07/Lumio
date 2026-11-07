@@ -95,6 +95,7 @@ def prepare_transaction_row(
         transaction_type=row.transaction_type,
         source_type_raw=row.source_type_raw,
         balance_after=row.balance_after,
+        external_id=row.external_id,
         category_id=matched_category_id,
         dedup_fingerprint=fingerprint,
     )

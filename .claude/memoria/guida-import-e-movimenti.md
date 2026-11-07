@@ -54,3 +54,9 @@ Spec: `docs/SPEC.md`, `docs/SPEC_DEDUP_TRANSACTION.md`.
   ci sono review aperte.
 - `transaction_persistence.py` e' la pipeline unica di persistenza, condivisa da job e
   decisione di review: non duplicarla.
+
+## Canale Open Banking
+Terzo canale accanto a CSV e PDF (scheda `task-open-banking.md`): ogni sincronizzazione crea un `Import` con `file_type='open_banking'`
+e passa dalla stessa pipeline (`_insert_transactions_and_complete`). `transactions.external_id` (id della banca, indice parziale NON unique)
+e' la chiave primaria di dedup quando c'e'; senza, vale il fingerprint. `ParsedRow.external_id` lo porta fino a `prepare_transaction_row`.
+`services/import_deletion.py` e' l'unico punto che elimina le transazioni di un import (usato da `DELETE /imports/{id}` e dallo scollegamento).

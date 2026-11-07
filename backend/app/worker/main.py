@@ -5,6 +5,7 @@ from arq.worker import func as arq_func
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.worker.jobs.ai_classification_job import classify_import_transactions_job
+from app.worker.jobs.bank_sync_job import bank_sync_all_job, bank_sync_job
 from app.worker.jobs.google_export_job import google_sheets_export_job
 from app.worker.jobs.import_job import import_job
 from app.worker.jobs.job_health_job import expire_stale_jobs_job
@@ -61,6 +62,10 @@ class WorkerSettings:
             positions_recompute_job,
             timeout=_settings.positions_recompute_job_timeout_seconds,
         ),
+        # Open Banking: le letture dalla banca sono lente (paginazione, retry):
+        # budget proprio, indipendente da quello dell'import.
+        arq_func(bank_sync_job, timeout=_settings.open_banking_sync_job_timeout_seconds),
+        arq_func(bank_sync_all_job, timeout=_settings.open_banking_sync_job_timeout_seconds),
     ]
     # Cron giornaliero (SPEC §38, DoD M09 "storico patrimonio via snapshot,
     # non ricalcolato da zero"): prima il refresh prezzi, un'ora dopo lo
@@ -82,6 +87,11 @@ class WorkerSettings:
         cron(refresh_market_data_job, hour=2, minute=0),
         cron(snapshot_job, hour=3, minute=0),
         cron(expire_stale_jobs_job, minute=set(range(0, 60, 2))),
+        # Open Banking: controllo orario; l'intervallo reale tra due sync di una
+        # connessione (min. 6 ore) e il backoff dopo gli errori sono gestiti in
+        # bank_sync_service, non dalla cadenza del cron. Senza connessioni
+        # attive (o con OPEN_BANKING_ENABLED=false) non fa nulla.
+        cron(bank_sync_all_job, minute=17),
     ]
     redis_settings = RedisSettings.from_dsn(_settings.redis_url)
     job_timeout = _settings.import_job_timeout_seconds

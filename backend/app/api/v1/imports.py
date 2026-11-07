@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,7 +20,6 @@ from app.models.bank_parser import BankParser as BankParserRow
 from app.models.financial_account import FinancialAccount
 from app.models.import_ import Import
 from app.models.import_mapping import ImportMapping
-from app.models.investment_transaction import InvestmentTransaction
 from app.models.transaction import Transaction
 from app.models.transaction_dedup_decision import TransactionDedupDecision
 from app.models.transaction_review_item import TransactionReviewItem
@@ -52,8 +51,8 @@ from app.services.ai_classification_trigger import prepare_ai_classification_tri
 from app.services.audit_log_service import log_event
 from app.services.classification_loader import load_pipeline_context
 from app.services.csv_import import MappingConfig, ParsedRow, collapse_whitespace, detect_mapping
+from app.services.import_deletion import delete_import_transactions
 from app.services.import_paths import import_dir_prefix, original_file_path
-from app.services.position_service import recompute_position
 from app.services.system_settings_service import get_setting_value
 from app.services.transaction_persistence import finalize_prepared_transactions, prepare_transaction_row
 from app.storage import get_storage
@@ -628,55 +627,10 @@ async def delete_import(
     if import_row.ai_classification_status == "pending":
         await _abort_job_best_effort(f"ai_classification:{import_row.id}")
 
-    # Scoperto su dati reali (import PDF Trade Republic con
-    # investment_transactions collegate via transaction_id, M09.5c): cancellare
-    # a ritroso, MAI allargare i vincoli — le righe dipendenti vanno rimosse
-    # (o scollegate, se non devono sparire) PRIMA della riga padre, cosi'
-    # nessuna delete successiva viola mai un vincolo.
-    #
-    # `source_type_raw` distingue le due categorie (mai popolato da un
-    # inserimento manuale, vedi commento su InvestmentTransactionCreate):
-    # - auto-creato dal parser durante l'import (source_type_raw NOT NULL):
-    #   e' conseguenza dell'import stesso — si cancella per intero, poi si
-    #   ricalcola la posizione (asset, conto) coinvolta, stesso servizio
-    #   usato da DELETE /investment-transactions/{id}.
-    # - inserito/collegato a mano dall'utente (source_type_raw NULL): resta
-    #   dato reale dell'utente, NON creato da questo import — si scollega
-    #   solo il riferimento alla transazione in via di cancellazione, la riga
-    #   stessa non si tocca.
-    linked_result = await db.execute(
-        select(InvestmentTransaction).where(
-            InvestmentTransaction.workspace_id == workspace_id,
-            InvestmentTransaction.transaction_id.in_(
-                select(Transaction.id).where(
-                    Transaction.workspace_id == workspace_id, Transaction.import_id == import_id
-                )
-            ),
-        )
-    )
-    linked_investment_transactions = list(linked_result.scalars().all())
-
-    positions_to_recompute: set[tuple[uuid.UUID, uuid.UUID, str]] = set()
-    for investment_txn in linked_investment_transactions:
-        if investment_txn.source_type_raw is not None:
-            if investment_txn.asset_id is not None:
-                positions_to_recompute.add(
-                    (investment_txn.financial_account_id, investment_txn.asset_id, investment_txn.currency)
-                )
-            await db.delete(investment_txn)
-        else:
-            investment_txn.transaction_id = None
-    await db.flush()
-
-    for account_id, asset_id, currency in positions_to_recompute:
-        await recompute_position(db, workspace_id, account_id, asset_id, currency)
-
-    delete_result = await db.execute(
-        delete(Transaction).where(
-            Transaction.workspace_id == workspace_id, Transaction.import_id == import_id
-        )
-    )
-    deleted_count = delete_result.rowcount
+    # Pulizia a ritroso delle dipendenze e delle transazioni: vedi
+    # `app/services/import_deletion.py` (condivisa con lo scollegamento di una
+    # banca Open Banking con eliminazione dei dati).
+    deleted_count = await delete_import_transactions(db, workspace_id, import_id)
 
     await log_event(
         db,
