@@ -28,12 +28,16 @@ Decisione 2026-11-07 (utente su Android, iOS dopo): stesso frontend React in un 
 ## Verificato su telefono Android (2026-11-07, utente)
 - Server di produzione aggiornato (migration 0044-0046, password Redis), APK di debug installato, login e blocco con
   impronta funzionanti. APK compilato da GitHub: workflow manuale `.github/workflows/android-apk.yml` (artefatto
-  `lumio-debug-apk`); sul PC di sviluppo mancano Android Studio/SDK e `gh`.
+  `lumio-debug-apk`); sul PC di sviluppo manca `gh` (Android Studio non serve: vedi build locale).
+- Header sotto la barra di stato: risolto con `--sat`/`--sab` = max(env(), --safe-area-inset-*) (`styles/global.css`), verificato su telefono.
+- Build locale senza Android Studio: JDK 21 + SDK cmdline-tools in `C:\Android`, script `frontend/scripts/build-apk.ps1 [-Install]`
+  (guida in `docs/mobile-app.md`). Gradle/Java falliscono con "Unable to establish loopback connection" nella sandbox di
+  Claude: la build va lanciata dal terminale dell'utente (`run_in_terminal`). Chiave di debug locale != GitHub: non si
+  aggiornano a vicenda. `INSTALL_FAILED_USER_RESTRICTED` = serve confermare/abilitare "Installa tramite USB" sul telefono.
 - Ancora da provare: swipe/pull-to-refresh nell'app, privacy screen (FLAG_SECURE), 2FA, push (serve Firebase).
 - Dal LXC di produzione il dominio pubblico non e' raggiungibile (niente hairpin): i test dall'esterno vanno fatti da PC/telefono.
 
 ## Limiti / da sapere
-- Java 26 e nessun Android SDK sulla macchina di sviluppo: l'APK non e' stato compilato qui (serve Android Studio).
 - Open Banking e Google OAuth usano redirect del browser: dall'app nativa si fanno dal sito web.
 - Biometria = gate applicativo sul Keystore (plugin aparajita), non chiave legata alla biometria.
 - Push richiede `google-services.json` in `frontend/android/app/` (ignorato da git) e il service account sul server.
