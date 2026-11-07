@@ -58,3 +58,15 @@ Nessun accesso a istanze di produzione. Il deploy Proxmox lo fa l'utente seguend
 - Dal 2026-10-31 (detto dall'utente): in produzione l'app gira in un **container LXC**
   Proxmox (non in una VM come raccomanda la guida). Non sono noti CTID, percorso, file
   compose in uso: chiederli prima di dare comandi di aggiornamento, non assumere `/opt/lumio`.
+- Noti dal 2026-11-07 (comandi eseguiti dall'utente): repo in `/opt/Lumio` (L maiuscola), progetto compose `lumio`,
+  file `docker-compose.yml` + `docker-compose.prod.yml` + `docker-compose.prod.local-db.yml` (Postgres nel compose,
+  superuser `lumio_admin`), `APP_ENV=production`, `FRONTEND_BIND=0.0.0.0` (reverse proxy esterno con HTTPS su DuckDNS).
+  `COMPOSE_FILE` NON e' esportato nella shell: `export COMPOSE_FILE=...` prima di `docker compose`, oppure leggerli con
+  `docker inspect lumio-app-1 --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'`.
+- Non esiste `/usr/local/bin/lumio-backup.sh`: i backup si fanno a mano (`pg_dump -Fc` in `/var/backups/lumio`, dump con
+  `chmod 600`, copia del `.env`). Da creare lo script/cron se l'utente lo vuole.
+- Dal LXC il proprio dominio pubblico non si raggiunge (niente hairpin): testare in locale su `http://127.0.0.1:5173` e
+  dall'esterno da PC/telefono. `/health` e' fuori da `/api/`: `/api/v1/health` risponde 404, e' normale.
+- Stato al 2026-11-07: database a `0046_push_devices`, password Redis attiva (`REDIS_PASSWORD` + `REDIS_URL` con la stessa
+  password; verifica: `redis-cli ping` senza password risponde NOAUTH). Open Banking: comandi dati, abilitazione NON
+  confermata. Push FCM: non configurato (manca Firebase).
