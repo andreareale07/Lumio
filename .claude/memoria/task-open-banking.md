@@ -78,8 +78,12 @@ Secondo giro (2026-11-07, "blindare lo scambio con l'esterno"):
   `npm audit`: zod e source-map-js aggiornati nel lockfile, restano vite/esbuild (solo server di sviluppo, serve vite 8 major). Attenzione: `npm audit fix --omit=dev` toglie le devDependencies da
   node_modules: rilanciare `npm install`.
 - Attenzione operativa: `docker compose config` STAMPA il contenuto del `.env` (interpolato): non usarlo senza filtrare.
-Non corretto (decisioni aperte): `user_id`/`workspace_id` in chiaro nello `state` (servono per l'identita' RLS), log di errore nginx con la query,
-CSP non provata col Picker Google, nessuna retention dei dati, rebinding DNS tra controllo e connessione (mitigato dai redirect disattivati).
+Terzo giro (2026-11-07, dopo il commit `bcc9797`):
+- `state` OPACO: non e' piu' un JWT ma un token Fernet con chiave dedicata (cifrato e autenticato, TTL 10 min): banca e provider non vedono utente/workspace.
+- `guarded_client` fissa l'IP alla CONNESSIONE (`_PinnedBackend` iniettato in `transport._pool._network_backend`, attributo interno di httpx 0.27: c'e'
+  un test che lo prova): chiude il DNS rebinding. `trust_env=False` (nessun proxy da variabili d'ambiente).
+Non corretto (decisioni aperte): log di errore nginx con la query (non redigibile; abbassare `error_log` a `crit` toglierebbe anche la diagnostica dei 502),
+CSP non provata col Picker Google, nessuna retention dei dati, vite/esbuild (solo dev server), 5 deprecazioni Starlette (`HTTP_422_UNPROCESSABLE_ENTITY` -> `..._CONTENT`).
 
 ## Non fatto / da verificare
 Collegamento con conti reali (Poste, ecc.), E2E Playwright dedicati, notifica fuori dall'app (email/push), movimenti pending,

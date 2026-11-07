@@ -31,13 +31,16 @@ operativamente.
 - Il log di errore di nginx puo' contenere la query di una richiesta fallita (upstream giu'):
   limite noto, riguarda anche `code`/`state` del callback bancario.
 
-## Istanza locale dell'utente
+## Istanza locale dell'utente (SOLO SVILUPPO)
+- Dal 2026-11-07 (detto dall'utente): lo stack locale e' di sola sviluppo, **i dati veri stanno nel
+  container LXC di produzione** (a cui non si ha accesso). Prima la memoria lo dava per "dati reali".
 - Container `lumio-app-1`, `lumio-worker-1`, `lumio-frontend-1` (:5173), `lumio-postgres-1`
-  (:5432, DB `lumio` con **dati reali**), `lumio-redis-1`.
-- Ricostruire e riavviare e' consentito. **Vietato** cancellare dati o volumi, usare
-  `down -v`, lanciarci pytest o fare scritture sull'account reale.
-- La migration si applica da sola all'avvio di `app` (`alembic upgrade head`): un rebuild
-  con una migration nuova modifica davvero il DB reale, quindi va segnalato.
+  (:5432, DB `lumio`, dati di prova dell'utente), `lumio-redis-1`.
+- Rebuild, restart e migration sono liberi (la migration si applica da sola all'avvio di `app`,
+  dillo comunque). Non cancellare volumi/`down -v` senza chiedere; pytest sempre su DB effimeri
+  (il TRUNCATE cancellerebbe i dati di prova); verifiche manuali con account `*-verify@example.com`.
+- Per provare funzioni con configurazioni diverse senza toccare il `.env`: file compose di
+  override con `environment:` (ha la precedenza su `env_file`), mai `docker compose config`.
 - Ordine dopo una modifica: `docker compose build app worker frontend` -> `up -d` ->
   `restart frontend` se `app` e' stato ricreato (vedi `guida-metodo-sviluppo-e-test.md`).
 - Accesso diretto al DB in sola lettura per la diagnostica: `docker exec lumio-postgres-1

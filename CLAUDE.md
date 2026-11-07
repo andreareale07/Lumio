@@ -59,7 +59,7 @@ Manutenzione della memoria:
 11. Git: si lavora su `master`; commit SOLO su richiesta esplicita, push mai senza richiesta; commit in italiano `tipo(scope): ...`, MAI `Co-Authored-By`.
 12. Encoding: file UTF-8 senza BOM; in commit e commenti apostrofo al posto delle accentate (`attivita'`), UI/locales/docs con accenti.
 13. Test: completare la fetta, poi verificare una volta; pytest SOLO su Postgres/Redis effimeri, MAI sul DB `lumio` (TRUNCATE).
-14. Stack Docker locale = dati reali dell'utente: rebuild/restart liberi, mai cancellare dati/volumi; nessun accesso a produzione.
+14. Stack Docker locale = SOLO SVILUPPO (l'utente l'ha confermato il 2026-11-07: i dati veri stanno nel container LXC di produzione): rebuild, restart e migration libere; non cancellare volumi senza chiedere; nessun accesso a produzione. Mai usare `docker compose config` senza filtrare (stampa il `.env`).
 
 ## Stato noto (verificare, puo' essere cambiato)
 - Al 2026-10-30: `master` a `7f61e30`, pulito. Milestone 01-11 fatte, 12 (packaging + documentazione) aperta.

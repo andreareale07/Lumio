@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 from cryptography import x509
+from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import serialization
 
 from app.core.config import Settings, get_settings
@@ -34,22 +35,52 @@ def test_tampered_or_garbage_state_is_rejected():
     assert ob_state.decode_state("not-a-jwt") is None
 
 
+def _fernet_state(payload: dict, at: float | None = None) -> str:
+    import base64
+    import json
+    import time
+
+    fernet = Fernet(base64.urlsafe_b64encode(derive_key("open_banking_state")))
+    return fernet.encrypt_at_time(json.dumps(payload).encode(), int(at if at is not None else time.time())).decode()
+
+
+def _payload(**overrides) -> dict:
+    return {
+        "purpose": "open_banking_state",
+        "workspace_id": str(uuid.uuid4()),
+        "user_id": str(uuid.uuid4()),
+        "connection_id": str(uuid.uuid4()),
+        "nonce": "n",
+        **overrides,
+    }
+
+
 def test_expired_state_is_rejected():
-    past = datetime.now(UTC) - timedelta(minutes=30)
-    token = jwt.encode(
-        {
-            "purpose": "open_banking_state",
-            "workspace_id": str(uuid.uuid4()),
-            "user_id": str(uuid.uuid4()),
-            "connection_id": str(uuid.uuid4()),
-            "nonce": "n",
-            "iat": past,
-            "exp": past + timedelta(minutes=10),
-        },
-        derive_key("open_banking_state").hex(),
-        algorithm=JWT_ALGORITHM,
-    )
-    assert ob_state.decode_state(token) is None
+    import time
+
+    assert ob_state.decode_state(_fernet_state(_payload())) is not None
+    assert ob_state.decode_state(_fernet_state(_payload(), at=time.time() - 30 * 60)) is None
+
+
+def test_state_with_wrong_purpose_or_missing_fields_is_rejected():
+    assert ob_state.decode_state(_fernet_state(_payload(purpose="google"))) is None
+    broken = _payload()
+    del broken["user_id"]
+    assert ob_state.decode_state(_fernet_state(broken)) is None
+    assert ob_state.decode_state(_fernet_state(_payload(user_id="non-un-uuid"))) is None
+
+
+def test_state_does_not_expose_internal_identifiers():
+    """Banca e provider vedono lo `state`: utente e workspace non devono leggersi."""
+    import base64
+
+    user_id, workspace_id = uuid.uuid4(), uuid.uuid4()
+    state = ob_state.build_state(workspace_id, user_id, uuid.uuid4(), "nonce-value")
+    padded = state + "=" * (-len(state) % 4)
+    visible = state + base64.urlsafe_b64decode(padded).decode("latin-1")
+    for secret in (str(user_id), str(workspace_id), "nonce-value", "open_banking_state"):
+        assert secret not in visible
+    assert state.count(".") == 0  # non e' un JWT
 
 
 def test_state_of_another_flow_cannot_be_replayed_here():

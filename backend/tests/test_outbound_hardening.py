@@ -192,3 +192,57 @@ async def test_institutions_listing_has_no_provider_hostnames(client, httpx_mock
     assert "cdn.example" not in response.text
     assert json.loads(response.text)[0]["logo_url"].startswith("/api/v1/open-banking/logos/")
     assert get_settings().open_banking_base_url
+
+
+# ---- connessione con IP fissato (anti DNS rebinding) ---------------------------------
+
+
+async def test_pinned_backend_refuses_forbidden_addresses_at_connect_time():
+    from app.core.outbound import _PinnedBackend
+
+    public = _PinnedBackend(public_only=True)
+    for host in ("127.0.0.1", "10.1.2.3", "169.254.169.254", "::1"):
+        with pytest.raises(OutboundBlocked):
+            await public.connect_tcp(host, 443)
+    lenient = _PinnedBackend(public_only=False)
+    with pytest.raises(OutboundBlocked):
+        await lenient.connect_tcp("169.254.169.254", 80)
+
+
+async def test_dns_rebinding_between_check_and_connect_is_blocked(monkeypatch):
+    """Il DNS risponde un IP pubblico al controllo e uno interno alla connessione."""
+    import asyncio
+    import socket
+
+    answers = iter(["93.184.216.34", "127.0.0.1"])
+
+    async def fake_getaddrinfo(self, host, port, **kwargs):
+        ip = next(answers)
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, port))]
+
+    monkeypatch.setattr(asyncio.BaseEventLoop, "getaddrinfo", fake_getaddrinfo)
+    async with guarded_client(public_only=True) as client:
+        with pytest.raises(OutboundBlocked):
+            await client.get("https://rebind.example/logo.png")
+
+
+async def test_guarded_client_really_connects_to_an_allowed_local_server():
+    import asyncio
+
+    async def handle(reader, writer):
+        await reader.readuntil(b"\r\n\r\n")
+        writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+        await writer.drain()
+        writer.close()
+
+    server = await asyncio.start_server(handle, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    try:
+        async with guarded_client() as client:  # endpoint dell'utente: loopback ammesso
+            assert (await client.get(f"http://127.0.0.1:{port}/")).text == "ok"
+        async with guarded_client(public_only=True) as client:  # dati del provider: mai
+            with pytest.raises(OutboundBlocked):
+                await client.get(f"http://127.0.0.1:{port}/")
+    finally:
+        server.close()
+        await server.wait_closed()
