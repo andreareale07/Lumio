@@ -25,6 +25,13 @@ Decisione 2026-11-07 (utente su Android, iOS dopo): stesso frontend React in un 
   HTTP v1 con PyJWT+httpx, no-op senza `FCM_SERVICE_ACCOUNT_FILE`), invio dopo sync bancaria SCHEDULATA con nuovi
   movimenti, testo senza importi.
 
+## Verificato su telefono Android (2026-11-07, utente)
+- Server di produzione aggiornato (migration 0044-0046, password Redis), APK di debug installato, login e blocco con
+  impronta funzionanti. APK compilato da GitHub: workflow manuale `.github/workflows/android-apk.yml` (artefatto
+  `lumio-debug-apk`); sul PC di sviluppo mancano Android Studio/SDK e `gh`.
+- Ancora da provare: swipe/pull-to-refresh nell'app, privacy screen (FLAG_SECURE), 2FA, push (serve Firebase).
+- Dal LXC di produzione il dominio pubblico non e' raggiungibile (niente hairpin): i test dall'esterno vanno fatti da PC/telefono.
+
 ## Limiti / da sapere
 - Java 26 e nessun Android SDK sulla macchina di sviluppo: l'APK non e' stato compilato qui (serve Android Studio).
 - Open Banking e Google OAuth usano redirect del browser: dall'app nativa si fanno dal sito web.

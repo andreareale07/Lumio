@@ -68,7 +68,7 @@ export function MobileNav() {
       />
       <nav
         aria-label={t("ariaLabel")}
-        className="fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t border-border bg-surface px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t border-border bg-surface px-1 pb-[max(0.5rem,var(--sab))] pt-1.5 md:hidden"
       >
         <div className="grid grid-cols-[repeat(5,1fr)]">
           {primaryItems.map(({ to, labelKey, icon: Icon }) => (

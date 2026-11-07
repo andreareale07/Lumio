@@ -42,7 +42,7 @@ export function ServerSetupScreen({ onSaved }: { onSaved: () => void }) {
   };
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-bg px-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <div className="flex min-h-dvh items-center justify-center bg-bg px-4 pt-[var(--sat)] pb-[var(--sab)]">
       <form
         onSubmit={(e) => void onSubmit(e)}
         noValidate

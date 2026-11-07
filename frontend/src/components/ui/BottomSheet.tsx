@@ -54,7 +54,7 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
         aria-label={title}
         tabIndex={-1}
         style={{ transform: dragY ? `translateY(${dragY}px)` : undefined }}
-        className={`relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl border-t border-border bg-surface px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 shadow-lg outline-none ${
+        className={`relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl border-t border-border bg-surface px-4 pb-[max(1rem,var(--sab))] pt-2 shadow-lg outline-none ${
           dragStart.current === null ? "transition-transform duration-200 motion-reduce:transition-none" : ""
         }`}
       >

@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
+/* Margini di sicurezza (notch, barra di stato, barra gesture). Si usa il massimo tra
+   env() e le variabili che il guscio Capacitor inietta (--safe-area-inset-*): su
+   alcuni WebView Android env() resta a 0 e l'header finiva sotto la barra di stato. */
 :root {
+  --sat: max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px));
+  --sab: max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
+
   --color-bg: #f7f8fa;
   --color-surface: #ffffff;
   --color-surface-hover: #f1f2f5;

@@ -18,7 +18,7 @@ export function UpdateBanner() {
   return (
     <div
       role="status"
-      className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 flex items-center gap-2 rounded-xl border border-border bg-surface p-3 shadow-lg md:inset-x-auto md:bottom-4 md:right-4 md:max-w-sm"
+      className="fixed inset-x-3 bottom-[calc(4.5rem+var(--sab))] z-50 flex items-center gap-2 rounded-xl border border-border bg-surface p-3 shadow-lg md:inset-x-auto md:bottom-4 md:right-4 md:max-w-sm"
     >
       <p className="min-w-0 flex-1 text-sm text-text">{t("update.available")}</p>
       <Button size="sm" onClick={() => void updateServiceWorker(true)}>

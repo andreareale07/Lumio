@@ -37,7 +37,7 @@ export function Topbar({ toolbarSlotRef }: { toolbarSlotRef: (el: HTMLDivElement
   };
 
   return (
-    <header className="flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center border-b border-border bg-surface pt-[env(safe-area-inset-top)]">
+    <header className="flex h-[calc(3.5rem+var(--sat))] items-center border-b border-border bg-surface pt-[var(--sat)]">
       {/* Larghezza fissa `md:w-56` = stessa larghezza di `Sidebar.tsx`
        * (`w-56`): senza questo, il navigatore periodo/pulsante nel Topbar
        * comincia subito dopo "Lumio" invece che allineato con l'inizio
