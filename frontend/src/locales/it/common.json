@@ -125,5 +125,35 @@
     "reset": "Azzera",
     "selectedCount_one": "{{count}} selezionato",
     "selectedCount_other": "{{count}} selezionati"
+  },
+  "privacy": {
+    "hide": "Nascondi gli importi",
+    "show": "Mostra gli importi"
+  },
+  "update": {
+    "available": "È disponibile una nuova versione.",
+    "reload": "Aggiorna",
+    "later": "Dopo"
+  },
+  "native": {
+    "server": {
+      "title": "Collega il tuo server",
+      "description": "Indica l'indirizzo del tuo server Lumio.",
+      "label": "Indirizzo del server",
+      "hint": "Esempio: https://lumio.miodominio.it oppure http://192.168.1.20:5173",
+      "connect": "Connetti",
+      "connectAnyway": "Connetti comunque",
+      "empty": "Inserisci l'indirizzo del server.",
+      "invalid": "Indirizzo non valido.",
+      "unreachable": "Nessun server Lumio raggiungibile a questo indirizzo.",
+      "insecure": "Attenzione: http:// su Internet invia password e dati in chiaro. Usa https:// se possibile."
+    },
+    "lock": {
+      "title": "Lumio è bloccata",
+      "prompt": "Sblocca Lumio",
+      "cancel": "Annulla",
+      "unlock": "Sblocca",
+      "signOut": "Esci"
+    }
   }
 }

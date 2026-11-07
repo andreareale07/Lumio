@@ -12,6 +12,8 @@ export interface User {
   email: string;
   display_name: string;
   created_at: IsoDateTime;
+  /** 2FA TOTP attiva (opzionale: fixture dei test esistenti). */
+  totp_enabled?: boolean;
 }
 
 export interface Me extends User {
@@ -52,6 +54,8 @@ export interface TokenResponse {
   access_token: string;
   token_type: string;
   user: Me;
+  /** Solo nell'app nativa (header X-Lumio-Client): va nel Keystore. */
+  refresh_token?: string | null;
 }
 
 export const ACCOUNT_TYPES = ["checking", "savings", "brokerage", "cash", "credit_card", "other"] as const;

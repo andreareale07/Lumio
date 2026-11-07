@@ -1,10 +1,11 @@
-import { LogOut, Monitor, Moon, Sun } from "lucide-react";
+import { Eye, EyeOff, LogOut, Monitor, Moon, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useTheme } from "../../app/providers/ThemeProvider";
 import { setLocale, SUPPORTED_LOCALES, type SupportedLocale } from "../../app/i18n";
 import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
+import { setAmountsHidden, useAmountsHidden } from "../../lib/privacy";
 
 const THEME_ICONS = { light: Sun, dark: Moon, system: Monitor } as const;
 
@@ -21,6 +22,7 @@ export function Topbar({ toolbarSlotRef }: { toolbarSlotRef: (el: HTMLDivElement
   const { theme, setTheme } = useTheme();
   const { t, i18n } = useTranslation("common");
   const ThemeIcon = THEME_ICONS[theme];
+  const amountsHidden = useAmountsHidden();
 
   const cycleTheme = () => {
     const order = ["system", "light", "dark"] as const;
@@ -35,7 +37,7 @@ export function Topbar({ toolbarSlotRef }: { toolbarSlotRef: (el: HTMLDivElement
   };
 
   return (
-    <header className="flex h-14 items-center border-b border-border bg-surface">
+    <header className="flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center border-b border-border bg-surface pt-[env(safe-area-inset-top)]">
       {/* Larghezza fissa `md:w-56` = stessa larghezza di `Sidebar.tsx`
        * (`w-56`): senza questo, il navigatore periodo/pulsante nel Topbar
        * comincia subito dopo "Lumio" invece che allineato con l'inizio
@@ -60,6 +62,16 @@ export function Topbar({ toolbarSlotRef }: { toolbarSlotRef: (el: HTMLDivElement
         <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
         <div className="flex shrink-0 items-center gap-0 md:gap-1">
           <ActivityIndicator />
+          <button
+            type="button"
+            onClick={() => setAmountsHidden(!amountsHidden)}
+            aria-label={amountsHidden ? t("privacy.show") : t("privacy.hide")}
+            aria-pressed={amountsHidden}
+            title={amountsHidden ? t("privacy.show") : t("privacy.hide")}
+            className="flex h-11 w-11 items-center justify-center rounded-md text-text-muted hover:bg-surface-hover hover:text-text md:h-9 md:w-9"
+          >
+            {amountsHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
           <button
             type="button"
             onClick={cycleLocale}

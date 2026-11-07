@@ -13,6 +13,8 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    # Codice a 6 cifre, richiesto solo se l'utente ha attivato la 2FA.
+    totp_code: str | None = Field(default=None, max_length=16)
 
 
 class UserOut(BaseModel):
@@ -20,6 +22,7 @@ class UserOut(BaseModel):
     email: EmailStr
     display_name: str
     created_at: datetime
+    totp_enabled: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -39,7 +42,30 @@ class MeResponse(UserOut):
     base_currency: str
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=1, max_length=256)
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: MeResponse
+    # Solo per il client nativo (header `X-Lumio-Client: native`): niente cookie
+    # nel WebView, il refresh token viaggia nel body e vive nel Keystore.
+    # Per il web resta None (il token e' solo nel cookie httpOnly).
+    refresh_token: str | None = None
+
+
+class TotpSetupResponse(BaseModel):
+    # Mostrato una sola volta, all'avvio dell'attivazione: poi non e' piu' leggibile.
+    secret: str
+    otpauth_uri: str
+
+
+class TotpEnableRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=16)
+
+
+class TotpDisableRequest(BaseModel):
+    password: str
+    code: str = Field(min_length=6, max_length=16)

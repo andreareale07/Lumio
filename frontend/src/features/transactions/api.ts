@@ -81,6 +81,17 @@ export function useClassifications(transactionId: string | null) {
   });
 }
 
+/** "Conferma" una classificazione incerta senza cambiarla (swipe su mobile). */
+export function useConfirmTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.patch<Transaction>(`/transactions/${id}`, { needs_review: false }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    },
+  });
+}
+
 export function useUpdateTransactionCategory() {
   const queryClient = useQueryClient();
   return useMutation({

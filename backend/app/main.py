@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -30,6 +31,17 @@ async def _tax_ruleset_not_found_handler(request: Request, exc: TaxRulesetNotFou
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(SecurityHeadersMiddleware, https_only=settings.app_env == "production")
+if settings.mobile_app_origins_list:
+    # Per ultimo = piu' esterno: gestisce i preflight prima degli altri layer.
+    # Solo origin esplicite e SENZA credenziali: l'app nativa si autentica con
+    # Bearer, quindi nessun cookie attraversa mai il confine cross-origin.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.mobile_app_origins_list,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Lumio-Client"],
+    )
 
 app.include_router(health.router)
 app.include_router(api_router, prefix="/api/v1")

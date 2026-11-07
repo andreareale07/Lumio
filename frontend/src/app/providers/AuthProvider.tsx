@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 
 import { api } from "../../lib/apiClient";
-import { setAccessToken, setUnauthorizedHandler } from "../../lib/apiClient";
+import { logoutRequest, persistRefreshToken, setAccessToken, setUnauthorizedHandler } from "../../lib/apiClient";
 import type { Me, TokenResponse } from "../../types/api";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
@@ -10,7 +10,8 @@ type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 interface AuthContextValue {
   status: AuthStatus;
   user: Me | null;
-  login: (email: string, password: string) => Promise<void>;
+  /** `totpCode`: solo se l'utente ha la 2FA attiva (il server risponde 401 "TOTP_REQUIRED"). */
+  login: (email: string, password: string, totpCode?: string) => Promise<void>;
   register: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
   /** Ri-scarica /auth/me (es. dopo aver cambiato base_currency in
@@ -25,7 +26,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<Me | null>(null);
 
-  const handleTokenResponse = useCallback((response: TokenResponse) => {
+  const handleTokenResponse = useCallback(async (response: TokenResponse) => {
+    // Nell'app nativa il refresh token arriva nel body e va nel Keystore
+    // PRIMA di dichiarare la sessione attiva (altrimenti un riavvio la perde).
+    await persistRefreshToken(response.refresh_token);
     setAccessToken(response.access_token);
     setUser(response.user);
     setStatus("authenticated");
@@ -70,9 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSession]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      const response = await api.post<TokenResponse>("/auth/login", { email, password });
-      handleTokenResponse(response);
+    async (email: string, password: string, totpCode?: string) => {
+      const response = await api.post<TokenResponse>("/auth/login", {
+        email,
+        password,
+        ...(totpCode ? { totp_code: totpCode } : {}),
+      });
+      await handleTokenResponse(response);
     },
     [handleTokenResponse],
   );
@@ -84,14 +92,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         display_name: displayName,
       });
-      handleTokenResponse(response);
+      await handleTokenResponse(response);
     },
     [handleTokenResponse],
   );
 
   const logout = useCallback(async () => {
     try {
-      await api.post("/auth/logout");
+      await logoutRequest();
     } finally {
       clearSession();
     }

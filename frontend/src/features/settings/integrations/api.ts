@@ -88,7 +88,7 @@ export async function streamGoogleExportEvents(
   const token = getAccessToken();
   const response = await fetch(`${api.base}/integrations/google/export-events`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: "include",
+    credentials: "same-origin",
     signal,
   });
   if (!response.ok || !response.body) {

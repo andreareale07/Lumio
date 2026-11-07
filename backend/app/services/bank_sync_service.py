@@ -38,7 +38,7 @@ from app.openbanking.errors import (
     RateLimitedError,
 )
 from app.parsers.base import TransferCounterparty
-from app.services import open_banking_service
+from app.services import open_banking_service, push_service
 from app.services.csv_import import ParsedRow
 from app.services.transfer_recognition import is_internal_transfer
 
@@ -178,6 +178,9 @@ async def sync_connection(
             else _ATTEMPT_TTL_AFTER_TRANSIENT_FAILURE
         )
         await redis_client.set(_attempt_key(connection_id), "1", ex=ttl)
+    if scheduled and summary.imported > 0:
+        # Sync automatica (utente lontano dall'app): avvisa sul telefono, senza importi.
+        await push_service.notify_new_transactions(user_id, summary.imported)
     return summary
 
 

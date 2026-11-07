@@ -141,7 +141,7 @@ export async function fetchImportFileBlob(importId: string): Promise<Blob> {
   const token = getAccessToken();
   const response = await fetch(`${api.base}/imports/${importId}/file`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: "include",
+    credentials: "same-origin",
   });
   if (!response.ok) {
     throw new ApiError(response.status, "Impossibile scaricare il file originale", null);
@@ -228,7 +228,7 @@ export async function streamSse(
   const token = getAccessToken();
   const response = await fetch(`${api.base}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: "include",
+    credentials: "same-origin",
     signal,
   });
   if (!response.ok || !response.body) {

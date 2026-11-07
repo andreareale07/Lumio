@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronLeft, ChevronRight, Tag } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -9,13 +9,20 @@ import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
+import { SwipeableRow } from "../../components/ui/SwipeableRow";
+import { hapticSuccess } from "../../lib/haptics";
 import { useAccounts } from "../accounts/api";
 import { useCategories } from "../categories/api";
 import { buildCategoryOptions, useCategoryLabel } from "../categories/utils";
 import { formatDate, formatSignedMoney } from "../../lib/format";
 import { usePeriodNavigator } from "../../lib/usePeriodNavigator";
 import { TRANSACTION_TYPES, type Transaction } from "../../types/api";
-import { useTransactionListSummary, useTransactionReviewSummary, useTransactions } from "./api";
+import {
+  useConfirmTransaction,
+  useTransactionListSummary,
+  useTransactionReviewSummary,
+  useTransactions,
+} from "./api";
 import { useTransactionTypeLabel } from "./labels";
 import { TransactionDetailDrawer } from "./TransactionDetailDrawer";
 import { TransactionFilterBar, type SelectFilter, type StaticFilterChip } from "./TransactionFilterBar";
@@ -29,6 +36,7 @@ export function TransactionsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [offset, setOffset] = useState(0);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const confirmTransaction = useConfirmTransaction();
 
   // Filtri multipli: parametri ripetuti nell'URL (`?category=a&category=b`).
   const accountIds = searchParams.getAll("account");
@@ -279,10 +287,31 @@ export function TransactionsPage() {
           {/* Mobile: card list (SPEC_FE §24) */}
           <div className="flex flex-col gap-2 md:hidden">
             {transactions.map((transaction) => (
-              <button
+              <SwipeableRow
                 key={transaction.id}
+                // Scorciatoie: la conferma ha senso solo se c'e' una categoria da
+                // confermare; "Categoria" apre lo stesso dettaglio del tocco.
+                startAction={
+                  transaction.needs_review && transaction.category_id
+                    ? {
+                        label: t("page.swipe.confirm"),
+                        icon: Check,
+                        className: "bg-success",
+                        onTrigger: () =>
+                          confirmTransaction.mutate(transaction.id, { onSuccess: () => hapticSuccess() }),
+                      }
+                    : undefined
+                }
+                endAction={{
+                  label: t("page.swipe.categorize"),
+                  icon: Tag,
+                  className: "bg-primary",
+                  onTrigger: () => setSelectedTransaction(transaction),
+                }}
+              >
+              <button
                 onClick={() => setSelectedTransaction(transaction)}
-                className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3 text-left"
+                className="flex w-full flex-col gap-1 rounded-xl border border-border bg-surface p-3 text-left"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-text">{transaction.merchant ?? transaction.description_raw}</span>
@@ -298,6 +327,7 @@ export function TransactionsPage() {
                   <span>{formatDate(transaction.transaction_date)}</span>
                 </div>
               </button>
+              </SwipeableRow>
             ))}
           </div>
 

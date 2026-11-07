@@ -14,6 +14,8 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [formError, setFormError] = useState<string | null>(null);
+  // Il server risponde 401 "TOTP_REQUIRED" dopo la password giusta se la 2FA e' attiva.
+  const [needsTotp, setNeedsTotp] = useState(false);
 
   const {
     register,
@@ -24,10 +26,20 @@ export function LoginPage() {
   const onSubmit = async (values: LoginFormValues) => {
     setFormError(null);
     try {
-      await login(values.email, values.password);
+      await login(values.email, values.password, needsTotp ? values.totpCode?.trim() : undefined);
       const redirectTo = (location.state as { from?: string } | null)?.from ?? "/accounts";
       navigate(redirectTo, { replace: true });
     } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "TOTP_REQUIRED") {
+        setNeedsTotp(true);
+        return;
+      }
+      if (code === "TOTP_INVALID") {
+        setNeedsTotp(true);
+        setFormError("Codice non valido o gia' usato. Attendi il prossimo codice e riprova.");
+        return;
+      }
       setFormError(friendlyErrorMessage(error, "Email o password non corrette."));
     }
   };
@@ -54,6 +66,17 @@ export function LoginPage() {
             error={errors.password?.message}
             {...register("password")}
           />
+          {needsTotp && (
+            <Input
+              label="Codice di verifica"
+              hint="Il codice a 6 cifre della tua app di autenticazione."
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              autoFocus
+              {...register("totpCode")}
+            />
+          )}
           {formError && (
             <p role="alert" className="text-sm text-danger">
               {formError}

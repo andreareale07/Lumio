@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../../app/providers/AuthProvider";
 import { Card } from "../../components/ui/Card";
+import { isNativeApp } from "../../lib/platform";
 import { SETTINGS_GROUPS } from "./settingsNav";
 
 /** Settings Hub (SPEC_FE_REDESIGN §6): indice unico per le 8 pagine di
@@ -19,7 +20,9 @@ export function SettingsHubPage() {
     ...group,
     items: group.items.filter(
       (item) =>
-        (!item.requiresGoogle || user?.google_enabled) && (!item.requiresOpenBanking || user?.open_banking_enabled),
+        (!item.requiresGoogle || user?.google_enabled) &&
+        (!item.requiresOpenBanking || user?.open_banking_enabled) &&
+        (!item.requiresNative || isNativeApp()),
     ),
   })).filter((group) => group.items.length > 0);
 

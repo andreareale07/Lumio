@@ -26,8 +26,10 @@ import { IntegrationsSettingsPage } from "../../features/settings/integrations/I
 import { OpenBankingSettingsPage } from "../../features/settings/open-banking/OpenBankingSettingsPage";
 import { AIEngineSettingsPage } from "../../features/settings/ai-engine/AIEngineSettingsPage";
 import { JobsSettingsPage } from "../../features/settings/jobs/JobsSettingsPage";
+import { MobileAppSettingsPage } from "../../features/settings/mobile-app/MobileAppSettingsPage";
 import { MaintenanceSettingsPage } from "../../features/settings/maintenance/MaintenanceSettingsPage";
 import { MarketDataSettingsPage } from "../../features/settings/market-data/MarketDataSettingsPage";
+import { SecuritySettingsPage } from "../../features/settings/security/SecuritySettingsPage";
 import { SettingsHubPage } from "../../features/settings/SettingsHubPage";
 import { TaxSettingsPage } from "../../features/settings/tax/TaxSettingsPage";
 import { TaxLossPocketPage } from "../../features/tax/TaxLossPocketPage";
@@ -103,6 +105,8 @@ export function AppRouter() {
           <Route path="transaction-types" element={<TransactionTypeMappingsPage />} />
           <Route path="jobs" element={<JobsSettingsPage />} />
           <Route path="maintenance" element={<MaintenanceSettingsPage />} />
+          <Route path="security" element={<SecuritySettingsPage />} />
+          <Route path="mobile-app" element={<MobileAppSettingsPage />} />
           <Route
             path="integrations"
             element={

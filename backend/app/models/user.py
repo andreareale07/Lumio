@@ -18,6 +18,11 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    # 2FA TOTP opzionale. Il segreto e' cifrato a riposo (core/crypto.py) e non
+    # viene mai restituito dalle API dopo l'attivazione; `totp_enabled` diventa
+    # true solo dopo la verifica di un primo codice (segreto in attesa = false).
+    totp_secret_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

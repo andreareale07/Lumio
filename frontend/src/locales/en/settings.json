@@ -687,7 +687,7 @@
         "run": "Recompute now",
         "running": "Recomputing…",
         "previousChanges": "Last changes actually made ({{date}})",
-    "lastRun": "Last run",
+        "lastRun": "Last run",
         "summary": "{{changed}} positions change out of {{checked}} checked.",
         "truncated": "List limited to the first {{shown}} positions: the count above is complete.",
         "previewError": "The preview could not be calculated.",
@@ -727,6 +727,61 @@
           "scheduled": "<strong>Scheduled jobs</strong> run on their own at fixed intervals (a cron), no matter what you do in the app — which is why they have a real on/off switch here. Turning one off only stops the automatic run: wherever an equivalent manual button exists (e.g. \"Refresh now\"), that one always stays available.",
           "triggered": "<strong>Action-triggered jobs</strong> only start when you (or another workspace user) do something — import a file, activate an AI profile, launch an export. They have no system switch here: you enable or disable them where you already configure them (the workspace AI profile, the Google integration). Here you only see their operational parameters.",
           "lock": "<strong>The padlock</strong> on a parameter (including the frequency of scheduled jobs) means the value can't be changed from here: it's fixed in the worker's code and changing it takes more than a simple save."
+        }
+      }
+    },
+    "security": {
+      "label": "Security",
+      "description": "Two-factor authentication with an authenticator app.",
+      "page": {
+        "title": "Two-factor authentication",
+        "statusOn": "On: signing in needs the 6-digit code from your authenticator app as well as the password.",
+        "statusOff": "Off. Turning it on means a stolen password is not enough to sign in.",
+        "start": "Turn on",
+        "step1": "1. Add this key to your authenticator app (Google Authenticator, Aegis, 2FAS...).",
+        "copy": "Copy key",
+        "copied": "Copied",
+        "openApp": "Open in app",
+        "step2": "2. Enter the 6-digit code the app shows, to confirm.",
+        "codeLabel": "6-digit code",
+        "confirm": "Confirm and turn on",
+        "cancel": "Cancel",
+        "invalidCode": "Invalid code. Check your phone's clock and try again.",
+        "error": "Could not start the setup.",
+        "disableHint": "To turn it off you need your password and a valid code.",
+        "passwordLabel": "Password",
+        "disable": "Turn off",
+        "invalidDisable": "Invalid password or code."
+      }
+    },
+    "mobileApp": {
+      "label": "Mobile app",
+      "description": "Fingerprint or face lock, notifications and connected server (this phone only).",
+      "page": {
+        "lock": {
+          "title": "App lock",
+          "description": "Asks for fingerprint, face or phone PIN on launch and after some time in the background. Hides Lumio in recent apps and blocks screenshots.",
+          "enable": "Lock the app with fingerprint/face",
+          "delayLabel": "Lock after",
+          "delayNow": "Immediately",
+          "delayMinutes_one": "{{count}} minute",
+          "delayMinutes_other": "{{count}} minutes",
+          "unavailable": "This phone has no fingerprint, face or screen lock set up.",
+          "confirmPrompt": "Confirm to turn on the lock",
+          "cancel": "Cancel"
+        },
+        "push": {
+          "title": "Notifications",
+          "description": "Alerts you when automatic sync brings new transactions. Notifications never contain amounts.",
+          "enable": "Get notifications about new transactions",
+          "notConfigured": "Your server has notifications turned off (a Firebase account is required, see the guide).",
+          "denied": "Permission denied: enable notifications for Lumio in Android settings.",
+          "error": "Could not turn on notifications. Check that the app was built with Firebase."
+        },
+        "server": {
+          "title": "Server",
+          "change": "Change server",
+          "confirm": "Sign out and pick another server?"
         }
       }
     }

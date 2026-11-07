@@ -687,7 +687,7 @@
         "run": "Ricalcola ora",
         "running": "Ricalcolo in corso…",
         "previousChanges": "Ultime modifiche effettive ({{date}})",
-    "lastRun": "Ultima esecuzione",
+        "lastRun": "Ultima esecuzione",
         "summary": "{{changed}} posizioni cambiano su {{checked}} controllate.",
         "truncated": "Elenco limitato alle prime {{shown}} posizioni: il conteggio sopra è completo.",
         "previewError": "Non è stato possibile calcolare l'anteprima.",
@@ -727,6 +727,61 @@
           "scheduled": "<strong>Job schedulati</strong> girano da soli, a intervalli fissi (un cron), indipendentemente da cosa fai nell'app — per questo hanno un vero interruttore attivo/disattivato qui. Disattivarli ferma solo l'esecuzione automatica: dove esiste un bottone manuale equivalente (es. \"Aggiorna ora\"), quello resta sempre disponibile.",
           "triggered": "<strong>Job innescati da un'azione</strong> partono solo quando tu (o un altro utente del workspace) fai qualcosa — importi un file, attivi un profilo AI, avvii un export. Non hanno un interruttore di sistema qui: si abilitano o disabilitano da dove già li configuri (profilo AI per workspace, integrazione Google). Qui vedi solo i loro parametri operativi.",
           "lock": "<strong>Il lucchetto</strong> su un parametro (inclusa la cadenza dei job schedulati) indica che il valore non è modificabile da qui: è fissato nel codice del worker e cambiarlo richiede più di un semplice salvataggio."
+        }
+      }
+    },
+    "security": {
+      "label": "Sicurezza",
+      "description": "Autenticazione a due fattori con un'app di autenticazione.",
+      "page": {
+        "title": "Autenticazione a due fattori",
+        "statusOn": "Attiva: all'accesso, oltre alla password, serve il codice a 6 cifre dell'app di autenticazione.",
+        "statusOff": "Non attiva. Attivandola, un'eventuale password rubata non basta per entrare.",
+        "start": "Attiva",
+        "step1": "1. Aggiungi questa chiave alla tua app di autenticazione (Google Authenticator, Aegis, 2FAS...).",
+        "copy": "Copia la chiave",
+        "copied": "Copiata",
+        "openApp": "Apri nell'app",
+        "step2": "2. Inserisci il codice a 6 cifre che l'app mostra, per confermare.",
+        "codeLabel": "Codice a 6 cifre",
+        "confirm": "Conferma e attiva",
+        "cancel": "Annulla",
+        "invalidCode": "Codice non valido. Controlla l'ora del telefono e riprova.",
+        "error": "Non è stato possibile avviare l'attivazione.",
+        "disableHint": "Per disattivarla servono la password e un codice valido.",
+        "passwordLabel": "Password",
+        "disable": "Disattiva",
+        "invalidDisable": "Password o codice non validi."
+      }
+    },
+    "mobileApp": {
+      "label": "App mobile",
+      "description": "Blocco con impronta o volto, notifiche e server collegato (solo su questo telefono).",
+      "page": {
+        "lock": {
+          "title": "Blocco dell'app",
+          "description": "Chiede impronta, volto o PIN del telefono all'apertura e dopo un po' di tempo in background. Nasconde Lumio nelle app recenti e blocca gli screenshot.",
+          "enable": "Blocca l'app con impronta/volto",
+          "delayLabel": "Blocca dopo",
+          "delayNow": "Subito",
+          "delayMinutes_one": "{{count}} minuto",
+          "delayMinutes_other": "{{count}} minuti",
+          "unavailable": "Questo telefono non ha impronta, volto o blocco schermo configurati.",
+          "confirmPrompt": "Conferma per attivare il blocco",
+          "cancel": "Annulla"
+        },
+        "push": {
+          "title": "Notifiche",
+          "description": "Ti avvisa quando la sincronizzazione automatica porta nuovi movimenti. Le notifiche non contengono mai importi.",
+          "enable": "Ricevi notifiche sui nuovi movimenti",
+          "notConfigured": "Il tuo server non ha le notifiche attive (serve un account Firebase, vedi la guida).",
+          "denied": "Permesso negato: abilita le notifiche per Lumio nelle impostazioni di Android.",
+          "error": "Impossibile attivare le notifiche. Verifica che l'app sia stata compilata con Firebase."
+        },
+        "server": {
+          "title": "Server",
+          "change": "Cambia server",
+          "confirm": "Uscire e scegliere un altro server?"
         }
       }
     }

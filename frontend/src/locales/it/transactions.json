@@ -55,6 +55,10 @@
     "needsReview_one": "{{count}} da verificare",
     "needsReview_other": "{{count}} da verificare",
     "loadError": "Non siamo riusciti a caricare i tuoi movimenti.",
+    "swipe": {
+      "confirm": "Conferma",
+      "categorize": "Categoria"
+    },
     "empty": {
       "title": "Nessun movimento",
       "description": "I movimenti importati o creati manualmente appariranno qui."

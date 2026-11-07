@@ -125,5 +125,35 @@
     "reset": "Reset",
     "selectedCount_one": "{{count}} selected",
     "selectedCount_other": "{{count}} selected"
+  },
+  "privacy": {
+    "hide": "Hide amounts",
+    "show": "Show amounts"
+  },
+  "update": {
+    "available": "A new version is available.",
+    "reload": "Update",
+    "later": "Later"
+  },
+  "native": {
+    "server": {
+      "title": "Connect your server",
+      "description": "Enter the address of your Lumio server.",
+      "label": "Server address",
+      "hint": "Example: https://lumio.mydomain.com or http://192.168.1.20:5173",
+      "connect": "Connect",
+      "connectAnyway": "Connect anyway",
+      "empty": "Enter the server address.",
+      "invalid": "Invalid address.",
+      "unreachable": "No Lumio server reachable at this address.",
+      "insecure": "Warning: http:// over the Internet sends passwords and data in clear text. Use https:// if you can."
+    },
+    "lock": {
+      "title": "Lumio is locked",
+      "prompt": "Unlock Lumio",
+      "cancel": "Cancel",
+      "unlock": "Unlock",
+      "signOut": "Sign out"
+    }
   }
 }

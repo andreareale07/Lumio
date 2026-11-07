@@ -1,4 +1,4 @@
-import { Activity, Coins, FolderTree, Landmark, Link2, ListChecks, Percent, Sparkles, LineChart, Tags, Wand2, Wrench } from "lucide-react";
+import { Activity, Coins, ShieldCheck, Smartphone, FolderTree, Landmark, Link2, ListChecks, Percent, Sparkles, LineChart, Tags, Wand2, Wrench } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
 export interface SettingsPageLink {
@@ -13,6 +13,8 @@ export interface SettingsPageLink {
   requiresGoogle?: boolean;
   /** Come `requiresGoogle`, per `user.open_banking_enabled`. */
   requiresOpenBanking?: boolean;
+  /** Solo nell'app nativa (Capacitor): blocco biometrico, push, server. */
+  requiresNative?: boolean;
 }
 
 export interface SettingsGroup {
@@ -57,6 +59,8 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     items: [
       { to: "/settings/jobs", icon: ListChecks, itemKey: "jobs" },
       { to: "/settings/maintenance", icon: Wrench, itemKey: "maintenance" },
+      { to: "/settings/security", icon: ShieldCheck, itemKey: "security" },
+      { to: "/settings/mobile-app", icon: Smartphone, itemKey: "mobileApp", requiresNative: true },
     ],
   },
 ];

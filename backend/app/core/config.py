@@ -28,6 +28,21 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
 
+    # Origin del guscio nativo (Capacitor: Android `https://localhost`, iOS
+    # `capacitor://localhost`). Servono per il CORS dell'app mobile, che usa solo
+    # Bearer (nessun cookie: `allow_credentials` resta False). Lista separata da
+    # virgole in MOBILE_APP_ORIGINS; vuota = CORS spento (solo web same-origin).
+    mobile_app_origins: str = "http://localhost,https://localhost,capacitor://localhost"
+
+    @property
+    def mobile_app_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.mobile_app_origins.split(",") if o.strip()]
+
+    # Notifiche push all'app Android via Firebase Cloud Messaging (HTTP v1).
+    # Percorso del file JSON del service account (montato nel container, MAI
+    # nel repo); vuoto = push spento e l'app resta al 100% funzionante.
+    fcm_service_account_file: str = ""
+
     # --- AI Abstraction (milestone 07) ---
     # Ogni workspace configura i propri profili AI via `/settings/ai`
     # (piu' profili salvabili, uno attivo per volta) — nessun default

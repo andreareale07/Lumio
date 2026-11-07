@@ -55,6 +55,10 @@
     "needsReview_one": "{{count}} to review",
     "needsReview_other": "{{count}} to review",
     "loadError": "We couldn't load your transactions.",
+    "swipe": {
+      "confirm": "Confirm",
+      "categorize": "Category"
+    },
     "empty": {
       "title": "No transactions",
       "description": "Imported or manually created transactions will appear here."

@@ -2,6 +2,7 @@
 // Numbers) — centralizzati qui, mai formattati ad-hoc nei componenti.
 
 import i18n from "../app/i18n";
+import { HIDDEN_AMOUNT, isAmountsHidden } from "./privacy";
 
 // Locale Intl completo per la lingua corrente (SPEC_FE_REDESIGN §28-29):
 // letto al momento della chiamata, mai fissato a "it-IT" — chi vuole vedere
@@ -13,12 +14,14 @@ export function intlLocale(): string {
 }
 
 export function formatMoney(amount: string | number, currency: string): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   const value = typeof amount === "string" ? Number(amount) : amount;
   return new Intl.NumberFormat(intlLocale(), { style: "currency", currency }).format(value);
 }
 
 /** Il segno non si affida solo al colore (SPEC_FE §66): antepone sempre +/-. */
 export function formatSignedMoney(amount: string | number, currency: string): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   const value = typeof amount === "string" ? Number(amount) : amount;
   const formatted = formatMoney(Math.abs(value), currency);
   return value < 0 ? `-${formatted}` : `+${formatted}`;
@@ -84,6 +87,7 @@ export function formatPercent(fraction: string | number, options: { signed?: boo
 /** Notazione compatta per gli assi dei grafici (es. "1,2 K €") — mai per i
  * KPI principali, dove il valore esatto conta (SPEC_FE §66). */
 export function formatCompactMoney(amount: string | number, currency: string): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   const value = typeof amount === "string" ? Number(amount) : amount;
   return new Intl.NumberFormat(intlLocale(), {
     style: "currency",
@@ -104,6 +108,7 @@ const _LARGE_MONEY_TIERS: [number, string][] = [
  * `formatCompactMoney`, non usa l'abbreviazione italiana di Intl
  * ("mln"/"mld"), sempre queste tre lettere per richiesta esplicita. */
 export function formatLargeMoney(amount: string | number, currency: string): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   const value = typeof amount === "string" ? Number(amount) : amount;
   const tier = _LARGE_MONEY_TIERS.find(([threshold]) => Math.abs(value) >= threshold);
   if (!tier) return formatMoney(value, currency);

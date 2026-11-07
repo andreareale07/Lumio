@@ -1,6 +1,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -35,6 +36,9 @@ class TransactionUpdate(BaseModel):
         default=None, pattern="^(" + "|".join(TRANSACTION_TYPES) + ")$"
     )
     status: str | None = Field(default=None, pattern="^(" + "|".join(STATUSES) + ")$")
+    # Solo `False`: "conferma" di una classificazione incerta (swipe da mobile).
+    # Riaprire una review a mano non ha senso: la decide il motore di confidenza.
+    needs_review: Literal[False] | None = None
 
 
 class TransactionOut(BaseModel):

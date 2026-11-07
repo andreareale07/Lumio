@@ -21,6 +21,7 @@ from app.api.v1 import (
     open_banking,
     portfolios,
     positions,
+    push,
     rules,
     settings_ai,
     settings_market_data,
@@ -34,6 +35,7 @@ from app.core.config import get_settings
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
+api_router.include_router(push.router)
 api_router.include_router(banks.router)
 api_router.include_router(accounts.router)
 api_router.include_router(categories.router)

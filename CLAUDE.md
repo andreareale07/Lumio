@@ -24,6 +24,7 @@ Tienile aggiornate: se scopri un fatto nuovo non ovvio dal codice, o uno scritto
 | AI, Google Sheets | `guida-ai-e-integrazioni.md` |
 | Open Banking, connettori bancari, sync automatica | `task-open-banking.md`, `guida-import-e-movimenti.md` |
 | Docker, deploy, `.env`, istanza locale | `guida-deploy.md` |
+| App mobile, PWA, Capacitor, gesture, biometria, push (task aperto) | `task-app-mobile.md`, `progetto-frontend.md`, `guida-ux-e-design.md` |
 
 Manutenzione della memoria:
 - A fine attivita', se hai scoperto qualcosa di non ovvio, aggiorna la scheda giusta (o creane una e aggiungi la riga in tabella). Dimmi cosa hai aggiornato.
@@ -68,4 +69,5 @@ Manutenzione della memoria:
 - Al 2026-10-30: da pulire con ok dell'utente: 5 worktree `agent-*` orfani su `2280394`, cartelle `db/postgres-init;C/` e `backend/features/settings/` (artefatti di path), `Lumio.tar.gz`.
 - Al 2026-11-06: filtri di Movimenti rifatti (commit `2fe1506`, verificati solo su desktop); prossima attivita' richiesta: revisione globale di filtri e periodo, mobile first (scheda `task-*`).
 - Al 2026-11-07: Open Banking (Enable Banking) committato con analisi di sicurezza e correzioni, mai provato con conti reali: vedi scheda `task-open-banking.md` e `docs/open-banking-setup.md` (migration 0044 da applicare con backup; con `APP_ENV=production` serve `SECRET_KEY` da almeno 32 caratteri).
+- Al 2026-11-07: app mobile (PWA + guscio Capacitor Android, gesture, privacy importi, blocco biometrico, push FCM, 2FA TOTP) scritta e non committata, mai provata su telefono: vedi `task-app-mobile.md` e `docs/mobile-app.md` (migration 0045 e 0046 da applicare con backup).
 - Richiesto dall'utente dopo M12, non pianificato: ruolo admin di istanza con "Impostazioni istanza" (config fuori da `.env`, audit log) e restyle menu Impostazioni.

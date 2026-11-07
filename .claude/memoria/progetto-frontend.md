@@ -71,6 +71,10 @@ Tailwind 4, Recharts, i18next, icone lucide-react. Build servita da nginx nel co
   `grid-cols-5` (= `minmax(0,1fr)`): cosi' le colonne prendono la larghezza dell'etichetta piu'
   lunga e il testo non si tronca mai. Se sfora su schermi stretti, ridurre il font (ora 11px).
 
+- **App mobile (2026-11-07):** `lib/platform.ts::isNativeApp()`; `lib/apiClient.ts` usa `getApiBase()` (server scelto nel
+  guscio) e, nel nativo, token nel Keystore con refresh single-flight; `lib/privacy.ts` nasconde gli importi (remount di
+  `AppRouter` come la lingua); `SwipeableRow`, `usePullToRefresh`, `lib/haptics.ts`. Dettagli in `task-app-mobile.md`.
+
 ## Regole i18n
 - Nuovo namespace: aggiungerlo **sia** a `resources` **sia** all'array `ns` in `app/i18n.ts`
   (se ne manca uno, `t()` restituisce la chiave grezza senza errori).
