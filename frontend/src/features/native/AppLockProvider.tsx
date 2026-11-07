@@ -9,6 +9,7 @@ import { Button } from "../../components/ui/Button";
 import { logoutRequest } from "../../lib/apiClient";
 import { getLockDelay, isLockEnabled } from "../../lib/appLockPrefs";
 import { authenticateUser } from "../../lib/biometric";
+import { AppVersion } from "../../components/ui/AppVersion";
 import { isNativeApp } from "../../lib/platform";
 import { setPrivacyScreen } from "../../lib/privacyScreen";
 
@@ -80,6 +81,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         >
           <Lock className="h-10 w-10 text-primary" />
           <h1 className="text-lg font-semibold text-text">{t("native.lock.title")}</h1>
+          <AppVersion />
           <div className="flex w-full max-w-xs flex-col gap-2">
             <Button onClick={() => void unlock()}>{t("native.lock.unlock")}</Button>
             <Button variant="ghost" onClick={() => void signOut()}>

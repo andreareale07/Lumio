@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../../components/ui/Button";
+import { AppVersion } from "../../components/ui/AppVersion";
 import { Input } from "../../components/ui/Input";
 import { isInsecureRemote, normalizeServerUrl, saveServerUrl, testServer } from "../../lib/serverConfig";
 
@@ -51,6 +52,7 @@ export function ServerSetupScreen({ onSaved }: { onSaved: () => void }) {
         <div className="text-center">
           <h1 className="text-xl font-semibold text-text">{t("native.server.title")}</h1>
           <p className="mt-1 text-sm text-text-muted">{t("native.server.description")}</p>
+          <AppVersion className="mt-1" />
         </div>
         <Input
           label={t("native.server.label")}

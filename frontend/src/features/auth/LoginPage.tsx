@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
+import { AppVersion } from "../../components/ui/AppVersion";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import { type LoginFormValues, loginSchema } from "./schemas";
 
@@ -50,6 +51,7 @@ export function LoginPage() {
         <div className="mb-6 text-center">
           <h1 className="text-xl font-semibold text-text">Lumio</h1>
           <p className="text-sm text-text-muted">See your money clearly.</p>
+          <AppVersion className="mt-1" />
         </div>
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
           <Input

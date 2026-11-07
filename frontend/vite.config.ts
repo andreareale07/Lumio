@@ -1,13 +1,17 @@
 /// <reference types="vitest/config" />
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync } from "node:fs";
 import { defineConfig, loadEnv } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(({ mode }) => {
   // Il nome prodotto arriva solo dalla config (VITE_APP_NAME), anche nel manifest.
   const appName = loadEnv(mode, process.cwd(), "VITE_").VITE_APP_NAME || "Lumio";
+  // Versione dell'app: una sola fonte (package.json), mostrata nelle schermate d'ingresso e usata dall'APK.
+  const appVersion = (JSON.parse(readFileSync("package.json", "utf-8")) as { version: string }).version;
   return {
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   plugins: [
     react(),
     tailwindcss(),

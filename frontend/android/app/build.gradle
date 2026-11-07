@@ -1,5 +1,9 @@
 apply plugin: 'com.android.application'
 
+// Versione unica: package.json (la stessa mostrata nell'app). versionCode = major*10000 + minor*100 + patch.
+def appPackage = new groovy.json.JsonSlurper().parse(file('../../package.json'))
+def appVersionParts = appPackage.version.tokenize('.').collect { it.toInteger() }
+
 android {
     namespace = "app.lumio.mobile"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +11,8 @@ android {
         applicationId "app.lumio.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionParts[0] * 10000 + appVersionParts[1] * 100 + appVersionParts[2]
+        versionName appPackage.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
