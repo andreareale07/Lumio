@@ -1,0 +1,52 @@
+name: Build APK Android
+
+# Compila l'app Android (Capacitor) e la rende scaricabile come artefatto.
+# Si lancia a mano: Actions -> "Build APK Android" -> Run workflow.
+# L'APK e' di DEBUG (firmato con la chiave di debug del runner): va bene per
+# installarlo sul proprio telefono, non per il Play Store.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Capacitor 8 richiede Node >= 22 e Java 21.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - run: npm ci
+
+      - name: Build web e sync Capacitor
+        run: |
+          npm run build
+          npx cap sync android
+
+      - name: Compila l'APK di debug
+        working-directory: frontend/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lumio-debug-apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
