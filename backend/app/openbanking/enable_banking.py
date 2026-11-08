@@ -17,7 +17,10 @@ esponenziale; MAI su 429 (limite della banca/provider: insistere peggiora).
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
+import os
 import re
 import time
 from datetime import UTC, date, datetime
@@ -146,6 +149,37 @@ def _external_id(raw: dict[str, Any]) -> tuple[str | None, str | None]:
     if reference.lower() in _PLACEHOLDER_REFERENCES or set(reference) <= {"0"}:
         return None, "external_id_placeholder"
     return reference, None
+
+
+def _debug_dump_page(account_uid: str, page: int, data: dict[str, Any]) -> None:
+    """DIAGNOSTICA TEMPORANEA, opt-in (`OPEN_BANKING_DEBUG_DUMP_DIR`): scrive su file la
+    risposta GREZZA di una pagina di movimenti (solo i primi N), per capire in quale campo
+    la banca mette descrizione e controparte. Mai nei log; file 0600; un errore qui non deve
+    mai far fallire la sync."""
+    settings = get_settings()
+    directory = settings.open_banking_debug_dump_dir
+    if not directory:
+        return
+    try:
+        os.makedirs(directory, mode=0o700, exist_ok=True)
+        items = data.get("transactions")
+        items = items if isinstance(items, list) else []
+        limit = max(0, settings.open_banking_debug_dump_limit)
+        payload = {
+            "top_level_keys": sorted(str(k) for k in data.keys()),
+            "transactions_in_page": len(items),
+            "dumped": min(limit, len(items)),
+            "has_continuation_key": bool(data.get("continuation_key")),
+            "transactions": items[:limit],
+        }
+        name = f"ob-{hashlib.sha256(account_uid.encode()).hexdigest()[:8]}-{int(time.time())}-p{page}.json"
+        path = os.path.join(directory, name)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2, default=str)
+        logger.warning("Open Banking: dump diagnostico scritto (%d movimenti, file %s)", payload["dumped"], name)
+    except Exception:
+        logger.warning("Open Banking: dump diagnostico non scritto", exc_info=True)
 
 
 def normalize_transaction_ex(raw: Any) -> tuple[NormalizedTransaction | None, str | None]:
@@ -507,6 +541,7 @@ class EnableBankingConnector:
                 )
             )
             stats.pages += 1
+            _debug_dump_page(account_uid, stats.pages, data)
             items = data.get("transactions")
             for raw in items if isinstance(items, list) else []:
                 stats.raw_count += 1

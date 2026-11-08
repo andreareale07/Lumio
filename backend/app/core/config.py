@@ -111,6 +111,12 @@ class Settings(BaseSettings):
     # (addebiti SDD e carte possono arrivare con booking_date di settimane prima).
     open_banking_reconcile_days: int = 30
     open_banking_sync_job_timeout_seconds: int = 900
+    # DIAGNOSTICA TEMPORANEA (spenta se vuota): cartella dove scrivere la risposta GREZZA della banca
+    # (primi N movimenti per pagina, con descrizioni, nomi e importi). Serve a capire in quale campo
+    # la banca mette i dati veri. Contiene dati finanziari: attivarla solo per il tempo di un'analisi,
+    # poi svuotare la variabile e cancellare i file.
+    open_banking_debug_dump_dir: str = ""
+    open_banking_debug_dump_limit: int = 10
 
     @model_validator(mode="after")
     def _check_production_security(self) -> "Settings":

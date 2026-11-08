@@ -462,3 +462,55 @@ async def test_page_limit_is_an_incomplete_fetch_not_a_silent_truncation(connect
     with pytest.raises(OpenBankingError) as info:
         await connector.get_transactions("acc-1")
     assert info.value.code == "incomplete_fetch"
+
+
+# ---- dump diagnostico (opt-in) --------------------------------------------------------
+
+
+async def test_debug_dump_is_off_by_default(connector, httpx_mock, tmp_path, monkeypatch):
+    from app.core.config import get_settings
+
+    assert get_settings().open_banking_debug_dump_dir == ""
+    httpx_mock.add_response(
+        url=re.compile(rf"{re.escape(BASE)}/accounts/acc-1/transactions.*"), json={"transactions": [_tx()]}
+    )
+    await connector.get_transactions("acc-1")
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_debug_dump_writes_raw_first_transactions_to_a_private_file(connector, httpx_mock, tmp_path, monkeypatch):
+    import os
+    import stat
+
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "open_banking_debug_dump_dir", str(tmp_path / "dump"))
+    monkeypatch.setattr(get_settings(), "open_banking_debug_dump_limit", 2)
+    httpx_mock.add_response(
+        url=re.compile(rf"{re.escape(BASE)}/accounts/acc-1/transactions.*"),
+        json={"transactions": [_tx(entry_reference=f"r{i}", extra_field="visibile") for i in range(5)]},
+    )
+
+    result = await connector.get_transactions("acc-1")
+
+    assert len(result) == 5  # la sync non cambia
+    files = list((tmp_path / "dump").iterdir())
+    assert len(files) == 1
+    payload = json.loads(files[0].read_text(encoding="utf-8"))
+    assert payload["transactions_in_page"] == 5 and payload["dumped"] == 2
+    assert payload["transactions"][0]["extra_field"] == "visibile"  # campi sconosciuti inclusi
+    assert "transactions" in payload["top_level_keys"]
+    if os.name != "nt":
+        assert stat.S_IMODE(files[0].stat().st_mode) == 0o600
+
+
+async def test_debug_dump_failure_never_breaks_the_read(connector, httpx_mock, tmp_path, monkeypatch):
+    from app.core.config import get_settings
+
+    blocker = tmp_path / "file"
+    blocker.write_text("x")
+    monkeypatch.setattr(get_settings(), "open_banking_debug_dump_dir", str(blocker / "sub"))  # non creabile
+    httpx_mock.add_response(
+        url=re.compile(rf"{re.escape(BASE)}/accounts/acc-1/transactions.*"), json={"transactions": [_tx()]}
+    )
+    assert len(await connector.get_transactions("acc-1")) == 1

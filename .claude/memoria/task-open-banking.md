@@ -118,6 +118,14 @@ Audit del codice + ricerca (doc Enable Banking, issue Firefly III/Actual/Sure): 
 - **Protocollo col primo conto reale**: due sync consecutive, confrontare le statistiche (stabilita' di `entry_reference`, `booking_date`,
   flag), poi tarare. Nessuna banca italiana e' mai stata provata.
 
+## Dump diagnostico della risposta grezza (2026-11-08, eccezione voluta dall'utente)
+Dopo il primo collegamento reale (Trade Republic) tutte le descrizioni risultavano "Movimento" (ripiego di `normalize_transaction_ex` quando
+`remittance_information`, `note`, nome controparte e descrizione del codice sono vuoti: il dato vero sta in un campo non letto).
+`OPEN_BANKING_DEBUG_DUMP_DIR` (spento se vuoto) scrive su file 0600 i primi `OPEN_BANKING_DEBUG_DUMP_LIMIT` movimenti GREZZI di ogni pagina
+(`enable_banking._debug_dump_page`), mai nei log. Contiene dati finanziari: attivare solo per l'analisi, poi svuotare la variabile e cancellare i file.
+La sync gira nel container `worker`: i file stanno li'. Le transazioni gia' importate con "Movimento" non si correggono con "Rileggi storico"
+(dedup per `external_id`): dopo la correzione del parsing vanno eliminate (import) e riletta la storia.
+
 ## Non fatto / da verificare
 Collegamento con conti reali (Poste, ecc.), E2E Playwright dedicati, notifica fuori dall'app (email/push), movimenti pending,
 ancoraggio del saldo bancario al patrimonio di Lumio, pairing automatico delle due gambe di un trasferimento tra conti propri.
