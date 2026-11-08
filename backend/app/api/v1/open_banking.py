@@ -65,6 +65,9 @@ _LOGO_KEY_RE = re.compile(r"^[0-9a-f]{32}$")
 
 def _http_error(exc: OpenBankingError) -> HTTPException:
     if isinstance(exc, OpenBankingAuthError):
+        # Solo codice e stato HTTP (mai il corpo): serve a capire perche' il provider
+        # rifiuta la firma (chiave, orologio, applicazione non attiva).
+        logger.warning("Open Banking: credenziali rifiutate (code=%s, http=%s)", exc.code, exc.http_status)
         return HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "Enable Banking ha rifiutato le credenziali: controlla l'application ID e il certificato caricato",
