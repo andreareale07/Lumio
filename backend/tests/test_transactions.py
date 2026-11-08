@@ -404,3 +404,41 @@ async def test_multi_value_filters_and_merchants_endpoint(client):
 
     searched = await client.get("/api/v1/transactions/merchants", params={"q": "lid"}, headers=headers)
     assert [m["merchant"] for m in searched.json()["items"]] == ["LIDL"]
+
+
+async def test_delete_transaction_rebuilds_history_from_its_date_and_tolerates_a_queue_failure(client, monkeypatch):
+    from datetime import date
+    from unittest.mock import AsyncMock
+
+    token = await _register(client, "tx-deleter-history@example.com")
+    account_id = await _create_account(client, token)
+    enqueue = AsyncMock()
+    monkeypatch.setattr("app.api.v1.transactions.enqueue_snapshot_backfill", enqueue)
+
+    created = await client.post(
+        "/api/v1/transactions", json=_transaction_payload(account_id), headers=_auth_headers(token)
+    )
+    assert (await client.delete(f"/api/v1/transactions/{created.json()['id']}", headers=_auth_headers(token))).status_code == 204
+    enqueue.assert_awaited_once()
+    assert enqueue.await_args.kwargs["date_from"] == date(2026, 8, 1)
+
+    # Una coda che non risponde non deve far fallire un'eliminazione gia' avvenuta.
+    enqueue.side_effect = RuntimeError("redis giu'")
+    created = await client.post(
+        "/api/v1/transactions", json=_transaction_payload(account_id), headers=_auth_headers(token)
+    )
+    assert (await client.delete(f"/api/v1/transactions/{created.json()['id']}", headers=_auth_headers(token))).status_code == 204
+    assert (await client.get(f"/api/v1/transactions/{created.json()['id']}", headers=_auth_headers(token))).status_code == 404
+
+
+async def test_user_cannot_delete_another_users_transaction(client):
+    token_a = await _register(client, "tx-del-a@example.com")
+    token_b = await _register(client, "tx-del-b@example.com")
+    account_b = await _create_account(client, token_b)
+    created = await client.post(
+        "/api/v1/transactions", json=_transaction_payload(account_b), headers=_auth_headers(token_b)
+    )
+    transaction_id = created.json()["id"]
+
+    assert (await client.delete(f"/api/v1/transactions/{transaction_id}", headers=_auth_headers(token_a))).status_code == 404
+    assert (await client.get(f"/api/v1/transactions/{transaction_id}", headers=_auth_headers(token_b))).status_code == 200

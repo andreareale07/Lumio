@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Wand2 } from "lucide-react";
+import { Trash2, Wand2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../../components/ui/Button";
@@ -14,6 +14,7 @@ import { RuleFormDialog, type RuleDialogDefaults } from "../rules/RuleFormDialog
 import { useRuleSuggestions } from "../rules/api";
 import type { Transaction } from "../../types/api";
 import { ClassificationIndicator } from "./ClassificationIndicator";
+import { DeleteTransactionDialog } from "./DeleteTransactionDialog";
 import { useClassifications, useUpdateTransactionCategory } from "./api";
 
 export function TransactionDetailDrawer({
@@ -33,6 +34,7 @@ export function TransactionDetailDrawer({
   const { data: suggestions } = useRuleSuggestions();
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [ruleDialogDefaults, setRuleDialogDefaults] = useState<RuleDialogDefaults | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const latestClassification = classifications?.[0] ?? null;
 
@@ -148,8 +150,28 @@ export function TransactionDetailDrawer({
               </ul>
             </div>
           )}
+
+          <div className="border-t border-border pt-3">
+            <Button
+              variant="ghost"
+              onClick={() => setDeleting(true)}
+              className="w-full text-danger hover:bg-danger-bg sm:w-auto"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              {t("detail.delete")}
+            </Button>
+          </div>
         </div>
       </Drawer>
+
+      <DeleteTransactionDialog
+        transaction={deleting ? transaction : null}
+        onClose={() => setDeleting(false)}
+        onDeleted={() => {
+          setDeleting(false);
+          onClose();
+        }}
+      />
 
       <RuleFormDialog
         open={!!ruleDialogDefaults}

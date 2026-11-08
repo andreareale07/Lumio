@@ -551,7 +551,8 @@
           "flags": {
             "external_id_missing": "Senza identificativo",
             "external_id_placeholder": "Identificativo segnaposto",
-            "indicator_missing": "Senza indicatore dare/avere"
+            "indicator_missing": "Senza indicatore dare/avere",
+            "description_missing": "Senza descrizione dalla banca"
           },
           "subCodes": "Sotto-codici",
           "pages_one": "{{count}} pagina letta",

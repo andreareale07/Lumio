@@ -23,7 +23,8 @@
     "createRuleFromTransaction": "Crea regola da questa transazione",
     "history": {
       "title": "Storico classificazioni"
-    }
+    },
+    "delete": "Elimina movimento"
   },
   "page": {
     "title": "Movimenti",
@@ -91,5 +92,12 @@
       "income": "entrate {{value}}",
       "expenses": "uscite {{value}}"
     }
+  },
+  "delete": {
+    "title": "Eliminare questo movimento?",
+    "body": "Il movimento viene eliminato definitivamente, con la sua storia di classificazione. L'operazione non si può annullare.",
+    "bank": "Se arriva da una banca collegata non verrà reimportato alla prossima sincronizzazione: per riaverlo usa «Rileggi storico» nei dettagli del conto.",
+    "confirm": "Elimina",
+    "error": "Non è stato possibile eliminare il movimento."
   }
 }

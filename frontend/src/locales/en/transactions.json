@@ -23,7 +23,8 @@
     "createRuleFromTransaction": "Create rule from this transaction",
     "history": {
       "title": "Classification history"
-    }
+    },
+    "delete": "Delete transaction"
   },
   "page": {
     "title": "Transactions",
@@ -91,5 +92,12 @@
       "income": "income {{value}}",
       "expenses": "expenses {{value}}"
     }
+  },
+  "delete": {
+    "title": "Delete this transaction?",
+    "body": "The transaction is permanently deleted, along with its classification history. This cannot be undone.",
+    "bank": "If it came from a linked bank it will not be re-imported at the next sync: to bring it back use “Re-read history” in the account details.",
+    "confirm": "Delete",
+    "error": "Could not delete the transaction."
   }
 }

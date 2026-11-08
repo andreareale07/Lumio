@@ -1,5 +1,6 @@
-import uuid
 import dataclasses
+import logging
+import uuid
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -38,6 +39,9 @@ from app.services.rule_loader import load_active_rule_specs
 from app.services.rules_engine import Probe, evaluate
 from app.services.system_settings_service import get_setting_value
 from app.services.transaction_dedup import compute_dedup_fingerprint
+from app.worker.queue import enqueue_snapshot_backfill
+
+logger = logging.getLogger("lumio.transactions")
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -427,6 +431,7 @@ async def update_transaction(
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_transaction(
     transaction_id: uuid.UUID,
+    user: User = Depends(get_current_user),
     workspace_id: uuid.UUID = Depends(get_current_workspace_id),
     db: AsyncSession = Depends(get_db),
 ) -> None:
@@ -447,8 +452,15 @@ async def delete_transaction(
                 )
                 .on_conflict_do_nothing(constraint="uq_bank_transaction_tombstones_account_ext")
             )
+    transaction_date = transaction.transaction_date
     await db.delete(transaction)
     await db.commit()
+    # Lo storico del patrimonio dipende dai movimenti: va ricostruito dalla data di quello
+    # eliminato. Un problema della coda non deve far fallire l'eliminazione, gia' avvenuta.
+    try:
+        await enqueue_snapshot_backfill(workspace_id, user.id, date_from=transaction_date)
+    except Exception:
+        logger.warning("delete_transaction: backfill dello storico non accodato", exc_info=True)
 
 
 @router.get("/{transaction_id}/classifications", response_model=list[ClassificationOut])

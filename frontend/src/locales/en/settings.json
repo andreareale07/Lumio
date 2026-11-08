@@ -551,7 +551,8 @@
           "flags": {
             "external_id_missing": "No identifier",
             "external_id_placeholder": "Placeholder identifier",
-            "indicator_missing": "No debit/credit indicator"
+            "indicator_missing": "No debit/credit indicator",
+            "description_missing": "No description from the bank"
           },
           "subCodes": "Sub-codes",
           "pages_one": "{{count}} page read",

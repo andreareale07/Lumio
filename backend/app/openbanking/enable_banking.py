@@ -240,7 +240,12 @@ def normalize_transaction_ex(raw: Any) -> tuple[NormalizedTransaction | None, st
     code_value = _text(bank_code.get("code"), 40)
     sub_code = _text(bank_code.get("sub_code"), 40)
     if not description:
-        description = _text(raw.get("note") or counterparty_name or code_description or "Movimento", _MAX_TEXT) or "Movimento"
+        description = _text(raw.get("note") or counterparty_name or code_description, _MAX_TEXT)
+    if not description:
+        # Alcune banche (es. Trade Republic) mandano solo importo, verso e data: nessun testo.
+        # Si descrive almeno il verso e si segnala, cosi' la diagnostica conta questi casi.
+        description = "Addebito" if is_debit else "Accredito"
+        flags.append("description_missing")
 
     balance_block = _obj(raw.get("balance_after_transaction"))
     external_id, id_flag = _external_id(raw)
@@ -465,20 +470,31 @@ class EnableBankingConnector:
         if not session_id or not _PATH_ID_RE.match(str(session_id)):
             raise OpenBankingError("Enable Banking non ha restituito la sessione")
         accounts = []
-        for acc in data.get("accounts", []):
+        raw_accounts = data.get("accounts")
+        raw_accounts = raw_accounts if isinstance(raw_accounts, list) else []
+        dropped = 0
+        for acc in raw_accounts:
             # Senza `uid` non si possono leggere saldi/movimenti: non e' utilizzabile.
-            if not acc.get("uid") or not _PATH_ID_RE.match(str(acc["uid"])):
+            if not isinstance(acc, dict) or not acc.get("uid") or not _PATH_ID_RE.match(str(acc["uid"])):
+                dropped += 1
                 continue
             accounts.append(
                 ProviderAccount(
                     uid=str(acc["uid"]),
-                    iban=(acc.get("account_id") or {}).get("iban"),
+                    iban=_obj(acc.get("account_id")).get("iban"),
                     name=acc.get("name"),
                     product=acc.get("product"),
                     currency=acc.get("currency"),
                     cash_account_type=acc.get("cash_account_type"),
                 )
             )
+        # Diagnostica senza valori: quanti conti ha restituito la banca e quali campi ha la risposta.
+        logger.warning(
+            "Open Banking: sessione creata (conti ricevuti=%d, scartati=%d, campi risposta=%s)",
+            len(raw_accounts),
+            dropped,
+            sorted(str(key) for key in data.keys()),
+        )
         valid_until = None
         raw_valid_until = (data.get("access") or {}).get("valid_until")
         if raw_valid_until:

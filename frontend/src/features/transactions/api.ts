@@ -92,6 +92,15 @@ export function useConfirmTransaction() {
   });
 }
 
+/** Elimina UN movimento. Movimenti, conti e analisi dipendono da esso: si riallinea tutto. */
+export function useDeleteTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/transactions/${id}`),
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
+}
+
 export function useUpdateTransactionCategory() {
   const queryClient = useQueryClient();
   return useMutation({

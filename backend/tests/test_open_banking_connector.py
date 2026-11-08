@@ -112,7 +112,10 @@ def test_description_joins_remittance_lines_and_collapses_spaces():
 def test_description_falls_back_to_counterparty_then_generic():
     assert normalize_transaction(_tx(remittance_information=[])).description == "Supermercato Rossi"
     bare = _tx(remittance_information=None, creditor=None, bank_transaction_code=None)
-    assert normalize_transaction(bare).description == "Movimento"
+    generic = normalize_transaction(bare)
+    assert generic.description == "Addebito" and "description_missing" in generic.flags
+    credit = normalize_transaction({**bare, "credit_debit_indicator": "CRDT", "debtor": None})
+    assert credit.description == "Accredito"
 
 
 @pytest.mark.parametrize("status", ["CNCL", "RJCT", "SCHD"])
