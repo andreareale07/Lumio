@@ -109,6 +109,8 @@ async def preview_rule(
         already_correct=result.already_correct,
         protected=result.protected,
         recategorized=result.recategorized,
+        other_category=result.other_category,
+        conflict_samples=list(result.conflict_samples),
         total=result.would_change + result.already_correct + result.protected,
         group=payload.group,
         truncated=truncated,

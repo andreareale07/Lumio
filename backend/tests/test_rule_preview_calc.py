@@ -42,6 +42,36 @@ def test_matches_are_split_into_change_ok_and_protected():
     assert result.recategorized == 1
 
 
+def test_other_category_counts_protected_matches_and_gives_samples():
+    txs = [
+        _tx("CANONE CONTO Settembre", category=_TARGET, protected=True, day=1),
+        _tx("CASHBACK SCONTI CANONE CONTO Settembre", category=_OTHER, protected=True, day=2),
+        _tx("CASHBACK SCONTI CANONE CONTO Agosto", category=_OTHER, day=3),
+        _tx("CASHBACK SCONTI CANONE CONTO Agosto", category=_OTHER, day=4),
+        _tx("CANONE CONTO senza categoria", category=None, day=5),
+    ]
+    result = build_preview((_contains("canone conto"),), "all", _TARGET, txs)
+    # Protetti o no, i 3 movimenti con un'altra categoria sono il conflitto.
+    assert result.other_category == 3
+    assert result.protected == 1 and result.recategorized == 2
+    # Descrizioni distinte, la piu' recente prima.
+    assert result.conflict_samples == (
+        "CASHBACK SCONTI CANONE CONTO Agosto",
+        "CASHBACK SCONTI CANONE CONTO Settembre",
+    )
+
+
+def test_not_contains_removes_the_conflict_from_the_preview():
+    txs = [
+        _tx("CANONE CONTO Settembre", category=_TARGET),
+        _tx("CASHBACK SCONTI CANONE CONTO Settembre", category=_OTHER, protected=True),
+    ]
+    exclude = Condition(field="description", operator="not_contains", value="cashback")
+    result = build_preview((_contains("canone conto"), exclude), "all", _TARGET, txs)
+    assert (result.already_correct, result.protected, result.other_category) == (1, 0, 0)
+    assert result.conflict_samples == ()
+
+
 def test_a_protected_transaction_already_in_the_target_category_counts_as_ok():
     txs = [_tx("Rata Mutuo", category=_TARGET, protected=True)]
     result = build_preview((_contains("rata"),), "all", _TARGET, txs)

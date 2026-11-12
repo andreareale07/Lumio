@@ -10,6 +10,12 @@ export function summaryInput(input: RuleImpactInput | null): RulePreviewInput | 
   return input ? { ...input, limit: 1 } : null;
 }
 
+/** Movimenti che la regola catturerebbe pur avendo un'altra categoria, anche se
+ * protetti da una correzione manuale: la frase e' condivisa con un'altra categoria. */
+export function conflictCount(preview: RulePreview): number {
+  return preview.other_category ?? 0;
+}
+
 /** La regola toglierebbe da altre categorie piu' movimenti di quanti sono gia'
  * giusti: segnale di una regola troppo ampia. Quelli senza categoria non
  * contano, e' l'effetto voluto. */

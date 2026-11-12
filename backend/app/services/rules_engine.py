@@ -125,7 +125,8 @@ def matches(field: str, operator: str, value: str, row: MatchableRow) -> bool:
     (`app/classification/catalog.py` + `app/services/system_classification.py`,
     livello 3 della pipeline di classificazione): due implementazioni
     separate della stessa logica (case-insensitive, stessi 6 operatori)
-    divergerebbero silenziosamente nel tempo.
+    divergerebbero silenziosamente nel tempo. `not_contains` serve solo alle
+    regole utente (escludere una parola da una frase troppo ampia).
     """
     if operator == "merchant_equals":
         target = row.merchant
@@ -134,6 +135,9 @@ def matches(field: str, operator: str, value: str, row: MatchableRow) -> bool:
         return target.strip().lower() == value.strip().lower()
 
     target = _field_value(row, field)
+    if operator == "not_contains":
+        # Negazione: un campo assente (merchant vuoto) non contiene nulla.
+        return target is None or value.lower() not in target.lower()
     if target is None:
         return False
 

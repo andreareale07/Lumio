@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 RULE_FIELDS = ("description", "merchant")
-RULE_OPERATORS = ("equals", "contains", "starts_with", "ends_with", "regex", "merchant_equals")
+RULE_OPERATORS = ("equals", "contains", "not_contains", "starts_with", "ends_with", "regex", "merchant_equals")
 RULE_MATCH_MODES = ("all", "any")
 
 

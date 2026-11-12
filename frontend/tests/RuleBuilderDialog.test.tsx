@@ -48,6 +48,8 @@ const PREVIEW: RulePreview = {
   already_correct: 8,
   protected: 1,
   recategorized: 1,
+  other_category: 0,
+  conflict_samples: [],
   total: 12,
   group: null,
   items: [],
@@ -145,6 +147,43 @@ describe("RuleBuilderDialog", () => {
     renderBuilder();
 
     expect(await screen.findByText(/Toglierebbe da altre categorie 15 movimenti/)).toBeInTheDocument();
+  });
+
+  it("segnala il conflitto con un'altra categoria e propone di escludere la parola che distingue", async () => {
+    const calls = stubApi({
+      preview: {
+        ...PREVIEW,
+        would_change: 0,
+        recategorized: 0,
+        protected: 1,
+        other_category: 1,
+        conflict_samples: ["CASHBACK SCONTI BENEF. Reale Francesco PER Rata Mutuo"],
+      },
+    });
+    const user = userEvent.setup();
+    renderBuilder();
+
+    expect(await screen.findByText(/Prenderebbe anche 1 movimento che ha già un'altra categoria/)).toBeInTheDocument();
+    expect(screen.getByText(/CASHBACK SCONTI BENEF/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Escludi «CASHBACK»" }));
+    expect(await screen.findByText("«CASHBACK»")).toBeInTheDocument();
+    // Una volta esclusa, la proposta non si ripete.
+    expect(screen.queryByRole("button", { name: "Escludi «CASHBACK»" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Crea regola" }));
+    const created = await waitFor(() => {
+      const call = calls.find((c) => c.url.endsWith("/rules") && c.method === "POST");
+      expect(call).toBeTruthy();
+      return call;
+    });
+    expect(created?.body).toMatchObject({
+      conditions: [
+        { field: "description", operator: "contains" },
+        { field: "description", operator: "not_contains", value: "CASHBACK" },
+      ],
+      match_mode: "all",
+    });
   });
 
   it("crea la regola con le condizioni scelte e la applica ai movimenti esistenti", async () => {

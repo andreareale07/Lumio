@@ -4,6 +4,7 @@ import {
   autoRuleName,
   conditionsToSelection,
   defaultSelection,
+  exclusionWord,
   normalizeConditions,
   selectionToConditions,
   tokenizeDescription,
@@ -94,5 +95,29 @@ describe("normalizeConditions e nome automatico", () => {
         { field: "description", operator: "contains", value: "Rata Mutuo" },
       ]),
     ).toBe("Rata Mutuo");
+  });
+});
+
+describe("exclusionWord", () => {
+  const source = tokenizeDescription("CANONE CONTO Relativo a Settembre 2026");
+
+  it("sceglie la prima parola fissa che il movimento di partenza non contiene", () => {
+    expect(exclusionWord("CASHBACK SCONTI CANONE CONTO RELATIVO A SETTEMBRE 2026", source)).toBe("CASHBACK");
+  });
+
+  it("ignora parole con cifre, parole troppo corte e quelle già presenti", () => {
+    expect(exclusionWord("A1B2 di CANONE CONTO Relativo a Settembre", source)).toBeNull();
+    expect(exclusionWord("CANONE CONTO", source)).toBeNull();
+  });
+});
+
+describe("autoRuleName con esclusioni", () => {
+  it("non usa una condizione 'non contiene' come nome", () => {
+    expect(
+      autoRuleName([
+        { field: "description", operator: "not_contains", value: "CASHBACK" },
+        { field: "description", operator: "contains", value: "CANONE CONTO" },
+      ]),
+    ).toBe("CANONE CONTO");
   });
 });

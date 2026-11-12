@@ -175,6 +175,40 @@ async def test_preview_splits_matches_into_change_ok_and_protected(client):
     assert items[0]["description"][start:end].lower() == "zxq rata"
 
 
+async def test_not_contains_separates_nested_descriptions_and_preview_reports_the_conflict(client):
+    """Caso reale: "CANONE CONTO ..." e' contenuto in "CASHBACK ... CANONE CONTO ...",
+    che ha un'altra categoria scelta dall'utente."""
+    token = await _register(client, "cond-notcontains@example.com")
+    account_id = await _account(client, token)
+    fees = await _category(client, token, "abbonamenti.streaming")
+    cashback = await _category(client, token, "abbonamenti.software")
+
+    await _transaction(client, token, account_id, "Zxq canone conto settembre")
+    await _transaction(client, token, account_id, "Zxq cashback sconti zxq canone conto settembre", category_id=cashback)
+
+    wide = await client.post(
+        "/api/v1/rules/preview",
+        json={"conditions": [_contains("zxq canone conto settembre")], "category_id": fees},
+        headers=_auth(token),
+    )
+    body = wide.json()
+    assert body["other_category"] == 1
+    assert body["conflict_samples"] == ["Zxq cashback sconti zxq canone conto settembre"]
+
+    exclude = {"field": "description", "operator": "not_contains", "value": "cashback"}
+    narrow = await client.post(
+        "/api/v1/rules/preview",
+        json={"conditions": [_contains("zxq canone conto settembre"), exclude], "category_id": fees},
+        headers=_auth(token),
+    )
+    body = narrow.json()
+    assert (body["total"], body["other_category"], body["conflict_samples"]) == (1, 0, [])
+
+    # La regola si salva e si rilegge con l'operatore nuovo.
+    rule = await _create_rule(client, token, fees, [_contains("zxq canone conto settembre"), exclude])
+    assert [c["operator"] for c in rule["conditions"]] == ["contains", "not_contains"]
+
+
 async def test_preview_rejects_unknown_category_and_other_workspace_category(client):
     token = await _register(client, "cond-preview-a@example.com")
     other_token = await _register(client, "cond-preview-b@example.com")

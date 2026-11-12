@@ -179,6 +179,7 @@ export type RuleField = (typeof RULE_FIELDS)[number];
 export const RULE_OPERATORS = [
   "equals",
   "contains",
+  "not_contains",
   "starts_with",
   "ends_with",
   "regex",
@@ -236,6 +237,10 @@ export interface RulePreview {
   protected: number;
   /** Dei `would_change`, quelli che hanno già un'altra categoria. */
   recategorized: number;
+  /** Movimenti che combaciano ma stanno in un'altra categoria (anche se protetti). */
+  other_category: number;
+  /** Descrizioni (distinte, le più recenti) di quei movimenti. */
+  conflict_samples: string[];
   total: number;
   group: ImpactGroup | null;
   items: RulePreviewItem[];

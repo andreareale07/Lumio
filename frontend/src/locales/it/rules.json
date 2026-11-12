@@ -29,6 +29,7 @@
     "empty": "Scegli almeno una parte del movimento.",
     "description": {
       "contains": "la descrizione contiene",
+      "not_contains": "la descrizione non contiene",
       "starts_with": "la descrizione inizia con",
       "ends_with": "la descrizione finisce con",
       "equals": "la descrizione è esattamente",
@@ -37,6 +38,7 @@
     },
     "merchant": {
       "contains": "il merchant contiene",
+      "not_contains": "il merchant non contiene",
       "starts_with": "il merchant inizia con",
       "ends_with": "il merchant finisce con",
       "equals": "il merchant è esattamente",
@@ -73,6 +75,10 @@
     "see_other": "Vedi i {{count}} movimenti",
     "truncated": "Calcolato sui movimenti più recenti.",
     "warnBroad": "Toglierebbe da altre categorie {{count}} movimenti, più di quelli già giusti. Aggiungi una parte per restringere la regola.",
+    "warnConflict_one": "Prenderebbe anche {{count}} movimento che ha già un'altra categoria (anche scelta da te). La regola è troppo generica per distinguerlo.",
+    "warnConflict_other": "Prenderebbe anche {{count}} movimenti che hanno già un'altra categoria (anche scelta da te). La regola è troppo generica per distinguerli.",
+    "conflictSample": "Ad esempio: {{sample}}",
+    "exclude": "Escludi «{{word}}»",
     "protectedHint": "Le correzioni fatte a mano vincono sempre sulle regole.",
     "groups": {
       "change": "Cambiano ({{count}})",

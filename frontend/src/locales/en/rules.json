@@ -29,6 +29,7 @@
     "empty": "Pick at least one part of the transaction.",
     "description": {
       "contains": "the description contains",
+      "not_contains": "the description does not contain",
       "starts_with": "the description starts with",
       "ends_with": "the description ends with",
       "equals": "the description is exactly",
@@ -37,6 +38,7 @@
     },
     "merchant": {
       "contains": "the merchant contains",
+      "not_contains": "the merchant does not contain",
       "starts_with": "the merchant starts with",
       "ends_with": "the merchant ends with",
       "equals": "the merchant is exactly",
@@ -73,6 +75,10 @@
     "see_other": "See the {{count}} transactions",
     "truncated": "Worked out on the most recent transactions.",
     "warnBroad": "This would take {{count}} transactions out of other categories, more than the ones already right. Add a part to narrow the rule.",
+    "warnConflict_one": "It would also catch {{count}} transaction that already has another category (even one you chose). The rule is too generic to tell it apart.",
+    "warnConflict_other": "It would also catch {{count}} transactions that already have another category (even ones you chose). The rule is too generic to tell them apart.",
+    "conflictSample": "For example: {{sample}}",
+    "exclude": "Exclude \"{{word}}\"",
     "protectedHint": "Corrections you made by hand always win over rules.",
     "groups": {
       "change": "Change ({{count}})",

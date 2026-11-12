@@ -12,7 +12,7 @@ import { useCategories } from "../categories/api";
 import { useCategoryLabel } from "../categories/utils";
 import type { ImpactGroup, RulePreview, RulePreviewItem } from "../../types/api";
 import { useRulePreview } from "./api";
-import { broadWarning, summaryInput, type RuleImpactInput } from "./impact";
+import { broadWarning, conflictCount, summaryInput, type RuleImpactInput } from "./impact";
 
 const PAGE = 50;
 const MAX_LIMIT = 200;
@@ -57,13 +57,45 @@ export function RuleImpactSkeleton() {
   );
 }
 
-export function RuleImpactWarning({ preview }: { preview: RulePreview }) {
+/** Avviso di regola troppo ampia o in conflitto con un'altra categoria (anche con
+ * movimenti protetti). Se si conosce la parola che distingue i due casi, propone di
+ * escluderla con un tocco ("non contiene …"). */
+export function RuleImpactWarning({
+  preview,
+  excludeWord,
+  onExclude,
+}: {
+  preview: RulePreview;
+  excludeWord?: string | null;
+  onExclude?: (word: string) => void;
+}) {
   const { t } = useTranslation("rules");
-  if (!broadWarning(preview)) return null;
+  const conflicts = conflictCount(preview);
+  const broad = broadWarning(preview);
+  if (!broad && conflicts === 0) return null;
+  const sample = preview.conflict_samples?.[0];
   return (
     <div className="flex gap-2 rounded-lg bg-warning-bg px-3 py-2 text-sm text-text" role="status">
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-      <p>{t("impact.warnBroad", { count: preview.recategorized })}</p>
+      <div className="flex min-w-0 flex-col gap-1">
+        <p>
+          {broad
+            ? t("impact.warnBroad", { count: preview.recategorized })
+            : t("impact.warnConflict", { count: conflicts })}
+        </p>
+        {sample && <p className="break-words text-xs text-text-muted">{t("impact.conflictSample", { sample })}</p>}
+        {excludeWord && onExclude && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="self-start"
+            onClick={() => onExclude(excludeWord)}
+          >
+            {t("impact.exclude", { word: excludeWord })}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

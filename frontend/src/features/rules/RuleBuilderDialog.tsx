@@ -18,6 +18,7 @@ import {
   autoRuleName,
   conditionsToSelection,
   defaultSelection,
+  exclusionWord,
   emptyAmountCondition,
   emptyTextCondition,
   hasInvalidCondition,
@@ -50,8 +51,16 @@ interface RuleBuilderDialogProps {
   defaults?: RuleBuilderDefaults;
 }
 
-const TEXT_OPERATORS = ["contains", "starts_with", "ends_with", "equals", "regex"] as const;
-const MERCHANT_OPERATORS = ["merchant_equals", "contains", "starts_with", "ends_with", "equals", "regex"] as const;
+const TEXT_OPERATORS = ["contains", "not_contains", "starts_with", "ends_with", "equals", "regex"] as const;
+const MERCHANT_OPERATORS = [
+  "merchant_equals",
+  "contains",
+  "not_contains",
+  "starts_with",
+  "ends_with",
+  "equals",
+  "regex",
+] as const;
 
 function useDebounced<T>(value: T, delay = 300): T {
   const [debounced, setDebounced] = useState(value);
@@ -174,6 +183,24 @@ export function RuleBuilderDialog({ open, onClose, onSaved, rule, transaction, d
   const addExtra = (condition: RuleCondition) => {
     setExtra((current) => [...current, condition]);
     setCustomizeOpen(true);
+  };
+
+  // Parola che distingue il movimento di partenza da quello in conflitto
+  // (es. "CASHBACK"): si propone di escluderla, salvo che lo sia gia'.
+  const excludeWord = useMemo(() => {
+    const sample = preview.data?.conflict_samples?.[0];
+    if (!sample || tokens.length === 0) return null;
+    const word = exclusionWord(sample, tokens);
+    const already = conditions.some(
+      (c) => c.field !== "amount" && c.operator === "not_contains" && c.value.toLowerCase() === word?.toLowerCase(),
+    );
+    return word && !already ? word : null;
+  }, [preview.data, tokens, conditions]);
+
+  const excludeConflict = (word: string) => {
+    // "Non contiene" ha senso solo in AND con la frase principale.
+    setMatchMode("all");
+    addExtra({ field: "description", operator: "not_contains", value: word });
   };
 
   const onSubmit = async () => {
@@ -320,7 +347,7 @@ export function RuleBuilderDialog({ open, onClose, onSaved, rule, transaction, d
               ) : (
                 <>
                   <RuleImpactCounters preview={previewData} />
-                  <RuleImpactWarning preview={previewData} />
+                  <RuleImpactWarning preview={previewData} excludeWord={excludeWord} onExclude={excludeConflict} />
                   {previewData.total === 0 ? (
                     <p className="text-sm text-text-muted">{t("rules:impact.none")}</p>
                   ) : (

@@ -31,6 +31,7 @@
   "ruleOperator": {
     "equals": "is exactly",
     "contains": "contains",
+    "not_contains": "does not contain",
     "starts_with": "starts with",
     "ends_with": "ends with",
     "regex": "matches (regex)",

@@ -23,6 +23,7 @@ from app.services.rules_engine import AMOUNT_FIELD, Condition, Probe, rule_match
 
 GROUPS = ("change", "ok", "protected")
 _MAX_SPANS_PER_CONDITION = 5
+_MAX_CONFLICT_SAMPLES = 5
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,10 @@ class PreviewResult:
     # Dei `would_change`, quanti hanno gia' una categoria diversa (gli altri
     # sono senza categoria): solo questi sono una "ri-categorizzazione".
     recategorized: int
+    # Movimenti che combaciano e hanno gia' un'ALTRA categoria, protetti o no:
+    # il segnale che la frase e' condivisa con un'altra categoria.
+    other_category: int
+    conflict_samples: tuple[str, ...]  # descrizioni distinte, le piu' recenti
     matches: tuple[PreviewMatch, ...]  # solo la pagina richiesta
 
 
@@ -137,6 +142,7 @@ def build_preview(
 ) -> PreviewResult:
     counts = {"change": 0, "ok": 0, "protected": 0}
     recategorized = 0
+    conflicts: list[PreviewTx] = []
     hits: list[tuple[PreviewTx, str]] = []
     for tx in transactions:
         probe = Probe(
@@ -151,6 +157,8 @@ def build_preview(
         counts[tx_group] += 1
         if tx_group == "change" and tx.category_id is not None:
             recategorized += 1
+        if tx.category_id is not None and tx.category_id != target_category_id:
+            conflicts.append(tx)
         if group is None or tx_group == group:
             hits.append((tx, tx_group))
 
@@ -159,10 +167,18 @@ def build_preview(
     matches = tuple(
         PreviewMatch(tx=tx, group=tx_group, spans=match_spans(conditions, tx.text)) for tx, tx_group in page
     )
+    samples: list[str] = []
+    for tx in sorted(conflicts, key=lambda item: (item.transaction_date, str(item.id)), reverse=True):
+        if tx.text not in samples:
+            samples.append(tx.text)
+        if len(samples) >= _MAX_CONFLICT_SAMPLES:
+            break
     return PreviewResult(
         would_change=counts["change"],
         already_correct=counts["ok"],
         protected=counts["protected"],
         recategorized=recategorized,
+        other_category=len(conflicts),
+        conflict_samples=tuple(samples),
         matches=matches,
     )

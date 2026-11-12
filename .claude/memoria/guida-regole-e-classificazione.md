@@ -7,6 +7,8 @@ precisione), C (piu' condizioni E/O). Prototipo: artifact privato "Regole Lumio 
 ## Modello e motore
 - `rules.conditions` (JSONB, 1..10) + `rules.match_mode` (`all` = E, `any` = O) sostituiscono `field/operator/value` (0048: backfill sotto
   `NO FORCE RLS`, downgrade con perdita dichiarata: tiene la prima condizione di testo). Nessuna tabella figlia: una regola si legge e scrive per intero.
+- Operatore `not_contains` (2026-11-12, nessuna migration: le condizioni sono JSONB): "non contiene", vero anche con merchant assente; serve a escludere
+  una parola da una frase condivisa (es. "CANONE CONTO" e "CASHBACK ... CANONE CONTO"). Solo per le regole utente, il catalogo di sistema non lo usa.
 - Condizioni: testo (`description`/`merchant` + 6 operatori, come prima) oppure `{"field":"amount","operator":"between","min","max"}` (stringhe
   decimali, almeno un estremo) sul **valore assoluto** dell'importo. `app/services/rules_engine.py`: `Condition`, `rule_matches`, `evaluate`;
   `matches()` resta invariato perche' lo usa anche il catalogo di sistema. `Probe`/`ClassifiableRow` hanno `amount` opzionale (senza, l'importo non scatta).
@@ -18,7 +20,9 @@ precisione), C (piu' condizioni E/O). Prototipo: artifact privato "Regole Lumio 
 `rule_preview_calc.py` (puro) + `rule_preview_service.py` (DB). Per una regola NON salvata divide i movimenti che combaciano in `change` (cambierebbero),
 `ok` (gia' nella categoria) e `protected` (correzione manuale `user`/`manual` in un'altra categoria: le correzioni manuali vincono sempre). Restituisce
 anche `recategorized` (dei `change`, quelli che hanno gia' un'altra categoria: l'avviso "regola troppo ampia" usa solo questi, i senza-categoria sono
-l'effetto voluto) e gli intervalli `spans` da evidenziare, calcolati col motore (la regex non e' riproducibile in JS). Tetto 50.000 movimenti recenti
+l'effetto voluto) e gli intervalli `spans` da evidenziare, calcolati col motore (la regex non e' riproducibile in JS). `other_category` + `conflict_samples` (2026-11-12): TUTTI i movimenti che combaciano con un'altra categoria, protetti inclusi (prima l'avviso li ignorava e
+la regola sbagliata "non faceva nulla" perche' i movimenti erano scelte manuali); il costruttore propone "Escludi «X»" con la prima parola del movimento
+in conflitto assente da quello di partenza (`exclusionWord`). Tetto 50.000 movimenti recenti
 (`truncated`). Non considera la priorita' tra regole: se una regola piu' prioritaria vince, il numero reale puo' essere minore.
 
 ## Suggerimenti (`GET /rules/suggestions`)

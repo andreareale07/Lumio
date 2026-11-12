@@ -60,7 +60,8 @@ di prodotto).
 ## Regole e condizioni (decisione 2026-11-12, dopo mockup a confronto)
 - Una regola si mostra sempre come **frase** ("Se la descrizione contiene «X» e l'importo e' tra A e B, assegna C"), mai come "campo / operatore /
   valore". Prima di salvare si vede l'impatto: quanti movimenti cambiano / sono gia' giusti / sono protetti da una correzione manuale, con elenco e
-  parte evidenziata. L'avviso "regola troppo ampia" scatta solo per i movimenti che verrebbero tolti da ALTRE categorie.
+  parte evidenziata. L'avviso "regola troppo ampia" scatta per i movimenti che verrebbero tolti da ALTRE categorie; l'avviso di conflitto conta anche i movimenti
+  protetti di un'altra categoria e propone di escludere la parola che li distingue ("non contiene").
 - Si parte dal movimento (parole a pulsanti; le parole con cifre non si scelgono: cambiano a ogni movimento) o da una proposta; l'espressione
   regolare resta un operatore avanzato. Un suggerimento e' una scelta tra proposte (piu' precisa / consigliata / piu' ampia), non un testo da accettare.
 

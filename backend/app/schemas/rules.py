@@ -8,7 +8,9 @@ from pydantic import BaseModel, Field, model_validator
 from app.services.rules_engine import check_regex_safety
 
 RuleField = Literal["description", "merchant"]
-RuleOperator = Literal["equals", "contains", "starts_with", "ends_with", "regex", "merchant_equals"]
+RuleOperator = Literal[
+    "equals", "contains", "not_contains", "starts_with", "ends_with", "regex", "merchant_equals"
+]
 MatchMode = Literal["all", "any"]
 
 MAX_CONDITIONS = 10
@@ -136,6 +138,11 @@ class RulePreviewOut(BaseModel):
     already_correct: int
     protected: int
     recategorized: int
+    # Movimenti che combaciano ma stanno in un'altra categoria (anche se protetti
+    # da una correzione manuale) e alcune loro descrizioni, per proporre cosa
+    # escludere dalla regola.
+    other_category: int = 0
+    conflict_samples: list[str] = []
     total: int
     group: Literal["change", "ok", "protected"] | None
     items: list[RulePreviewItem]

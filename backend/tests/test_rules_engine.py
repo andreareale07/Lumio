@@ -44,6 +44,24 @@ def test_contains():
     assert evaluate([rule], _row(description_raw="Lidl")) is None
 
 
+def test_not_contains_excludes_a_word_from_a_broad_phrase():
+    """Caso reale: "CANONE CONTO" e' contenuto anche in "CASHBACK ... CANONE CONTO"."""
+    rule = _rule(
+        conditions=(
+            Condition(field="description", operator="contains", value="canone conto"),
+            Condition(field="description", operator="not_contains", value="cashback"),
+        )
+    )
+    assert evaluate([rule], _row(description_raw="CANONE CONTO Relativo a Settembre 2026")) == _CATEGORY_A
+    assert evaluate([rule], _row(description_raw="CASHBACK SCONTI CANONE CONTO RELATIVO A SETTEMBRE")) is None
+
+
+def test_not_contains_on_a_missing_merchant_is_true():
+    rule = _rule(operator="not_contains", field="merchant", value="amazon")
+    assert evaluate([rule], _row(merchant=None)) == _CATEGORY_A
+    assert evaluate([rule], _row(merchant="Amazon Prime")) is None
+
+
 def test_starts_with_and_ends_with():
     starts = _rule(operator="starts_with", value="pagamento")
     ends = _rule(operator="ends_with", value=".com")

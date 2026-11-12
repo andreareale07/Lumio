@@ -64,6 +64,17 @@ export function defaultSelection(tokens: DescriptionToken[]): Set<number> {
   return selected;
 }
 
+/** Parola che distingue il movimento di partenza da quello in conflitto: la
+ * prima parola "fissa" (senza cifre, almeno 3 lettere) del movimento in conflitto
+ * che il movimento di partenza non contiene. Serve a proporre "escludi X". */
+export function exclusionWord(conflictText: string, source: DescriptionToken[]): string | null {
+  const known = new Set(source.map((token) => token.text.toLowerCase()));
+  const candidate = tokenizeDescription(conflictText).find(
+    (token) => !token.variable && token.text.replace(/\P{L}/gu, "").length >= 3 && !known.has(token.text.toLowerCase()),
+  );
+  return candidate ? candidate.text : null;
+}
+
 export function stableTokenIndexes(tokens: DescriptionToken[]): number[] {
   return tokens.flatMap((token, index) => (token.variable ? [] : [index]));
 }
@@ -122,6 +133,8 @@ export function hasInvalidCondition(conditions: RuleCondition[]): boolean {
 /** Nome automatico: la prima frase di testo (o "Importo") — l'utente non deve
  * inventare un nome per ogni regola. */
 export function autoRuleName(conditions: RuleCondition[]): string {
-  const text = conditions.find((condition): condition is TextCondition => condition.field !== "amount");
+  const text =
+    conditions.find((condition): condition is TextCondition => condition.field !== "amount" && condition.operator !== "not_contains") ??
+    conditions.find((condition): condition is TextCondition => condition.field !== "amount");
   return (text?.value ?? "Importo").trim().slice(0, 100);
 }
