@@ -209,18 +209,32 @@ describe("RuleBuilderDialog", () => {
     expect(await screen.findByText(/L'aggiornamento dei movimenti è in corso/)).toBeInTheDocument();
   });
 
-  it("senza la spunta non lancia l'aggiornamento e chiude", async () => {
+  it("senza la spunta non lancia l'aggiornamento e conferma la creazione", async () => {
     const calls = stubApi();
     const user = userEvent.setup();
-    const onClose = vi.fn();
-    renderBuilder({ onClose });
+    renderBuilder();
     await screen.findByTestId("impact-counters");
 
     await user.click(screen.getByRole("checkbox", { name: /Applica anche/ }));
     await user.click(screen.getByRole("button", { name: "Crea regola" }));
 
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(await screen.findByText(/Vale per i movimenti che arriveranno/)).toBeInTheDocument();
     expect(calls.some((c) => c.url.includes("/classification/reclassify"))).toBe(false);
+  });
+
+  it("se nessun movimento cambia non chiude in silenzio: conferma e si chiude col pulsante", async () => {
+    stubApi({ preview: { ...PREVIEW, would_change: 0, protected: 2, already_correct: 1, total: 3 } });
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    renderBuilder({ onClose });
+    await screen.findByTestId("impact-counters");
+
+    await user.click(screen.getByRole("button", { name: "Crea regola" }));
+
+    expect(await screen.findByText(/Regola creata\. Vale per i movimenti che arriveranno/)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(screen.getAllByRole("button", { name: "Chiudi" }).at(-1)!);
+    expect(onClose).toHaveBeenCalled();
   });
 
   it("se un'altra riclassificazione è in corso lo dice senza perdere la regola creata", async () => {

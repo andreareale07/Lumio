@@ -40,6 +40,10 @@ quella regola (`load_rule_matching_ids`), pipeline completa, mai le correzioni m
 restituisce il job in corso: farebbe credere che la regola sia stata applicata).
 
 ## Insidie
+- **Mai chiudere in silenzio dopo "Crea regola"** (2026-11-12): se la regola non cambia nessun movimento (es. sono tutti scelte manuali, protetti) il foglio
+  si chiudeva senza messaggio e sembrava che il tocco non avesse fatto nulla (e si creavano duplicati). Ora dopo la creazione c'e' sempre una conferma
+  (`apply.later` / `apply.started`) e l'errore di salvataggio sta nel piede del foglio, non in fondo all'area che scorre.
+- Verifica nel browser senza Docker: Postgres/Redis effimeri (5433/6380) + `uvicorn app.main:app` dalla venv + `npx vite --port 5174` (il proxy va su :8000).
 - **Mai lanciare pytest con l'env del DB usato per la verifica nel browser**: la fixture `_clean_tables` fa TRUNCATE anche per i test puri (costa ~2 s/test).
 - Le anteprime/suggerimenti non vanno provati su dati reali dell'utente (solo account di test).
 - Un job `reclassify` assegna i merchant ai movimenti ("N merchant aggiornati"): cambia i suggerimenti disponibili.

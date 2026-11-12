@@ -120,6 +120,7 @@
     "label_one": "Applica anche al movimento esistente",
     "label_other": "Applica anche ai {{count}} movimenti esistenti",
     "hint": "I movimenti corretti a mano non vengono toccati.",
+    "later": "Regola creata. Vale per i movimenti che arriveranno: quelli già presenti non sono stati modificati (i movimenti che hai scelto tu non si toccano mai).",
     "started": "Regola creata. L'aggiornamento dei movimenti è in corso: lo segui in Attività.",
     "busy": "Regola creata. Un'altra riclassificazione è in corso: applica la regola ai movimenti esistenti quando termina.",
     "failed": "Regola creata, ma non è stato possibile aggiornare i movimenti esistenti."

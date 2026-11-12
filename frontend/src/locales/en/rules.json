@@ -120,6 +120,7 @@
     "label_one": "Also apply to the existing transaction",
     "label_other": "Also apply to the {{count}} existing transactions",
     "hint": "Transactions you corrected by hand are never touched.",
+    "later": "Rule created. It applies to transactions that arrive from now on: existing ones were not changed (transactions you chose by hand are never touched).",
     "started": "Rule created. Updating the transactions now: follow it in Activity.",
     "busy": "Rule created. Another reclassification is running: apply the rule to existing transactions when it finishes.",
     "failed": "Rule created, but we couldn't update the existing transactions."

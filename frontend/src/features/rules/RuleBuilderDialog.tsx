@@ -221,8 +221,14 @@ export function RuleBuilderDialog({ open, onClose, onSaved, rule, transaction, d
         : await createRule.mutateAsync(payload);
       onSaved?.();
       const toApply = !isEditing && applyExisting && (preview.data?.would_change ?? 0) > 0;
-      if (!toApply) {
+      if (isEditing) {
         stableClose();
+        return;
+      }
+      if (!toApply) {
+        // Mai chiudere in silenzio: se nessun movimento cambia (es. sono tutti
+        // scelti a mano) sembrerebbe che il tocco non abbia fatto nulla.
+        setNotice(t("rules:apply.later"));
         return;
       }
       try {
@@ -258,6 +264,11 @@ export function RuleBuilderDialog({ open, onClose, onSaved, rule, transaction, d
     <Button onClick={stableClose}>{t("common:actions.close")}</Button>
   ) : (
     <>
+      {formError && (
+        <p role="alert" className="text-sm text-danger">
+          {formError}
+        </p>
+      )}
       <Button type="button" variant="secondary" onClick={stableClose}>
         {t("common:actions.cancel")}
       </Button>
@@ -472,11 +483,6 @@ export function RuleBuilderDialog({ open, onClose, onSaved, rule, transaction, d
               </label>
             )}
 
-            {formError && (
-              <p role="alert" className="text-sm text-danger">
-                {formError}
-              </p>
-            )}
           </div>
         )}
       </ResponsiveSheet>
