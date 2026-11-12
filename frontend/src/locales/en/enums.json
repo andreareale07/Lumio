@@ -25,7 +25,8 @@
   },
   "ruleField": {
     "description": "Description",
-    "merchant": "Merchant"
+    "merchant": "Merchant",
+    "amount": "Amount"
   },
   "ruleOperator": {
     "equals": "is exactly",

@@ -112,14 +112,6 @@
       "description": "Automatically classify transactions based on criteria you define.",
       "page": {
         "newRule": "New rule",
-        "suggestion": {
-          "text_one": "You classified \"{{value}}\" as {{category}} {{count}} time. Create an automatic rule?",
-          "text_other": "You classified \"{{value}}\" as {{category}} {{count}} times. Create an automatic rule?",
-          "createRule": "Create rule",
-          "showMore_one": "Show one more suggestion",
-          "showMore_other": "Show {{count}} more suggestions",
-          "showFewer": "Show fewer suggestions"
-        },
         "loadError": "We couldn't load the rules.",
         "empty": {
           "title": "No rule",

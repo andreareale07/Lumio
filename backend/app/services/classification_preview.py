@@ -53,6 +53,7 @@ async def preview_reclassification(
             description_normalized=txn.description_normalized,
             merchant=txn.merchant,
             transaction_type=txn.transaction_type,
+            amount=txn.amount,
         )
         outcome = classify_deterministic(pipeline_ctx, row)
         if outcome is None:

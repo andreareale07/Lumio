@@ -14,12 +14,6 @@
     },
     "classificationLabel": "Classification",
     "categoryUpdateError": "We couldn't update the category.",
-    "suggestion": {
-      "text_one": "You classified \"{{value}}\" as {{category}} {{count}} time.",
-      "text_other": "You classified \"{{value}}\" as {{category}} {{count}} times.",
-      "prompt": "Do you want to apply this choice to future transactions too?",
-      "createRule": "Create rule"
-    },
     "createRuleFromTransaction": "Create rule from this transaction",
     "history": {
       "title": "Classification history"

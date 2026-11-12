@@ -186,13 +186,29 @@ export const RULE_OPERATORS = [
 ] as const;
 export type RuleOperator = (typeof RULE_OPERATORS)[number];
 
+export interface TextCondition {
+  field: RuleField;
+  operator: RuleOperator;
+  value: string;
+}
+
+/** Importo tra `min` e `max` sul valore assoluto (stringhe decimali, almeno un estremo). */
+export interface AmountCondition {
+  field: "amount";
+  operator: "between";
+  min: string | null;
+  max: string | null;
+}
+
+export type RuleCondition = TextCondition | AmountCondition;
+export type MatchMode = "all" | "any";
+
 export interface Rule {
   id: Uuid;
   workspace_id: Uuid;
   name: string;
-  field: RuleField;
-  operator: RuleOperator;
-  value: string;
+  conditions: RuleCondition[];
+  match_mode: MatchMode;
   category_id: Uuid;
   priority: number;
   is_active: boolean;
@@ -200,12 +216,51 @@ export interface Rule {
   updated_at: IsoDateTime;
 }
 
+export type ImpactGroup = "change" | "ok" | "protected";
+
+export interface RulePreviewItem {
+  id: Uuid;
+  date: string;
+  amount: string;
+  currency: string;
+  description: string;
+  category_id: Uuid | null;
+  group: ImpactGroup;
+  /** Intervalli [inizio, fine) della descrizione da evidenziare. */
+  spans: [number, number][];
+}
+
+export interface RulePreview {
+  would_change: number;
+  already_correct: number;
+  protected: number;
+  /** Dei `would_change`, quelli che hanno già un'altra categoria. */
+  recategorized: number;
+  total: number;
+  group: ImpactGroup | null;
+  items: RulePreviewItem[];
+  truncated: boolean;
+}
+
+export type SuggestionOptionKey = "precise" | "recommended" | "broad";
+
+export interface SuggestionOption {
+  key: SuggestionOptionKey;
+  conditions: RuleCondition[];
+  match_mode: MatchMode;
+  would_change: number;
+  already_correct: number;
+  protected: number;
+}
+
 export interface RuleSuggestion {
-  match_field: RuleField;
-  match_value: string;
   category_id: Uuid;
   occurrences: number;
   transaction_ids: Uuid[];
+  label: string;
+  /** Altri movimenti con la stessa frase hanno una categoria diversa. */
+  ambiguous: boolean;
+  options: SuggestionOption[];
 }
 
 export const RECLASSIFICATION_SCOPES = ["uncategorized", "all_except_manual"] as const;

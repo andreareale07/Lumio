@@ -112,14 +112,6 @@
       "description": "Classifica automaticamente le transazioni in base a criteri che definisci.",
       "page": {
         "newRule": "Nuova regola",
-        "suggestion": {
-          "text_one": "Hai classificato \"{{value}}\" come {{category}} {{count}} volta. Vuoi creare una regola automatica?",
-          "text_other": "Hai classificato \"{{value}}\" come {{category}} {{count}} volte. Vuoi creare una regola automatica?",
-          "createRule": "Crea regola",
-          "showMore_one": "Mostra un altro suggerimento",
-          "showMore_other": "Mostra altri {{count}} suggerimenti",
-          "showFewer": "Mostra meno suggerimenti"
-        },
         "loadError": "Non siamo riusciti a caricare le regole.",
         "empty": {
           "title": "Nessuna regola",

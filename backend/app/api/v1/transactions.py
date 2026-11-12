@@ -115,6 +115,7 @@ async def create_transaction(
             description_raw=data["description_raw"],
             description_normalized=None,
             merchant=data["merchant"],
+            amount=data["amount"],
         )
         matched_category_id = evaluate(active_rules, probe)
         if matched_category_id is not None:

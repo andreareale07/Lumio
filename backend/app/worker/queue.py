@@ -108,7 +108,13 @@ async def enqueue_snapshot_rebuild(workspace_id: uuid.UUID, user_id: uuid.UUID) 
     return job.job_id if job is not None else ""
 
 
-async def enqueue_reclassification(workspace_id: uuid.UUID, user_id: uuid.UUID, scope: str, run_ai: bool) -> str:
+async def enqueue_reclassification(
+    workspace_id: uuid.UUID,
+    user_id: uuid.UUID,
+    scope: str,
+    run_ai: bool,
+    rule_id: uuid.UUID | None = None,
+) -> str:
     """Trigger manuale (`POST /classification/reclassify`, rework pipeline).
 
     NESSUN `_job_id` fisso sul workspace — stesso bugfix gia' documentato
@@ -123,7 +129,14 @@ async def enqueue_reclassification(workspace_id: uuid.UUID, user_id: uuid.UUID, 
     `job_runs` (vedi il router), non serve l'idempotenza di arq per quello.
     """
     pool = await get_arq_pool()
-    job = await pool.enqueue_job(RECLASSIFICATION_FUNCTION, str(workspace_id), str(user_id), scope, run_ai)
+    job = await pool.enqueue_job(
+        RECLASSIFICATION_FUNCTION,
+        str(workspace_id),
+        str(user_id),
+        scope,
+        run_ai,
+        str(rule_id) if rule_id else None,
+    )
     return job.job_id if job is not None else ""
 
 

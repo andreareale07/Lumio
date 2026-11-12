@@ -56,6 +56,7 @@ from app.services.classification_pipeline import ClassifiableRow, classify_deter
 from app.services.confidence import compute_ai_confidence
 from app.services.confidence import needs_review as score_needs_review
 from app.services.job_run_tracker import tracked_job_run
+from app.services.rule_preview_service import load_rule_matching_ids
 from app.services.merchant_extraction import extract_merchant
 from app.services.system_classification import is_ai_eligible
 from app.services.system_settings_service import get_setting_value
@@ -109,9 +110,17 @@ async def _backfill_merchant(workspace_id: uuid.UUID, user_id: uuid.UUID) -> int
     return backfilled
 
 
-async def _eligible_transaction_ids(workspace_id: uuid.UUID, user_id: uuid.UUID, scope: str) -> list[uuid.UUID]:
+async def _eligible_transaction_ids(
+    workspace_id: uuid.UUID, user_id: uuid.UUID, scope: str, rule_id: uuid.UUID | None = None
+) -> list[uuid.UUID]:
     async with rls_session(user_id) as db:
-        return await load_eligible_transaction_ids(db, workspace_id, scope)
+        eligible = await load_eligible_transaction_ids(db, workspace_id, scope)
+        if rule_id is None:
+            return eligible
+        # Applicazione di una regola: solo i movimenti che combaciano con essa.
+        # Il resto della pipeline (priorita' tra regole, catalogo) resta quello di sempre.
+        matching = await load_rule_matching_ids(db, workspace_id, rule_id)
+        return [txn_id for txn_id in eligible if txn_id in matching]
 
 
 async def _run_deterministic_phase(
@@ -139,6 +148,7 @@ async def _run_deterministic_phase(
                 description_normalized=txn.description_normalized,
                 merchant=txn.merchant,
                 transaction_type=txn.transaction_type,
+                amount=txn.amount,
             )
             outcome = classify_deterministic(pipeline_ctx, row)
             # Scrive solo se e' un cambiamento REALE: senza questo controllo,
@@ -261,13 +271,18 @@ async def _run_ai_phase(
 
 
 async def _reclassify(
-    workspace_id: uuid.UUID, user_id: uuid.UUID, scope: str, run_ai: bool, events: list[PendingEvent]
+    workspace_id: uuid.UUID,
+    user_id: uuid.UUID,
+    scope: str,
+    run_ai: bool,
+    events: list[PendingEvent],
+    rule_id: uuid.UUID | None = None,
 ) -> ReclassificationStats:
     stats = ReclassificationStats()
 
     stats.merchant_backfilled = await _backfill_merchant(workspace_id, user_id)
 
-    transaction_ids = await _eligible_transaction_ids(workspace_id, user_id, scope)
+    transaction_ids = await _eligible_transaction_ids(workspace_id, user_id, scope, rule_id)
     stats.total_candidates = len(transaction_ids)
     await job_events.emit(
         workspace_id, "job.progress", namespace=NAMESPACE, processed=0, total=stats.total_candidates
@@ -298,9 +313,12 @@ async def _flush_events(workspace_id: uuid.UUID, user_id: uuid.UUID, events: lis
         logger.exception("scrittura del registro eventi AI fallita (workspace %s)", workspace_id)
 
 
-async def reclassify_workspace_job(ctx, workspace_id: str, user_id: str, scope: str, run_ai: bool) -> None:
+async def reclassify_workspace_job(
+    ctx, workspace_id: str, user_id: str, scope: str, run_ai: bool, rule_id: str | None = None
+) -> None:
     ws_id = uuid.UUID(workspace_id)
     uid = uuid.UUID(user_id)
+    rule_uuid = uuid.UUID(rule_id) if rule_id else None
 
     # Un segnale residuo di una esecuzione precedente non deve fermare questa:
     # l'API lo imposta solo con la riclassificazione 'running', quindi qui,
@@ -309,7 +327,7 @@ async def reclassify_workspace_job(ctx, workspace_id: str, user_id: str, scope: 
 
     async with tracked_job_run(ws_id, uid, JOB_KIND) as run:
         events: list[PendingEvent] = []
-        stats = await _reclassify(ws_id, uid, scope, run_ai, events)
+        stats = await _reclassify(ws_id, uid, scope, run_ai, events, rule_uuid)
         if run_ai or stats.cancelled:
             events.append(
                 PendingEvent(

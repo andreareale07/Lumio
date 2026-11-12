@@ -12,6 +12,8 @@ interface BottomSheetProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** Azioni sempre visibili in fondo: restano fuori dall'area che scorre. */
+  footer?: ReactNode;
 }
 
 /** Pannello modale ancorato al bordo basso dello schermo, per i controlli
@@ -19,7 +21,7 @@ interface BottomSheetProps {
  * scorre al suo interno se il contenuto e' alto e non dipende dall'hover. Ha un
  * pulsante di chiusura visibile (lo swipe da solo non basta), si chiude con
  * Escape e toccando lo sfondo. Portal su `document.body` come ogni overlay. */
-export function BottomSheet({ open, onClose, title, children }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, title, children, footer }: BottomSheetProps) {
   const { t } = useTranslation("common");
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<number | null>(null);
@@ -87,6 +89,7 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">{children}</div>
+        {footer && <div className="flex shrink-0 flex-col gap-2 border-t border-border pt-3">{footer}</div>}
       </div>
     </div>,
     document.body,

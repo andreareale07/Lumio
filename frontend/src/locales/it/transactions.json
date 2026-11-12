@@ -14,12 +14,6 @@
     },
     "classificationLabel": "Classificazione",
     "categoryUpdateError": "Non è stato possibile aggiornare la categoria.",
-    "suggestion": {
-      "text_one": "Hai classificato \"{{value}}\" come {{category}} {{count}} volta.",
-      "text_other": "Hai classificato \"{{value}}\" come {{category}} {{count}} volte.",
-      "prompt": "Vuoi applicare questa scelta anche ai prossimi movimenti?",
-      "createRule": "Crea regola"
-    },
     "createRuleFromTransaction": "Crea regola da questa transazione",
     "history": {
       "title": "Storico classificazioni"

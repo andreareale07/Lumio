@@ -57,6 +57,13 @@ di prodotto).
   alto accanto al valore (stile Trade Republic); set completo 1G 1S 1M 3M 6M 1A 5A Max.
 - Bersagli di tocco 44px su mobile (area invisibile ammessa), calendario con inizio/fine non solo a colore.
 
+## Regole e condizioni (decisione 2026-11-12, dopo mockup a confronto)
+- Una regola si mostra sempre come **frase** ("Se la descrizione contiene «X» e l'importo e' tra A e B, assegna C"), mai come "campo / operatore /
+  valore". Prima di salvare si vede l'impatto: quanti movimenti cambiano / sono gia' giusti / sono protetti da una correzione manuale, con elenco e
+  parte evidenziata. L'avviso "regola troppo ampia" scatta solo per i movimenti che verrebbero tolti da ALTRE categorie.
+- Si parte dal movimento (parole a pulsanti; le parole con cifre non si scelgono: cambiano a ogni movimento) o da una proposta; l'espressione
+  regolare resta un operatore avanzato. Un suggerimento e' una scelta tra proposte (piu' precisa / consigliata / piu' ampia), non un testo da accettare.
+
 ## Azioni
 - Le azioni primarie di una pagina vanno **sempre nella toolbar** (`usePageToolbar`):
   icona lucide + testo breve, mai un link accanto all'h1 o in fondo al contenuto. Le azioni

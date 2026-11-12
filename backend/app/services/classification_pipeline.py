@@ -45,6 +45,7 @@ class ClassifiableRow:
     description_normalized: str | None
     merchant: str | None
     transaction_type: str
+    amount: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,7 @@ def classify_deterministic(ctx: PipelineContext, row: ClassifiableRow) -> Determ
         description_raw=row.description_raw,
         description_normalized=row.description_normalized,
         merchant=row.merchant,
+        amount=row.amount,
     )
     rule_category_id = evaluate(ctx.rules, probe)
     if rule_category_id is not None:

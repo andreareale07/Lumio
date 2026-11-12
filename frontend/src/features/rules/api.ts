@@ -3,13 +3,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/apiClient";
 import { streamSse } from "../imports/api";
 import type {
+  ImpactGroup,
   JobRun,
+  MatchMode,
   ReclassificationPreview,
   ReclassificationScope,
   ReclassifyTriggered,
   Rule,
-  RuleField,
-  RuleOperator,
+  RuleCondition,
+  RulePreview,
   RuleSuggestion,
 } from "../../types/api";
 
@@ -32,12 +34,33 @@ export function useRuleSuggestions() {
 
 export interface RuleInput {
   name: string;
-  field: RuleField;
-  operator: RuleOperator;
-  value: string;
+  conditions: RuleCondition[];
+  match_mode?: MatchMode;
   category_id: string;
   priority?: number;
   is_active?: boolean;
+}
+
+export interface RulePreviewInput {
+  conditions: RuleCondition[];
+  match_mode: MatchMode;
+  category_id: string;
+  group?: ImpactGroup;
+  limit?: number;
+  offset?: number;
+}
+
+/** Impatto di una regola NON salvata (cosa cambierebbe, cosa e' gia' giusto,
+ * cosa e' protetto da una correzione manuale). Ricalcolato a ogni modifica
+ * delle condizioni, quindi la chiave contiene il payload intero. */
+export function useRulePreview(input: RulePreviewInput | null) {
+  return useQuery({
+    queryKey: ["rules", "preview", input] as const,
+    queryFn: () => api.post<RulePreview>("/rules/preview", input),
+    enabled: input !== null,
+    placeholderData: (previous) => previous,
+    staleTime: 15_000,
+  });
 }
 
 function invalidateRules(queryClient: ReturnType<typeof useQueryClient>) {
@@ -91,7 +114,7 @@ export function useReclassificationStatus() {
 
 export function useTriggerReclassification() {
   return useMutation({
-    mutationFn: (input: { scope: ReclassificationScope; run_ai: boolean }) =>
+    mutationFn: (input: { scope: ReclassificationScope; run_ai: boolean; rule_id?: string }) =>
       api.post<ReclassifyTriggered>("/classification/reclassify", input),
   });
 }

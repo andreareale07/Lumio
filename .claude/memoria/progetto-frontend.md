@@ -75,6 +75,14 @@ Tailwind 4, Recharts, i18next, icone lucide-react. Build servita da nginx nel co
   guscio) e, nel nativo, token nel Keystore con refresh single-flight; `lib/privacy.ts` nasconde gli importi (remount di
   `AppRouter` come la lingua); `SwipeableRow`, `usePullToRefresh`, `lib/haptics.ts`. Dettagli in `task-app-mobile.md`.
 
+- **Regole (2026-11-12):** `features/rules/`: `RuleBuilderDialog` (unico punto di creazione/modifica: parole del movimento come pulsanti, frase,
+  categoria, contatori d'impatto, "Personalizza" con condizioni E/O e importo, regex solo come operatore avanzato), `RuleSentence` (una regola scritta
+  come frase, usata ovunque), `RuleImpact` (contatori + elenco dei movimenti coinvolti con evidenziazione), `RuleSuggestionCard` (proposte per
+  precisione), `conditions.ts`/`impact.ts` (funzioni pure, testate). Entra dal dettaglio movimento (riceve `transaction`) e dalla pagina Regole.
+  `components/ui/ResponsiveSheet.tsx` = `Dialog` su desktop / `BottomSheet` sotto `md`; `BottomSheet` ha ora la prop `footer` (azioni fisse fuori
+  dall'area che scorre). L'anteprima e' `useRulePreview` (POST, chiave = payload, `placeholderData`), con debounce nel costruttore.
+  Al foglio si passa sempre un `onClose` STABILE (ref + `useCallback`), altrimenti il `Dialog` riporta il focus sul primo campo a ogni render.
+
 ## Regole i18n
 - Nuovo namespace: aggiungerlo **sia** a `resources` **sia** all'array `ns` in `app/i18n.ts`
   (se ne manca uno, `t()` restituisce la chiave grezza senza errori).

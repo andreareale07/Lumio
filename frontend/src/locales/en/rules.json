@@ -1,18 +1,18 @@
 {
   "fields": {
     "name": "Name",
-    "field": "Field",
-    "operator": "Operator",
-    "value": "Value",
     "priority": "Priority"
   },
   "priorityHint": "Lower number = evaluated first",
   "validation": {
     "name": "Enter a name",
-    "value": "Enter a value",
+    "value": "Enter some text",
     "category": "Select a category",
+    "conditions": "Add at least one condition",
     "invalidRegex": "Invalid regular expression",
-    "merchantEqualsRequiresMerchant": "'merchant_equals' requires the Merchant field"
+    "regexLength": "Expression too long (200 characters at most)",
+    "bounds": "Enter at least one valid amount",
+    "order": "The minimum is above the maximum"
   },
   "dialog": {
     "editTitle": "Edit rule",
@@ -20,5 +20,128 @@
     "submitEdit": "Save",
     "submitCreate": "Create rule",
     "error": "We couldn't save the rule."
+  },
+  "sentence": {
+    "if": "If",
+    "all": "and",
+    "any": "or",
+    "then": "assign",
+    "empty": "Pick at least one part of the transaction.",
+    "description": {
+      "contains": "the description contains",
+      "starts_with": "the description starts with",
+      "ends_with": "the description ends with",
+      "equals": "the description is exactly",
+      "regex": "the description matches",
+      "merchant_equals": "the merchant is"
+    },
+    "merchant": {
+      "contains": "the merchant contains",
+      "starts_with": "the merchant starts with",
+      "ends_with": "the merchant ends with",
+      "equals": "the merchant is exactly",
+      "regex": "the merchant matches",
+      "merchant_equals": "the merchant is"
+    },
+    "amountBetween": "the amount is between {{min}} and {{max}} €",
+    "amountMin": "the amount is at least {{min}} €",
+    "amountMax": "the amount is at most {{max}} €"
+  },
+  "picker": {
+    "title": "From the transaction",
+    "hint": "Tap the parts that must always be there. The rest is ignored.",
+    "variableHint": "Words with numbers change on every transaction, so the rule skips them.",
+    "selectStable": "All fixed parts",
+    "clear": "Clear"
+  },
+  "text": {
+    "label": "The text contains",
+    "placeholder": "For example Mortgage payment"
+  },
+  "impact": {
+    "title": "Affected transactions",
+    "loading": "Working out the impact…",
+    "none": "No transaction matches these conditions.",
+    "error": "We couldn't work out the impact.",
+    "change_one": "changes category",
+    "change_other": "change category",
+    "ok_one": "already right",
+    "ok_other": "already right",
+    "protected_one": "protected",
+    "protected_other": "protected",
+    "see_one": "See the transaction",
+    "see_other": "See the {{count}} transactions",
+    "truncated": "Worked out on the most recent transactions.",
+    "warnBroad": "This would take {{count}} transactions out of other categories, more than the ones already right. Add a part to narrow the rule.",
+    "protectedHint": "Corrections you made by hand always win over rules.",
+    "groups": {
+      "change": "Change ({{count}})",
+      "ok": "Already right ({{count}})",
+      "protected": "Protected ({{count}})"
+    },
+    "rowOk": "already fine",
+    "rowProtected": "your choice, won't change",
+    "emptyGroup": "No transactions in this group.",
+    "loadMore": "Show more",
+    "needCategory": "Pick the category to see how many transactions it would affect."
+  },
+  "customize": {
+    "open": "Customize",
+    "close": "Hide conditions",
+    "title": "Conditions",
+    "matchMode": "Fires when",
+    "all": "all",
+    "any": "at least one",
+    "addText": "Add a text condition",
+    "addAmount": "Add an amount condition",
+    "remove": "Remove condition",
+    "field": "Field",
+    "operator": "Comparison",
+    "value": "Text",
+    "min": "Minimum amount (€)",
+    "max": "Maximum amount (€)",
+    "amountHint": "The amount is compared without sign: a −487.30 payment counts as 487.30.",
+    "fields": {
+      "description": "Description",
+      "merchant": "Merchant",
+      "amount": "Amount"
+    },
+    "regexHint": "Regular expression: only for cases the other choices don't cover.",
+    "advanced": "Advanced",
+    "nameHint": "Leave it empty and I'll pick one."
+  },
+  "apply": {
+    "label_one": "Also apply to the existing transaction",
+    "label_other": "Also apply to the {{count}} existing transactions",
+    "hint": "Transactions you corrected by hand are never touched.",
+    "started": "Rule created. Updating the transactions now: follow it in Activity.",
+    "busy": "Rule created. Another reclassification is running: apply the rule to existing transactions when it finishes.",
+    "failed": "Rule created, but we couldn't update the existing transactions."
+  },
+  "suggestions": {
+    "times_one": "chosen {{count}} time",
+    "times_other": "chosen {{count}} times",
+    "open": "See options",
+    "close": "Close",
+    "ambiguous": "Transactions with this text have different categories: the payee or the reason tells them apart.",
+    "question": "Which transactions should this always apply to?",
+    "options": {
+      "precise": "More precise",
+      "recommended": "Recommended",
+      "broad": "Broader"
+    },
+    "see": "See the affected transactions",
+    "create": "Create rule",
+    "showMore_one": "Show one more suggestion",
+    "showMore_other": "Show {{count}} more suggestions",
+    "showFewer": "Show fewer suggestions",
+    "summary_one": "{{count}} transaction: {{parts}}",
+    "summary_other": "{{count}} transactions: {{parts}}",
+    "nChange_one": "{{count}} changes",
+    "nChange_other": "{{count}} change",
+    "nOk_one": "{{count}} already right",
+    "nOk_other": "{{count}} already right",
+    "nProtected_one": "{{count}} protected",
+    "nProtected_other": "{{count}} protected"
   }
 }

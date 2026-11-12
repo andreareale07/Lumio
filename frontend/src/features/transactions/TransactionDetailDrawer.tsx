@@ -10,7 +10,8 @@ import { useCategories } from "../categories/api";
 import { useCategoryLabel } from "../categories/utils";
 import { friendlyErrorMessage } from "../../lib/errorMessage";
 import { formatDateTime, formatSignedMoney } from "../../lib/format";
-import { RuleFormDialog, type RuleDialogDefaults } from "../rules/RuleFormDialog";
+import { RuleBuilderDialog, type RuleBuilderDefaults } from "../rules/RuleBuilderDialog";
+import { RuleSuggestionCard } from "../rules/RuleSuggestionCard";
 import { useRuleSuggestions } from "../rules/api";
 import type { Transaction } from "../../types/api";
 import { ClassificationIndicator } from "./ClassificationIndicator";
@@ -33,7 +34,7 @@ export function TransactionDetailDrawer({
   const updateCategory = useUpdateTransactionCategory();
   const { data: suggestions } = useRuleSuggestions();
   const [categoryError, setCategoryError] = useState<string | null>(null);
-  const [ruleDialogDefaults, setRuleDialogDefaults] = useState<RuleDialogDefaults | null>(null);
+  const [ruleBuilder, setRuleBuilder] = useState<{ defaults?: RuleBuilderDefaults } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const latestClassification = classifications?.[0] ?? null;
@@ -52,27 +53,6 @@ export function TransactionDetailDrawer({
     } catch (error) {
       setCategoryError(friendlyErrorMessage(error, t("detail.categoryUpdateError")));
     }
-  };
-
-  const openRuleDialogFromTransaction = () => {
-    setRuleDialogDefaults({
-      name: transaction.merchant ?? transaction.description_raw,
-      field: "description",
-      operator: "contains",
-      value: transaction.description_normalized ?? transaction.description_raw,
-      category_id: transaction.category_id ?? undefined,
-    });
-  };
-
-  const openRuleDialogFromSuggestion = () => {
-    if (!matchingSuggestion) return;
-    setRuleDialogDefaults({
-      name: matchingSuggestion.match_value,
-      field: matchingSuggestion.match_field,
-      operator: matchingSuggestion.match_field === "merchant" ? "merchant_equals" : "contains",
-      value: matchingSuggestion.match_value,
-      category_id: matchingSuggestion.category_id,
-    });
   };
 
   return (
@@ -114,23 +94,13 @@ export function TransactionDetailDrawer({
           </div>
 
           {matchingSuggestion && (
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-              <p className="flex items-center gap-1.5 text-sm font-medium text-text">
-                <Wand2 className="h-4 w-4 text-primary" />
-                {t("detail.suggestion.text", {
-                  count: matchingSuggestion.occurrences,
-                  value: matchingSuggestion.match_value,
-                  category: categoryLabel(categories, matchingSuggestion.category_id),
-                })}
-              </p>
-              <p className="mb-2 text-sm text-text-muted">{t("detail.suggestion.prompt")}</p>
-              <Button size="sm" onClick={openRuleDialogFromSuggestion}>
-                {t("detail.suggestion.createRule")}
-              </Button>
-            </div>
+            <RuleSuggestionCard
+              suggestion={matchingSuggestion}
+              onCreate={(defaults) => setRuleBuilder({ defaults })}
+            />
           )}
 
-          <Button variant="secondary" size="sm" onClick={openRuleDialogFromTransaction} className="self-start">
+          <Button variant="secondary" size="sm" onClick={() => setRuleBuilder({})} className="self-start">
             <Wand2 className="h-4 w-4" /> {t("detail.createRuleFromTransaction")}
           </Button>
 
@@ -173,10 +143,11 @@ export function TransactionDetailDrawer({
         }}
       />
 
-      <RuleFormDialog
-        open={!!ruleDialogDefaults}
-        onClose={() => setRuleDialogDefaults(null)}
-        defaults={ruleDialogDefaults ?? undefined}
+      <RuleBuilderDialog
+        open={!!ruleBuilder}
+        onClose={() => setRuleBuilder(null)}
+        transaction={transaction}
+        defaults={ruleBuilder?.defaults}
       />
     </>
   );

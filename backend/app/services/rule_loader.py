@@ -10,22 +10,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.rule import Rule
-from app.services.rules_engine import RuleSpec
+from app.services.rules_engine import RuleSpec, conditions_from_json
+
+
+def rule_to_spec(rule: Rule) -> RuleSpec:
+    return RuleSpec(
+        id=rule.id,
+        conditions=conditions_from_json(rule.conditions),
+        match_mode=rule.match_mode,
+        category_id=rule.category_id,
+        priority=rule.priority,
+        created_at=rule.created_at,
+    )
 
 
 async def load_active_rule_specs(db: AsyncSession, workspace_id: uuid.UUID) -> list[RuleSpec]:
     result = await db.execute(
         select(Rule).where(Rule.workspace_id == workspace_id, Rule.is_active.is_(True))
     )
-    return [
-        RuleSpec(
-            id=rule.id,
-            field=rule.field,
-            operator=rule.operator,
-            value=rule.value,
-            category_id=rule.category_id,
-            priority=rule.priority,
-            created_at=rule.created_at,
-        )
-        for rule in result.scalars().all()
-    ]
+    return [rule_to_spec(rule) for rule in result.scalars().all()]

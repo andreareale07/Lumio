@@ -79,8 +79,12 @@ async def test_repeated_correction_on_same_description_triggers_suggestion(clien
     suggestions = suggestions_response.json()
     assert len(suggestions) == 1
     suggestion = suggestions[0]
-    assert suggestion["match_field"] == "description"
     assert suggestion["category_id"] == category_id
+    assert suggestion["ambiguous"] is False
+    recommended = next(o for o in suggestion["options"] if o["key"] == "recommended")
+    assert recommended["conditions"][0]["field"] == "description"
+    assert recommended["conditions"][0]["operator"] == "contains"
+    assert recommended["already_correct"] == 2
     assert suggestion["occurrences"] == 2
     assert sorted(suggestion["transaction_ids"]) == sorted([tx1, tx2])
 

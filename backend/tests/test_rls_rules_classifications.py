@@ -115,8 +115,8 @@ async def test_user_cannot_select_another_workspace_rule_via_rls():
         rule_b = (
             await session.execute(
                 text(
-                    "INSERT INTO rules (workspace_id, name, field, operator, value, category_id) "
-                    "VALUES (:w, 'Netflix', 'description', 'contains', 'netflix', :c) RETURNING id"
+                    "INSERT INTO rules (workspace_id, name, conditions, category_id) "
+                    "VALUES (:w, 'Netflix', CAST('[{\"field\":\"description\",\"operator\":\"contains\",\"value\":\"netflix\"}]' AS jsonb), :c) RETURNING id"
                 ),
                 {"w": str(workspace_b), "c": str(category_b)},
             )
@@ -141,8 +141,8 @@ async def test_user_cannot_insert_rule_into_another_workspace_via_rls():
         with pytest.raises(DBAPIError, match="row-level security"):
             await session.execute(
                 text(
-                    "INSERT INTO rules (workspace_id, name, field, operator, value, category_id) "
-                    "VALUES (:w, 'Netflix', 'description', 'contains', 'netflix', :c)"
+                    "INSERT INTO rules (workspace_id, name, conditions, category_id) "
+                    "VALUES (:w, 'Netflix', CAST('[{\"field\":\"description\",\"operator\":\"contains\",\"value\":\"netflix\"}]' AS jsonb), :c)"
                 ),
                 {"w": str(workspace_b), "c": str(category_b)},
             )
@@ -158,8 +158,8 @@ async def test_rule_cannot_reference_category_of_another_workspace():
         with pytest.raises(DBAPIError):
             await session.execute(
                 text(
-                    "INSERT INTO rules (workspace_id, name, field, operator, value, category_id) "
-                    "VALUES (:w, 'Netflix', 'description', 'contains', 'netflix', :c)"
+                    "INSERT INTO rules (workspace_id, name, conditions, category_id) "
+                    "VALUES (:w, 'Netflix', CAST('[{\"field\":\"description\",\"operator\":\"contains\",\"value\":\"netflix\"}]' AS jsonb), :c)"
                 ),
                 {"w": str(workspace_a), "c": str(category_b)},
             )

@@ -25,7 +25,8 @@
   },
   "ruleField": {
     "description": "Descrizione",
-    "merchant": "Merchant"
+    "merchant": "Merchant",
+    "amount": "Importo"
   },
   "ruleOperator": {
     "equals": "è esattamente",

@@ -9,6 +9,9 @@ ReclassificationScope = Literal["uncategorized", "all_except_manual"]
 class ReclassifyRequest(BaseModel):
     scope: ReclassificationScope = "uncategorized"
     run_ai: bool = False
+    # Se presente, il job agisce solo sui movimenti che combaciano con questa
+    # regola (applica una regola appena creata ai movimenti esistenti).
+    rule_id: uuid.UUID | None = None
 
 
 class ReclassifyTriggered(BaseModel):

@@ -62,6 +62,7 @@ def prepare_transaction_row(
         description_normalized=row.description_normalized,
         merchant=row.merchant,
         transaction_type=row.transaction_type,
+        amount=row.amount,
     )
     outcome = classify_deterministic(pipeline_ctx, classifiable_row)
     matched_category_id = outcome.category_id if outcome is not None else None

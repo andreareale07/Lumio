@@ -35,8 +35,9 @@ test("registrazione, regola, import CSV reale e suggerimento dopo correzioni rip
   // --- Regola (Netflix) creata PRIMA dell'import, cosi' il worker la applica ---
   await page.goto("/settings/rules");
   await page.getByRole("button", { name: "Nuova regola" }).click();
-  await page.getByLabel("Nome").fill("Netflix");
-  await page.getByLabel("Valore").fill("netflix");
+  // Senza un movimento di partenza il costruttore si apre con una condizione
+  // di testo da compilare ("Testo") e il nome lo sceglie da solo.
+  await page.getByRole("dialog").getByLabel("Testo").fill("netflix");
   // Rework tassonomia: CategoryPicker non e' piu' un `<select>` nativo —
   // il Combobox apre un popover con ricerca, "Streaming" e' raggruppata
   // sotto l'intestazione "Abbonamenti" invece che nella label combinata.
@@ -50,7 +51,7 @@ test("registrazione, regola, import CSV reale e suggerimento dopo correzioni rip
   // ruolo/nome di Playwright.
   await page.getByRole("option", { name: "Streaming", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Crea regola" }).click();
-  await expect(page.getByText(/Descrizione contiene "netflix"/)).toBeVisible();
+  await expect(page.getByText(/la descrizione contiene\s*«netflix»/)).toBeVisible();
 
   // --- Import CSV ---
   // Il conto si sceglie DOPO l'upload (non piu' prima) — vedi import-golden-path.spec.ts.
@@ -98,16 +99,16 @@ test("registrazione, regola, import CSV reale e suggerimento dopo correzioni rip
     await page.keyboard.press("Escape");
   }
 
-  // Il match del suggerimento e' per merchant ("Lidl", estratto da
-  // merchant_extraction.py) e non per descrizione, perche' Transaction.merchant
-  // e' valorizzato (vedi GET /rules/suggestions: preferisce sempre il merchant
-  // quando presente).
+  // Il suggerimento e' una scheda con la categoria scelta e quante volte;
+  // le proposte (qui per merchant "Lidl", valorizzato da merchant_extraction.py)
+  // si aprono con "Vedi proposte" e da li' si passa al costruttore.
   await page.goto("/settings/rules");
-  await expect(page.getByText(/Lidl.*2 volte/)).toBeVisible();
+  await expect(page.getByText(/Bar e caffetteria.*scelta 2 volte/)).toBeVisible();
 
+  await page.getByRole("button", { name: "Vedi proposte" }).click();
   await page.getByRole("button", { name: "Crea regola" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Crea regola" }).click();
 
-  await expect(page.getByText(/Lidl.*2 volte/)).not.toBeVisible();
+  await expect(page.getByText(/Bar e caffetteria.*scelta 2 volte/)).not.toBeVisible();
 });

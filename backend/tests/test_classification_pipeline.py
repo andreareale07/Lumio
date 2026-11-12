@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from app.services.classification_pipeline import ClassifiableRow, PipelineContext, classify_deterministic
-from app.services.rules_engine import RuleSpec
+from app.services.rules_engine import Condition, RuleSpec
 
 _INVESTMENT_CATEGORY_ID = uuid.uuid4()
 _USER_RULE_CATEGORY_ID = uuid.uuid4()
@@ -47,9 +47,7 @@ def test_user_rule_wins_over_system_type_map():
     # dal transaction_type (invariante non negoziabile del rework).
     rule = RuleSpec(
         id=uuid.uuid4(),
-        field="description",
-        operator="contains",
-        value="iShares",
+        conditions=(Condition(field="description", operator="contains", value="iShares"),),
         category_id=_USER_RULE_CATEGORY_ID,
         priority=100,
         created_at=datetime(2026, 1, 1),
@@ -110,9 +108,7 @@ def test_pattern_catalog_resolves_when_type_map_does_not():
 def test_user_rule_wins_over_pattern_catalog():
     rule = RuleSpec(
         id=uuid.uuid4(),
-        field="description",
-        operator="contains",
-        value="LIDL",
+        conditions=(Condition(field="description", operator="contains", value="LIDL"),),
         category_id=_USER_RULE_CATEGORY_ID,
         priority=100,
         created_at=datetime(2026, 1, 1),

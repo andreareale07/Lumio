@@ -1,18 +1,18 @@
 {
   "fields": {
     "name": "Nome",
-    "field": "Campo",
-    "operator": "Operatore",
-    "value": "Valore",
     "priority": "Priorità"
   },
   "priorityHint": "Numero più basso = valutata prima",
   "validation": {
     "name": "Inserisci un nome",
-    "value": "Inserisci un valore",
+    "value": "Inserisci un testo",
     "category": "Seleziona una categoria",
+    "conditions": "Aggiungi almeno una condizione",
     "invalidRegex": "Espressione regolare non valida",
-    "merchantEqualsRequiresMerchant": "'merchant_equals' richiede il campo Merchant"
+    "regexLength": "Espressione troppo lunga (massimo 200 caratteri)",
+    "bounds": "Inserisci almeno un importo valido",
+    "order": "Il minimo supera il massimo"
   },
   "dialog": {
     "editTitle": "Modifica regola",
@@ -20,5 +20,128 @@
     "submitEdit": "Salva",
     "submitCreate": "Crea regola",
     "error": "Non è stato possibile salvare la regola."
+  },
+  "sentence": {
+    "if": "Se",
+    "all": "e",
+    "any": "oppure",
+    "then": "assegna",
+    "empty": "Scegli almeno una parte del movimento.",
+    "description": {
+      "contains": "la descrizione contiene",
+      "starts_with": "la descrizione inizia con",
+      "ends_with": "la descrizione finisce con",
+      "equals": "la descrizione è esattamente",
+      "regex": "la descrizione corrisponde a",
+      "merchant_equals": "il merchant è"
+    },
+    "merchant": {
+      "contains": "il merchant contiene",
+      "starts_with": "il merchant inizia con",
+      "ends_with": "il merchant finisce con",
+      "equals": "il merchant è esattamente",
+      "regex": "il merchant corrisponde a",
+      "merchant_equals": "il merchant è"
+    },
+    "amountBetween": "l'importo è tra {{min}} e {{max}} €",
+    "amountMin": "l'importo è almeno {{min}} €",
+    "amountMax": "l'importo è al massimo {{max}} €"
+  },
+  "picker": {
+    "title": "Dal movimento",
+    "hint": "Tocca le parti che devono esserci sempre. Le altre vengono ignorate.",
+    "variableHint": "Le parole con numeri cambiano a ogni movimento: non servono alla regola.",
+    "selectStable": "Tutte le parti fisse",
+    "clear": "Deseleziona"
+  },
+  "text": {
+    "label": "Il testo contiene",
+    "placeholder": "Ad esempio Rata mutuo"
+  },
+  "impact": {
+    "title": "Movimenti coinvolti",
+    "loading": "Calcolo l'impatto…",
+    "none": "Nessun movimento corrisponde a queste condizioni.",
+    "error": "Non è stato possibile calcolare l'impatto.",
+    "change_one": "cambia categoria",
+    "change_other": "cambiano categoria",
+    "ok_one": "già giusto",
+    "ok_other": "già giusti",
+    "protected_one": "protetto",
+    "protected_other": "protetti",
+    "see_one": "Vedi il movimento",
+    "see_other": "Vedi i {{count}} movimenti",
+    "truncated": "Calcolato sui movimenti più recenti.",
+    "warnBroad": "Toglierebbe da altre categorie {{count}} movimenti, più di quelli già giusti. Aggiungi una parte per restringere la regola.",
+    "protectedHint": "Le correzioni fatte a mano vincono sempre sulle regole.",
+    "groups": {
+      "change": "Cambiano ({{count}})",
+      "ok": "Già giusti ({{count}})",
+      "protected": "Protetti ({{count}})"
+    },
+    "rowOk": "già a posto",
+    "rowProtected": "scelta da te, non cambia",
+    "emptyGroup": "Nessun movimento in questo gruppo.",
+    "loadMore": "Mostra altri",
+    "needCategory": "Scegli la categoria per vedere quanti movimenti toccherebbe."
+  },
+  "customize": {
+    "open": "Personalizza",
+    "close": "Nascondi condizioni",
+    "title": "Condizioni",
+    "matchMode": "Scatta quando",
+    "all": "tutte",
+    "any": "almeno una",
+    "addText": "Aggiungi condizione di testo",
+    "addAmount": "Aggiungi condizione sull'importo",
+    "remove": "Togli condizione",
+    "field": "Campo",
+    "operator": "Confronto",
+    "value": "Testo",
+    "min": "Importo minimo (€)",
+    "max": "Importo massimo (€)",
+    "amountHint": "Si confronta l'importo senza segno: una rata da −487,30 vale 487,30.",
+    "fields": {
+      "description": "Descrizione",
+      "merchant": "Merchant",
+      "amount": "Importo"
+    },
+    "regexHint": "Espressione regolare: solo per casi che le altre scelte non coprono.",
+    "advanced": "Avanzate",
+    "nameHint": "Se lo lasci vuoto lo scelgo io."
+  },
+  "apply": {
+    "label_one": "Applica anche al movimento esistente",
+    "label_other": "Applica anche ai {{count}} movimenti esistenti",
+    "hint": "I movimenti corretti a mano non vengono toccati.",
+    "started": "Regola creata. L'aggiornamento dei movimenti è in corso: lo segui in Attività.",
+    "busy": "Regola creata. Un'altra riclassificazione è in corso: applica la regola ai movimenti esistenti quando termina.",
+    "failed": "Regola creata, ma non è stato possibile aggiornare i movimenti esistenti."
+  },
+  "suggestions": {
+    "times_one": "scelta {{count}} volta",
+    "times_other": "scelta {{count}} volte",
+    "open": "Vedi proposte",
+    "close": "Chiudi",
+    "ambiguous": "I movimenti con questo testo hanno categorie diverse: per distinguerli conta il beneficiario o la causale.",
+    "question": "Per quali movimenti vuoi che valga sempre?",
+    "options": {
+      "precise": "Più precisa",
+      "recommended": "Consigliata",
+      "broad": "Più ampia"
+    },
+    "see": "Vedi i movimenti coinvolti",
+    "create": "Crea regola",
+    "showMore_one": "Mostra un altro suggerimento",
+    "showMore_other": "Mostra altri {{count}} suggerimenti",
+    "showFewer": "Mostra meno suggerimenti",
+    "summary_one": "{{count}} movimento: {{parts}}",
+    "summary_other": "{{count}} movimenti: {{parts}}",
+    "nChange_one": "{{count}} cambia",
+    "nChange_other": "{{count}} cambiano",
+    "nOk_one": "{{count}} già giusto",
+    "nOk_other": "{{count}} già giusti",
+    "nProtected_one": "{{count}} protetto",
+    "nProtected_other": "{{count}} protetti"
   }
 }

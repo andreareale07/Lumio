@@ -11,9 +11,11 @@ interface DialogProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
+  /** `lg` per i form con molte parti (costruttore di regole). */
+  size?: "md" | "lg";
 }
 
-export function Dialog({ open, onClose, title, children, footer }: DialogProps) {
+export function Dialog({ open, onClose, title, children, footer, size = "md" }: DialogProps) {
   const { t } = useTranslation("common");
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -54,7 +56,7 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
         // l'overlay esterno era scrollabile. `max-h-[90vh]` + `flex-col`
         // tiene titolo e footer sempre visibili, mentre SOLO il contenuto
         // centrale scorre.
-        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-xl border border-border bg-surface p-5 shadow-lg"
+        className={`flex max-h-[90vh] w-full ${size === "lg" ? "max-w-xl" : "max-w-md"} flex-col rounded-xl border border-border bg-surface p-5 shadow-lg`}
       >
         <div className="mb-4 flex shrink-0 items-center justify-between">
           <h2 id="dialog-title" className="text-base font-semibold text-text">

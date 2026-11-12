@@ -20,6 +20,7 @@ Tienile aggiornate: se scopri un fatto nuovo non ovvio dal codice, o uno scritto
 | Test, verifica, preparare un commit | `guida-metodo-sviluppo-e-test.md`, `procedura-gestione-branch.md` |
 | Job lunghi, worker, SSE, interruzioni | `guida-job-asincroni.md` |
 | Import, parser, dedup, trasferimenti, tipi transazione | `guida-import-e-movimenti.md` |
+| Regole di categorizzazione, suggerimenti, riclassificazione | `guida-regole-e-classificazione.md`, `progetto-frontend.md` |
 | Portfolio, prezzi, rendimenti, fiscalita' | `guida-investimenti-e-fiscalita.md` |
 | AI, Google Sheets | `guida-ai-e-integrazioni.md` |
 | Open Banking, connettori bancari, sync automatica | `task-open-banking.md`, `guida-import-e-movimenti.md` |
@@ -68,6 +69,9 @@ Manutenzione della memoria:
 - Al 2026-10-30: E2E Playwright non risultano rieseguiti dopo il dedup engine (2 golden-path rotti al 2026-08-21); test dedicati del motore a lotti da verificare (esiste `test_tax_calc.py`).
 - Al 2026-10-30: da pulire con ok dell'utente: 5 worktree `agent-*` orfani su `2280394`, cartelle `db/postgres-init;C/` e `backend/features/settings/` (artefatti di path), `Lumio.tar.gz`.
 - Al 2026-11-06: filtri di Movimenti rifatti (commit `2fe1506`, verificati solo su desktop); prossima attivita' richiesta: revisione globale di filtri e periodo, mobile first (scheda `task-*`).
-- Al 2026-11-07: Open Banking (Enable Banking) committato con analisi di sicurezza e correzioni, mai provato con conti reali (blindatura dei dati di sync, migration 0047: fatta ma NON committata ne' applicata in produzione): vedi scheda `task-open-banking.md` e `docs/open-banking-setup.md` (migration 0044 applicata in produzione il 2026-11-07; abilitazione `OPEN_BANKING_ENABLED` da confermare; con `APP_ENV=production` serve `SECRET_KEY` da almeno 32 caratteri).
+- Al 2026-11-07: Open Banking (Enable Banking) committato con analisi di sicurezza e correzioni, provato con conti reali (2026-11-08: Trade Republic collega ma manda solo importo/verso/data, Poste non concludeva il consenso; al 2026-11-12 BancoPosta funziona e le descrizioni sono corrette) e blindatura dei dati di sync (migration 0047) in produzione: vedi scheda `task-open-banking.md` e `docs/open-banking-setup.md` (migration 0044 applicata in produzione il 2026-11-07; abilitazione `OPEN_BANKING_ENABLED` da confermare; con `APP_ENV=production` serve `SECRET_KEY` da almeno 32 caratteri).
 - Al 2026-11-07: app mobile (PWA + guscio Capacitor Android, gesture, privacy importi, blocco biometrico, push FCM, 2FA TOTP) committata e in produzione (migration fino a 0046), APK locale installato e verificato su telefono per login, blocco biometrico e header; da provare: swipe, 2FA, push (serve Firebase), banca reale. Vedi `task-app-mobile.md`, `docs/mobile-app.md`, `guida-deploy.md`.
+- Al 2026-11-12: regole rifatte (condizioni multiple E/O e importo, anteprima d'impatto, suggerimenti per frasi stabili, applicazione ai movimenti
+  esistenti; migration 0048), NON committate; suite backend/frontend verdi, flusso provato nel browser a 375px su DB effimero, E2E Playwright
+  `rules-golden-path` aggiornato ma non rieseguito. Vedi `guida-regole-e-classificazione.md`.
 - Richiesto dall'utente dopo M12, non pianificato: ruolo admin di istanza con "Impostazioni istanza" (config fuori da `.env`, audit log) e restyle menu Impostazioni.

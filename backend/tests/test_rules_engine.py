@@ -1,18 +1,23 @@
 import uuid
 from datetime import UTC, datetime
 
-from app.services.rules_engine import Probe, RuleSpec, evaluate
+from app.services.rules_engine import Condition, Probe, RuleSpec, evaluate
 
 _CATEGORY_A = uuid.uuid4()
 _CATEGORY_B = uuid.uuid4()
 
 
 def _rule(**overrides) -> RuleSpec:
+    """Regola a una condizione: `field`/`operator`/`value` negli override
+    descrivono l'unica condizione; `conditions`/`match_mode` per le altre."""
+    condition = Condition(
+        field=overrides.pop("field", "description"),
+        operator=overrides.pop("operator", "contains"),
+        value=overrides.pop("value", "netflix"),
+    )
     defaults = dict(
         id=uuid.uuid4(),
-        field="description",
-        operator="contains",
-        value="netflix",
+        conditions=(condition,),
         category_id=_CATEGORY_A,
         priority=100,
         created_at=datetime(2026, 1, 1, tzinfo=UTC),

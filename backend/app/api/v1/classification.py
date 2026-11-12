@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_current_workspace_id
 from app.db.session import get_db
+from app.models.rule import Rule
 from app.models.user import User
 from app.schemas.classification import (
     CategoryPreviewBreakdownOut,
@@ -64,14 +65,27 @@ async def trigger_reclassification(
     `trigger_market_data_refresh`: se e' gia' 'running', ritorna lo stesso
     job_id invece di accodarne un secondo."""
     current = await get_latest_run(db, workspace_id, JOB_KIND)
-    if current is not None and current.status == "running":
+    if payload.rule_id is not None:
+        rule = await db.get(Rule, payload.rule_id)
+        if rule is None or rule.workspace_id != workspace_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Rule not found")
+        if current is not None and current.status == "running":
+            # Restituire il job in corso farebbe credere che la regola sia stata applicata.
+            raise HTTPException(status.HTTP_409_CONFLICT, "Riclassificazione gia' in corso")
+    elif current is not None and current.status == "running":
         return ReclassifyTriggered(job_id=current.job_id or "")
 
-    job_id = await enqueue_reclassification(workspace_id, user.id, payload.scope, payload.run_ai)
+    job_id = await enqueue_reclassification(
+        workspace_id, user.id, payload.scope, payload.run_ai, payload.rule_id
+    )
     await log_event(
         db, workspace_id, user.id, "RECLASSIFICATION_RUN",
         entity_type="workspace", entity_id=workspace_id,
-        metadata={"scope": payload.scope, "run_ai": payload.run_ai},
+        metadata={
+            "scope": payload.scope,
+            "run_ai": payload.run_ai,
+            "rule_id": str(payload.rule_id) if payload.rule_id else None,
+        },
     )
     await db.commit()
     return ReclassifyTriggered(job_id=job_id)
