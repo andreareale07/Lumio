@@ -18,6 +18,9 @@ const MAX_PX = 120;
 // Prima di decidere se il gesto e' orizzontale (swipe) o verticale (scroll)
 // si aspettano pochi pixel: cosi' lo scroll della pagina non viene mai rubato.
 const LOCK_PX = 8;
+// Fascia ai bordi dello schermo riservata al sistema: il gesto "indietro" di
+// Android parte da li' e non va MAI intercettato dall'app.
+const EDGE_GUARD_PX = 32;
 
 /** Riga con azioni a scorrimento (solo mobile). Scorrere verso destra attiva
  * `startAction`, verso sinistra `endAction`; oltre soglia l'azione parte al
@@ -45,6 +48,8 @@ export function SwipeableRow({
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "mouse") return; // desktop: nessuno swipe
+    // Gesto che parte dal bordo = gesto di sistema (indietro): lo lasciamo al sistema.
+    if (event.clientX < EDGE_GUARD_PX || event.clientX > window.innerWidth - EDGE_GUARD_PX) return;
     gesture.current = { x: event.clientX, y: event.clientY, locked: null, armed: false };
   };
 
@@ -81,6 +86,14 @@ export function SwipeableRow({
     setDx(0);
   };
 
+  // Gesto interrotto dal sistema (es. "indietro" di Android): si annulla e basta,
+  // senza far partire alcuna azione.
+  const cancel = () => {
+    gesture.current = null;
+    setDragging(false);
+    setDx(0);
+  };
+
   const revealed = dx > 0 ? startAction : dx < 0 ? endAction : undefined;
   const Icon = revealed?.icon;
 
@@ -101,7 +114,7 @@ export function SwipeableRow({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={finish}
-        onPointerCancel={finish}
+        onPointerCancel={cancel}
         style={{ transform: `translateX(${dx}px)` }}
         className={`relative touch-pan-y ${dragging ? "" : "transition-transform duration-200 motion-reduce:transition-none"}`}
       >

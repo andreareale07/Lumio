@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 
 import { X } from "lucide-react";
 
+import { useBackClose } from "../../lib/useBackClose";
+
 interface DialogProps {
   open: boolean;
   onClose: () => void;
@@ -18,6 +20,7 @@ interface DialogProps {
 export function Dialog({ open, onClose, title, children, footer, size = "md" }: DialogProps) {
   const { t } = useTranslation("common");
   const panelRef = useRef<HTMLDivElement>(null);
+  useBackClose(open, onClose);
 
   useEffect(() => {
     if (!open) return;

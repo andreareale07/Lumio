@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 
 import { X } from "lucide-react";
 
+import { useBackClose } from "../../lib/useBackClose";
+
 interface DrawerProps {
   open: boolean;
   onClose: () => void;
@@ -20,6 +22,7 @@ interface DrawerProps {
  * contestuali senza cambiare pagina), su desktop resta un pannello laterale. */
 export function Drawer({ open, onClose, title, children, widthClassName = "max-w-md" }: DrawerProps) {
   const { t } = useTranslation("common");
+  useBackClose(open, onClose);
 
   useEffect(() => {
     if (!open) return;

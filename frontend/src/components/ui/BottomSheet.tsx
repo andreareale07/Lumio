@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 
 import { X } from "lucide-react";
 
+import { useBackClose } from "../../lib/useBackClose";
+
 const CLOSE_DRAG_PX = 100;
 
 interface BottomSheetProps {
@@ -24,6 +26,7 @@ interface BottomSheetProps {
 export function BottomSheet({ open, onClose, title, children, footer }: BottomSheetProps) {
   const { t } = useTranslation("common");
   const sheetRef = useRef<HTMLDivElement>(null);
+  useBackClose(open, onClose);
   const dragStart = useRef<number | null>(null);
   const [dragY, setDragY] = useState(0);
 

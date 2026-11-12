@@ -37,6 +37,15 @@ Decisione 2026-11-07 (utente su Android, iOS dopo): stesso frontend React in un 
 - Ancora da provare: swipe/pull-to-refresh nell'app, privacy screen (FLAG_SECURE), 2FA, push (serve Firebase).
 - Dal LXC di produzione il dominio pubblico non e' raggiungibile (niente hairpin): i test dall'esterno vanno fatti da PC/telefono.
 
+## Gesture di sistema (2026-11-12)
+- Il gesto "indietro" di Android parte dal bordo e il browser manda `pointercancel`/`touchcancel`: quello e' un ANNULLAMENTO,
+  mai un rilascio (prima `SwipeableRow` lo trattava come rilascio e apriva il dettaglio). Regola: nessuna gesture dell'app parte
+  entro 32px dai bordi laterali e i cancel non fanno partire azioni. Il comportamento nativo del "indietro" non va intercettato.
+- "Indietro" deve fare SEMPRE un passo solo: Drawer/Dialog/BottomSheet usano `lib/useBackClose.ts` (una voce di cronologia per
+  overlay aperto, stesso URL; indietro = chiude l'overlay). Ogni nuovo overlay deve passare da quei componenti o dall'hook.
+  Limite noto: se un'azione chiude l'overlay E naviga subito dopo, la voce aggiunta puo' restare in cronologia.
+- Aperto: in alcuni punti e' difficile tornare indietro (navigazione), da rivedere.
+
 ## Limiti / da sapere
 - Open Banking e Google OAuth usano redirect del browser: dall'app nativa si fanno dal sito web.
 - Biometria = gate applicativo sul Keystore (plugin aparajita), non chiave legata alla biometria.

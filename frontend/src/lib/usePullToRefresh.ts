@@ -49,10 +49,11 @@ export function usePullToRefresh(ref: RefObject<HTMLElement | null>, onRefresh: 
       if (damped < THRESHOLD_PX) armed = false;
       setPull(damped);
     };
-    const onEnd = () => {
+    const onEnd = (e?: Event) => {
       if (startY === null) return;
       startY = null;
-      if (armed && !busy) {
+      // Gesto interrotto dal sistema (touchcancel): si annulla, non si aggiorna.
+      if (armed && !busy && e?.type !== "touchcancel") {
         busy = true;
         setRefreshing(true);
         setPull(THRESHOLD_PX);
