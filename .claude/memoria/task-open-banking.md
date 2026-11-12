@@ -118,16 +118,40 @@ Audit del codice + ricerca (doc Enable Banking, issue Firefly III/Actual/Sure): 
 - **Protocollo col primo conto reale**: due sync consecutive, confrontare le statistiche (stabilita' di `entry_reference`, `booking_date`,
   flag), poi tarare. Nessuna banca italiana e' mai stata provata.
 
-## Dump diagnostico della risposta grezza (2026-11-08, eccezione voluta dall'utente)
-Dopo il primo collegamento reale (Trade Republic) tutte le descrizioni risultavano "Movimento" (ripiego di `normalize_transaction_ex` quando
-`remittance_information`, `note`, nome controparte e descrizione del codice sono vuoti: il dato vero sta in un campo non letto).
-`OPEN_BANKING_DEBUG_DUMP_DIR` (spento se vuoto) scrive su file 0600 i primi `OPEN_BANKING_DEBUG_DUMP_LIMIT` movimenti GREZZI di ogni pagina
-(`enable_banking._debug_dump_page`), mai nei log. Contiene dati finanziari: attivare solo per l'analisi, poi svuotare la variabile e cancellare i file.
-La sync gira nel container `worker`: i file stanno li'. Le transazioni gia' importate con "Movimento" non si correggono con "Rileggi storico"
-(dedup per `external_id`): dopo la correzione del parsing vanno eliminate (import) e riletta la storia.
+## Riscontri col primo collegamento reale (2026-11-08): dati limitati e vincoli del provider
+Prima banca provata: Trade Republic (funziona). Poste (BancoPosta) NON funziona. Cio' che si e' scoperto e non e' ovvio dal codice:
+- **Applicazione "ristretta"**: una app production nuova parte *inattiva* e risponde **403 a ogni chiamata** (anche `GET /aspsps`, che con un
+  profilo sandbox mostrava solo ~4 banche di prova) finche' non si completa "Link accounts" nel Control Panel. Una volta attiva, **solo i conti
+  collegati nel Control Panel sono leggibili**: la sessione di una banca senza conti collegati torna con **0 conti** ("La banca non ha condiviso
+  nessun conto"). Per ogni conto da leggere in Lumio: prima collegarlo nel Control Panel, poi (ri)collegare la banca in Lumio. Redirect URL
+  registrato = `<dominio>/api/v1/open-banking/callback`, HTTPS, uguale a `OPEN_BANKING_REDIRECT_URI`. Il messaggio di Lumio "credenziali
+  rifiutate" e' generico: la causa vera sta nel log `credenziali rifiutate (code=..., http=...)` di `app` (aggiunto 2026-11-08).
+- **Trade Republic via Enable Banking manda SOLO** `transaction_amount`, `credit_debit_indicator`, `status`, `booking_date`: tutti gli altri campi
+  sono `null` (nessun `entry_reference`/`transaction_id`, `remittance_information`, `note`, `creditor`/`debtor`, `bank_transaction_code`,
+  `merchant_category_code`, `value_date`, `balance_after_transaction`); importi con 6 decimali ("400.000000"). Non e' un difetto del parsing:
+  il nome del movimento **non esiste** in questo canale. Conseguenze: nessuna descrizione (ripiego "Addebito"/"Accredito" + flag
+  `description_missing`, mostrato in "Dettagli sync"), nessuna categoria/regola/riconoscimento di merchant, dedup solo a impronta (importo+data+verso,
+  fragile se la banca sposta la data), nessun controllo di continuita' sul saldo, e **doppioni con i PDF** (il match doppio-canale richiede un
+  `external_id`). Decisione/consiglio: per Trade Republic la fonte dei dati resta il **PDF** (ha descrizioni e operazioni di investimento); non
+  attivare la sync bancaria sullo stesso conto Lumio. Il canale ha senso con banche che mandano i testi: **da verificare con Poste**. Non sappiamo
+  se il limite e' di Trade Republic o di come Enable Banking la espone (da chiedere al supporto Enable Banking).
+- **Aggiornamento 2026-11-12 (riferito dall'utente): su BancoPosta il collegamento funziona e le descrizioni dei movimenti sono corrette.** Quindi il
+  limite dei dati minimi e' della banca/canale di Trade Republic, non di Enable Banking ne' del nostro parsing: nessun motivo di cambiare provider.
+  Non registrato: cosa abbia sbloccato il consenso (da annotare se l'utente lo ricorda) e quali campi mandi Poste (dump non ancora letto).
+- **Poste (BancoPosta), storico 2026-11-08 (superato dal punto sopra)**: dopo il consenso ripropone la schermata di accesso; il browser torna a Lumio solo se l'utente annulla
+  (`callback?error=access_denied&error_description=Cancelled+by+user`). Il callback sul dominio privato (DuckDNS, rete locale) funziona (provato anche da
+  quell'annullamento e da Trade Republic): il blocco e' nel flusso di Poste/Enable Banking, non in Lumio. Non e' documentato altrove; da chiedere al supporto
+  di Enable Banking (data/ora dei tentativi) e da confrontare col "Link accounts" nel Control Panel.
+- **Dump diagnostico** (eccezione voluta dall'utente alla regola "niente dati finanziari nei log"): `OPEN_BANKING_DEBUG_DUMP_DIR` (spento se vuoto) scrive su
+  file 0600 i primi `OPEN_BANKING_DEBUG_DUMP_LIMIT` movimenti GREZZI di ogni pagina (`enable_banking._debug_dump_page`), mai nei log; la sync gira nel
+  container `worker`, i file stanno li' (`/app/storage/ob-debug`). Attivare solo per un'analisi, poi svuotare la variabile e cancellare i file. E' lo
+  strumento giusto per ogni nuova banca: mostra i campi che la banca valorizza davvero.
+- Le transazioni gia' importate non si correggono con "Rileggi storico" (dedup per `external_id`/impronta): vanno eliminate (import) e riscaricate.
+- Per ogni banca nuova: collegare il conto nel Control Panel, due sync consecutive, leggere "Dettagli sync" (flag `description_missing`, id segnaposto,
+  scarti) e, se serve, il dump.
 
 ## Non fatto / da verificare
-Collegamento con conti reali (Poste, ecc.), E2E Playwright dedicati, notifica fuori dall'app (email/push), movimenti pending,
+Poste (flusso che torna all'accesso), altre banche reali, prima sync Trade Republic con conti (se mai si usera' il canale), E2E Playwright dedicati, notifica fuori dall'app (email/push), movimenti pending,
 ancoraggio del saldo bancario al patrimonio di Lumio, pairing automatico delle due gambe di un trasferimento tra conti propri.
 Test `test_open_banking_state_keys.py::test_production_accepts_strong_key_and_development_is_lenient` fallisce con `OPEN_BANKING_REDIRECT_URI`
 http nell'ambiente (come in `ci.yml`): non legato alla blindatura, da verificare.

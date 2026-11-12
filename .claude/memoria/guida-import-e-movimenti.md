@@ -63,3 +63,7 @@ e' la chiave primaria di dedup quando c'e'; senza, vale il fingerprint. `ParsedR
 ospita anche `reset_open_banking_cursor` (eliminare un import OB fa ripartire la sync dallo storico). `external_id` e' prova di duplicato solo con stesso
 importo/valuta/data; un movimento OB che combacia con uno senza `external_id` (PDF/CSV) va sempre in REVIEW; le REVIEW portano `external_id` e non
 vengono riaccodate. Etichette OB mappabili come un parser (`open_banking`). Dettagli e limiti: `task-open-banking.md`.
+Attenzione: alcune banche (Trade Republic via Enable Banking) mandano solo importo, verso e data: senza descrizione ne' id, la riga e' "Addebito"/"Accredito"
+e dedup solo a impronta; per quelle il PDF resta la fonte (stesso conto = doppioni). Un singolo movimento si elimina dal dettaglio
+(`DELETE /transactions/{id}`: tombstone se arriva da OB, ricalcolo dello storico patrimonio dalla sua data, operazioni di investimento collegate
+restano e perdono solo il link).
