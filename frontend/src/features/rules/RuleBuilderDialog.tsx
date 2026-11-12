@@ -206,16 +206,26 @@ export function RuleBuilderDialog({ open, onClose, onSaved, rule, transaction, d
   const onSubmit = async () => {
     setSubmitted(true);
     setFormError(null);
-    if (invalid || !categoryId) return;
-    const payload = {
-      name: name.trim() || autoRuleName(conditions),
-      conditions: normalizeConditions(conditions),
-      match_mode: effectiveMode,
-      category_id: categoryId,
-      priority: Number.parseInt(priority, 10) || 100,
-    };
+    // Nessuna uscita silenziosa: se non si puo' salvare, il motivo sta nel piede
+    // del foglio, accanto al pulsante (le parti non valide sono segnate sopra).
+    if (!categoryId) {
+      setFormError(t("rules:validation.category"));
+      return;
+    }
+    if (invalid) {
+      setCustomizeOpen(true);
+      setFormError(conditions.length === 0 ? t("rules:validation.conditions") : t("rules:validation.fixConditions"));
+      return;
+    }
     setSaving(true);
     try {
+      const payload = {
+        name: name.trim() || autoRuleName(conditions),
+        conditions: normalizeConditions(conditions),
+        match_mode: effectiveMode,
+        category_id: categoryId,
+        priority: Number.parseInt(priority, 10) || 100,
+      };
       const saved = isEditing
         ? await updateRule.mutateAsync({ id: rule.id, ...payload })
         : await createRule.mutateAsync(payload);
@@ -238,7 +248,9 @@ export function RuleBuilderDialog({ open, onClose, onSaved, rule, transaction, d
         setNotice(error instanceof ApiError && error.status === 409 ? t("rules:apply.busy") : t("rules:apply.failed"));
       }
     } catch (error) {
-      setFormError(friendlyErrorMessage(error, t("rules:dialog.error")));
+      console.error("Salvataggio regola non riuscito", error);
+      const detail = error instanceof ApiError ? "" : ` (${error instanceof Error ? error.message : String(error)})`;
+      setFormError(friendlyErrorMessage(error, t("rules:dialog.error")) + detail);
     } finally {
       setSaving(false);
     }

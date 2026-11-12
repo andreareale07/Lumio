@@ -9,6 +9,7 @@
     "value": "Enter some text",
     "category": "Select a category",
     "conditions": "Add at least one condition",
+    "fixConditions": "Check the conditions: one is empty or invalid.",
     "invalidRegex": "Invalid regular expression",
     "regexLength": "Expression too long (200 characters at most)",
     "bounds": "Enter at least one valid amount",

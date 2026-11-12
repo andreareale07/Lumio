@@ -9,6 +9,7 @@
     "value": "Inserisci un testo",
     "category": "Seleziona una categoria",
     "conditions": "Aggiungi almeno una condizione",
+    "fixConditions": "Controlla le condizioni: una è vuota o non valida.",
     "invalidRegex": "Espressione regolare non valida",
     "regexLength": "Espressione troppo lunga (massimo 200 caratteri)",
     "bounds": "Inserisci almeno un importo valido",

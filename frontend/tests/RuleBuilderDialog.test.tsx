@@ -186,6 +186,20 @@ describe("RuleBuilderDialog", () => {
     });
   });
 
+  it("se non si può salvare lo dice accanto al pulsante invece di non fare nulla", async () => {
+    const calls = stubApi();
+    const user = userEvent.setup();
+    renderBuilder();
+    const picker = await screen.findByRole("region", { name: "Dal movimento" });
+    await user.click(within(picker).getByRole("button", { name: "Deseleziona" }));
+
+    await user.click(screen.getByRole("button", { name: "Crea regola" }));
+
+    // Una volta nella sezione delle condizioni e una accanto al pulsante.
+    expect(await screen.findAllByText("Aggiungi almeno una condizione")).toHaveLength(2);
+    expect(calls.some((c) => c.url.endsWith("/rules") && c.method === "POST")).toBe(false);
+  });
+
   it("crea la regola con le condizioni scelte e la applica ai movimenti esistenti", async () => {
     const calls = stubApi();
     const user = userEvent.setup();
